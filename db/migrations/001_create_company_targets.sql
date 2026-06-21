@@ -36,4 +36,3 @@ CREATE INDEX IF NOT EXISTS idx_jobpush_targets_sector
     ON jobpush.company_targets(naics_sector);
 
 COMMIT;
-

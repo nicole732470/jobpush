@@ -64,4 +64,3 @@ DELETE FROM jobpush.company_targets t
 WHERE NOT EXISTS (SELECT 1 FROM public.companies c WHERE c.fein = t.fein);
 
 COMMIT;
-

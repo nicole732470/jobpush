@@ -36,4 +36,3 @@ db/migrations/       JobPush-owned schema changes
 db/refresh/          repeatable data refresh SQL
 docs/                architecture and scoring notes
 ```
-

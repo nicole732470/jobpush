@@ -27,4 +27,3 @@ repository clear migration ownership.
 `single_lca_company` is stored independently. A single historical filing is
 weak evidence of current hiring activity, so it should not by itself outrank a
 company with repeated, recent, certified sponsorship activity.
-
