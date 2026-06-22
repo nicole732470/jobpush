@@ -37,15 +37,7 @@ WITH dataset_window AS (
 ), source AS (
     SELECT
         source_base.*,
-        CASE WHEN target_role_match THEN 1 ELSE 0 END
-        + CASE WHEN recent_lca THEN 1 ELSE 0 END
-        + CASE WHEN certified_count > 0 THEN 1 ELSE 0 END
-        + CASE
-            WHEN lca_count >= 100 THEN 3
-            WHEN lca_count >= 25 THEN 2
-            WHEN lca_count >= 5 THEN 1
-            ELSE 0
-          END AS priority_score
+        CASE WHEN target_role_match THEN 1 ELSE 0 END AS priority_score
     FROM source_base
 )
 INSERT INTO jobpush.company_targets (
@@ -58,7 +50,7 @@ SELECT
     fein, company_id, company_name, naics_code, naics_sector,
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_match, target_role_lca_count,
-    last_decision_date, recent_lca, priority_score, 'v2', now()
+    last_decision_date, recent_lca, priority_score, 'role-only-v1', now()
 FROM source
 ON CONFLICT (fein) DO UPDATE SET
     company_id = EXCLUDED.company_id,
