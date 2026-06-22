@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE jobpush.company_targets
+    ADD COLUMN IF NOT EXISTS recent_lca BOOLEAN NOT NULL DEFAULT FALSE;
+
+COMMIT;
