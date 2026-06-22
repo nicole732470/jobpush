@@ -51,6 +51,9 @@ public ATS adapters use the same batch/run/posting loader:
 - `workday-cxs`: Grubhub is the representative Workday site.
 - `oracle-cloud-rest`: JPMorgan is the representative Oracle Recruiting Cloud
   site; the adapter discovers and applies the United States location facet.
+- `apple-jobs-api`: Apple uses its own public search API. It is already limited
+  to the United States, fetches search summaries only, and uses four workers
+  because Apple fixes the response size at 20 jobs per page.
 
 Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
