@@ -38,7 +38,7 @@ WITH dataset_window AS (
         source_base.*,
         CASE WHEN target_role_lca_count > 0 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS target_role_score,
-        CASE WHEN lca_count > 5 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
+        CASE WHEN target_role_lca_count > 0 AND lca_count > 5 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS lca_count_score,
         CASE WHEN target_role_lca_count > 0
               AND jobpush.is_chicago_metro(employer_city, employer_state)

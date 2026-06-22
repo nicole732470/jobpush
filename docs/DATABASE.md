@@ -22,7 +22,7 @@ repository clear migration ownership.
 | Component | Column | Points |
 |---|---|---:|
 | Target SOC role match | `target_role_score` | +1 |
-| LCA volume | `lca_count_score` | +1 when `lca_count > 5` |
+| LCA volume | `lca_count_score` | +1 when `target_role_score = 1` and `lca_count > 5` |
 | Chicago metro employer | `chicago_score` | +0.5 when `target_role_score = 1` and city is in `jobpush.chicago_metro_cities` |
 | Total | `priority_score` | sum of component scores |
 

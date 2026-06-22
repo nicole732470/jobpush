@@ -8,7 +8,7 @@ them into `priority_score` (higher values are crawled first).
 | Column | Points | Rule |
 |---|---:|---|
 | `target_role_score` | 0 or 1 | +1 when any LCA filing matches `jobpush.target_soc_roles` |
-| `lca_count_score` | 0 or 1 | +1 when `lca_count > 5` |
+| `lca_count_score` | 0 or 1 | +1 when `target_role_score = 1` and `lca_count > 5` |
 | `chicago_score` | 0 or 0.5 | +0.5 when `target_role_score = 1` and `employer_city` is in the Chicago metro list (IL) |
 | `priority_score` | sum | `target_role_score + lca_count_score + chicago_score` |
 
