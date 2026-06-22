@@ -1,10 +1,12 @@
+-- Canonical crawl queue. Reads jobpush.employer_filing_stats (not public.lca_cases).
+
 BEGIN;
 
 TRUNCATE jobpush.company_targets_consolidated;
 
 WITH dataset_window AS (
-    SELECT MAX(decision_date) AS max_decision_date
-    FROM public.lca_cases
+    SELECT COALESCE(MAX(dataset_max_decision_date), MAX(last_decision_date)) AS max_decision_date
+    FROM jobpush.employer_filing_stats
 ), merged_units AS (
     SELECT
         grp.group_id AS consolidation_key,
@@ -65,60 +67,40 @@ WITH dataset_window AS (
     JOIN public.companies company_row
       ON company_row.fein = unit.fein
     GROUP BY unit.consolidation_key
-), filing_rows AS (
-    SELECT
-        unit.consolidation_key,
-        lcase.decision_date,
-        target.normalized_soc_code,
-        CASE
-            WHEN target.normalized_soc_code IS NULL THEN NULL
-            WHEN lcase.wage_rate_of_pay_from IS NULL THEN NULL
-            WHEN lcase.wage_unit_of_pay = 'Year'
-                THEN lcase.wage_rate_of_pay_from
-            WHEN lcase.wage_unit_of_pay = 'Month'
-                THEN lcase.wage_rate_of_pay_from * 12
-            WHEN lcase.wage_unit_of_pay = 'Bi-Weekly'
-                THEN lcase.wage_rate_of_pay_from * 26
-            WHEN lcase.wage_unit_of_pay = 'Week'
-                THEN lcase.wage_rate_of_pay_from * 52
-            WHEN lcase.wage_unit_of_pay = 'Hour'
-                THEN lcase.wage_rate_of_pay_from * 2080
-            ELSE NULL
-        END AS target_role_annual_salary
-    FROM all_units unit
-    JOIN public.lca_cases lcase
-      ON lcase.employer_fein = unit.fein
-    LEFT JOIN jobpush.target_soc_roles target
-        ON target.active
-       AND target.normalized_soc_code = jobpush.normalize_soc_code(lcase.soc_code)
 ), filing_stats AS (
     SELECT
-        consolidation_key,
-        COUNT(normalized_soc_code)::INTEGER AS target_role_lca_count,
-        MIN(target_role_annual_salary)::NUMERIC(14, 2)
+        unit.consolidation_key,
+        SUM(stats.target_role_lca_count)::INTEGER AS target_role_lca_count,
+        MIN(stats.target_role_min_annual_salary)::NUMERIC(14, 2)
             AS target_role_min_annual_salary,
-        COUNT(*) FILTER (
-            WHERE normalized_soc_code IS NOT NULL
-              AND target_role_annual_salary IS NOT NULL
-        )::INTEGER AS target_role_valid_salary_lca_count,
-        COUNT(*) FILTER (
-            WHERE normalized_soc_code IS NOT NULL
-              AND target_role_annual_salary IS NULL
-        )::INTEGER AS target_role_invalid_salary_lca_count,
-        MAX(decision_date) AS last_decision_date
-    FROM filing_rows
-    GROUP BY consolidation_key
-), product_role_stats AS (
+        SUM(stats.target_role_valid_salary_lca_count)::INTEGER
+            AS target_role_valid_salary_lca_count,
+        SUM(stats.target_role_invalid_salary_lca_count)::INTEGER
+            AS target_role_invalid_salary_lca_count,
+        BOOL_OR(stats.has_product_role_job) AS has_product_role_job,
+        BOOL_OR(stats.has_product_manager_job) AS has_product_manager_job,
+        SUM(stats.product_role_lca_count)::INTEGER AS product_role_lca_count,
+        MAX(stats.last_decision_date) AS last_decision_date
+    FROM all_units unit
+    JOIN jobpush.employer_filing_stats stats
+      ON stats.fein = unit.fein
+    GROUP BY unit.consolidation_key
+), chicago_members AS (
     SELECT
         unit.consolidation_key,
-        BOOL_OR(jobpush.is_product_role_job_title(lcase.job_title)) AS has_product_role_job,
-        BOOL_OR(jobpush.is_product_manager_job_title(lcase.job_title)) AS has_product_manager_job,
-        COUNT(*) FILTER (
-            WHERE jobpush.is_product_role_job_title(lcase.job_title)
-        )::INTEGER AS product_role_lca_count
+        BOOL_OR(jobpush.is_chicago_metro(company_row.city, company_row.state))
+            AS has_chicago_member
     FROM all_units unit
-    JOIN public.lca_cases lcase
-      ON lcase.employer_fein = unit.fein
+    JOIN public.companies company_row
+      ON company_row.fein = unit.fein
+    GROUP BY unit.consolidation_key
+), linkedin_members AS (
+    SELECT
+        unit.consolidation_key,
+        BOOL_OR(match_row.fein IS NOT NULL) AS has_linkedin_member
+    FROM all_units unit
+    LEFT JOIN jobpush.linkedin_top_employer_company_matches match_row
+      ON match_row.fein = unit.fein
     GROUP BY unit.consolidation_key
 ), source_base AS (
     SELECT
@@ -142,11 +124,11 @@ WITH dataset_window AS (
             AS target_role_valid_salary_lca_count,
         COALESCE(filing_row.target_role_invalid_salary_lca_count, 0)
             AS target_role_invalid_salary_lca_count,
-        COALESCE(product_row.has_product_role_job, FALSE) AS has_product_role_job,
-        COALESCE(product_row.has_product_manager_job, FALSE) AS has_product_manager_job,
-        COALESCE(product_row.product_role_lca_count, 0) AS product_role_lca_count,
+        COALESCE(filing_row.has_product_role_job, FALSE) AS has_product_role_job,
+        COALESCE(filing_row.has_product_manager_job, FALSE) AS has_product_manager_job,
+        COALESCE(filing_row.product_role_lca_count, 0) AS product_role_lca_count,
         ROUND(
-            100.0 * COALESCE(product_row.product_role_lca_count, 0)
+            100.0 * COALESCE(filing_row.product_role_lca_count, 0)
                 / NULLIF(company_row.lca_count, 0),
             2
         ) AS product_role_lca_pct,
@@ -155,20 +137,8 @@ WITH dataset_window AS (
             filing_row.last_decision_date >= window_row.max_decision_date - 365,
             FALSE
         ) AS recent_lca,
-        EXISTS (
-            SELECT 1
-            FROM all_units unit
-            JOIN public.companies company_check
-              ON company_check.fein = unit.fein
-            WHERE unit.consolidation_key = meta.consolidation_key
-              AND jobpush.is_chicago_metro(company_check.city, company_check.state)
-        ) AS has_chicago_member,
-        EXISTS (
-            SELECT 1
-            FROM all_units unit
-            WHERE unit.consolidation_key = meta.consolidation_key
-              AND jobpush.is_linkedin_top_employer_2026(unit.fein)
-        ) AS has_linkedin_member
+        COALESCE(chicago_row.has_chicago_member, FALSE) AS has_chicago_member,
+        COALESCE(linkedin_row.has_linkedin_member, FALSE) AS has_linkedin_member
     FROM unit_meta meta
     JOIN company_stats company_row
       ON company_row.consolidation_key = meta.consolidation_key
@@ -176,8 +146,10 @@ WITH dataset_window AS (
       ON primary_row.consolidation_key = meta.consolidation_key
     LEFT JOIN filing_stats filing_row
       ON filing_row.consolidation_key = meta.consolidation_key
-    LEFT JOIN product_role_stats product_row
-      ON product_row.consolidation_key = meta.consolidation_key
+    LEFT JOIN chicago_members chicago_row
+      ON chicago_row.consolidation_key = meta.consolidation_key
+    LEFT JOIN linkedin_members linkedin_row
+      ON linkedin_row.consolidation_key = meta.consolidation_key
     CROSS JOIN dataset_window window_row
 ), scored AS (
     SELECT
