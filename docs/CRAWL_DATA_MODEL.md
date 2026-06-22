@@ -47,6 +47,17 @@ run alone:
 bash db/deploy_via_ssm.sh db/run_sync_crawl_targets.sh
 ```
 
+## Computed versus manual priority
+
+`company_targets_consolidated.computed_crawl_priority_tier` is always derived
+from score rules. `crawl_priority_tier` is the final effective tier after
+joining `jobpush.crawl_priority_overrides`. The override table is separate from
+the rebuilt analysis table, so manual promotions and downgrades survive every
+refresh.
+
+`crawl_targets.priority_source` is `manual_override` or `computed`; the queue
+also carries the computed tier and override reason for audit.
+
 ## Discovery and crawl responsibilities
 
 `crawl_targets` owns company-level website discovery state. `career_sites` owns

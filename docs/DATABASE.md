@@ -19,6 +19,7 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
 | `jobpush.company_consolidation_groups` | JobPush | Conservative merged employer groups (2+ FEINs) |
 | `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
+| `jobpush.crawl_priority_overrides` | JobPush | Persistent manual P0/P1/P2 promotions or downgrades |
 | `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
 | `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |

@@ -76,23 +76,29 @@ priority_score =
 |---|---|
 | **P1** | `priority_score > 3`（3.25、4.0、5.25 等） |
 | **P2** | `priority_score IN (3.0, 2.5)` |
-| **P0** | **仅手动**；refresh 时保留，不会被覆盖 |
+| **P0** | **仅手动**；写入 `crawl_priority_overrides`，refresh 不会覆盖 |
 | `NULL` | 其余（0、1、2、2.25 等） |
 
 生产占比（全表 68,958）：
 
-- **P1**：4,656（6.75%）
+- **P0**：2（Salesforce、Cognizant主美国实体）
+- **P1**：4,654（6.75%）
 - **P2**：14,486（21.01%）
 - 未分档：49,816（72.24%）
 
 在有目标岗公司（41,360）中：P1 **11.3%**，P2 **35.0%**。
 
-手动标 P0：
+手动override：
 
 ```sql
-UPDATE jobpush.company_targets_consolidated
-SET crawl_priority_tier = 'P0', updated_at = now()
-WHERE consolidation_key = 'FEIN 或 group_id';
+INSERT INTO jobpush.crawl_priority_overrides
+    (consolidation_key, override_tier, reason, created_by)
+VALUES ('FEIN 或 group_id', 'P0', '原因', 'nicole')
+ON CONFLICT (consolidation_key) DO UPDATE SET
+    override_tier = EXCLUDED.override_tier,
+    reason = EXCLUDED.reason,
+    active = TRUE,
+    updated_at = now();
 ```
 
 ---
@@ -160,6 +166,7 @@ LinkedIn 保守匹配（migration 021）：
 | 023 | **`crawl_targets` + `career_sites`** crawler 运行层及同步 |
 | 024 | 4.5+ 官网候选发现、候选证据和 search run 审计 |
 | 025 | 聚合站排除、TablePlus 人工审核视图和确认/拒绝函数 |
+| 026 | 持久人工P档override；区分computed与effective tier |
 
 每个 migration 通常有 `db/run_migration_NNN.sh`；通过 `db/deploy_via_ssm.sh` 在 EC2 执行。
 
@@ -199,7 +206,7 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
 1. **RDS 实例过小**：`t4g.micro`；filing stats 全表扫描仍 ~5min。可与 JobLens 协调升 `t4g.small`。
 2. **`public.lca_cases` 大索引**：JobPush 不会自动删；见 [`JOBLENS_SHARED_INDEX_NOTES.md`](JOBLENS_SHARED_INDEX_NOTES.md)。
 3. **Wage repair staging**：`lca_wage_repair_stage` / `backup` 仍在 RDS；验证后可 `bash db/run_migration_020.sh`。
-4. **P0 名单**：用户将手动标；sync 会自动加入 `crawl_targets`。
+4. **P0/P2人工档位**：统一写 `crawl_priority_overrides`；sync 自动更新 `crawl_targets`。
 5. **Crawl 实现**：4.5+ 候选已生成并等待人工审核；ATS adapter 和定时 worker 待实现。
 6. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
 7. **`per-FEIN company_targets`**：可改为 nightly-only 以省 refresh 时间（可选）。

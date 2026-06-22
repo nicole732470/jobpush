@@ -32,16 +32,29 @@ Automated tiers on `jobpush.company_targets_consolidated`:
 |---|---|---|
 | **P1** | `priority_score > 3` | Above 3.0 (e.g. 3.25, 4.0, 5.25) |
 | **P2** | `priority_score IN (3.0, 2.5)` | Exactly 3.0 or 2.5 |
-| **P0** | Manual only | Set in SQL/TablePlus; preserved across refresh |
+| **P0** | Manual only | Stored in `crawl_priority_overrides`; preserved across refresh |
 | *(null)* | Everything else | Not in automated crawl bands |
 
-Manual P0 example:
+`computed_crawl_priority_tier` stores the rule result. `crawl_priority_tier` is
+the effective tier after applying an active manual override. Manual overrides
+may promote or downgrade a company to P0, P1, or P2.
+
+Manual override example:
 
 ```sql
-UPDATE jobpush.company_targets_consolidated
-SET crawl_priority_tier = 'P0', updated_at = now()
-WHERE consolidation_key = '91-1144442';
+INSERT INTO jobpush.crawl_priority_overrides (
+    consolidation_key, override_tier, reason, created_by
+)
+VALUES ('salesforce', 'P0', 'Manual highest-priority company selection', 'nicole')
+ON CONFLICT (consolidation_key) DO UPDATE SET
+    override_tier = EXCLUDED.override_tier,
+    reason = EXCLUDED.reason,
+    created_by = EXCLUDED.created_by,
+    active = TRUE,
+    updated_at = now();
 ```
+
+After editing overrides, refresh consolidated and sync `crawl_targets`.
 
 | Column | Points | When it applies |
 |---|---:|---|

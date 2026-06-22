@@ -192,8 +192,17 @@ WITH dataset_window AS (
             WHEN priority_score > 3 THEN 'P1'
             WHEN priority_score IN (3.0, 2.5) THEN 'P2'
             ELSE NULL
-        END AS crawl_priority_tier
+        END AS computed_crawl_priority_tier
     FROM totaled
+), effective_tiered AS (
+    SELECT
+        tiered.*,
+        COALESCE(override.override_tier, tiered.computed_crawl_priority_tier)
+            AS crawl_priority_tier
+    FROM tiered
+    LEFT JOIN jobpush.crawl_priority_overrides override
+      ON override.consolidation_key = tiered.consolidation_key
+     AND override.active
 )
 INSERT INTO jobpush.company_targets_consolidated (
     consolidation_key, canonical_name, is_merged_group, linkedin_employer_key,
@@ -208,7 +217,8 @@ INSERT INTO jobpush.company_targets_consolidated (
     target_role_score, lca_count_score, chicago_score,
     product_role_score, product_manager_score, salary_score,
     linkedin_top_employer_score,
-    priority_score, crawl_priority_tier, priority_version, updated_at
+    priority_score, computed_crawl_priority_tier, crawl_priority_tier,
+    priority_version, updated_at
 )
 SELECT
     consolidation_key, canonical_name, is_merged_group, linkedin_employer_key,
@@ -223,8 +233,9 @@ SELECT
     target_role_score, lca_count_score, chicago_score,
     product_role_score, product_manager_score, salary_score,
     linkedin_top_employer_score,
-    priority_score, crawl_priority_tier, 'priority-v8-consolidated', now()
-FROM tiered
+    priority_score, computed_crawl_priority_tier, crawl_priority_tier,
+    'priority-v8-consolidated', now()
+FROM effective_tiered
 ON CONFLICT (consolidation_key) DO UPDATE SET
     canonical_name = EXCLUDED.canonical_name,
     is_merged_group = EXCLUDED.is_merged_group,
@@ -255,11 +266,8 @@ ON CONFLICT (consolidation_key) DO UPDATE SET
     salary_score = EXCLUDED.salary_score,
     linkedin_top_employer_score = EXCLUDED.linkedin_top_employer_score,
     priority_score = EXCLUDED.priority_score,
-    crawl_priority_tier = CASE
-        WHEN jobpush.company_targets_consolidated.crawl_priority_tier = 'P0'
-            THEN 'P0'
-        ELSE EXCLUDED.crawl_priority_tier
-    END,
+    computed_crawl_priority_tier = EXCLUDED.computed_crawl_priority_tier,
+    crawl_priority_tier = EXCLUDED.crawl_priority_tier,
     priority_version = EXCLUDED.priority_version,
     updated_at = now();
 
