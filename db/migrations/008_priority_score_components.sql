@@ -40,8 +40,19 @@ AS $$
        );
 $$;
 
-ALTER TABLE jobpush.company_targets
-    RENAME COLUMN role_match_score TO target_role_score;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'jobpush'
+          AND table_name = 'company_targets'
+          AND column_name = 'role_match_score'
+    ) THEN
+        ALTER TABLE jobpush.company_targets
+            RENAME COLUMN role_match_score TO target_role_score;
+    END IF;
+END $$;
 
 ALTER TABLE jobpush.company_targets
     DROP CONSTRAINT IF EXISTS company_targets_role_match_score_check;
@@ -60,6 +71,18 @@ ALTER TABLE jobpush.company_targets
 ALTER TABLE jobpush.company_targets
     ALTER COLUMN priority_score TYPE NUMERIC(4, 1)
     USING priority_score::NUMERIC(4, 1);
+
+ALTER TABLE jobpush.company_targets
+    DROP CONSTRAINT IF EXISTS company_targets_priority_score_check;
+
+ALTER TABLE jobpush.company_targets
+    DROP CONSTRAINT IF EXISTS company_targets_target_role_score_check;
+
+ALTER TABLE jobpush.company_targets
+    DROP CONSTRAINT IF EXISTS company_targets_lca_count_score_check;
+
+ALTER TABLE jobpush.company_targets
+    DROP CONSTRAINT IF EXISTS company_targets_chicago_score_check;
 
 ALTER TABLE jobpush.company_targets
     ADD CONSTRAINT company_targets_target_role_score_check
