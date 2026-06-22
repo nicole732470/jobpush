@@ -15,7 +15,11 @@ Rules live in `jobpush.product_role_title_rules` and are evaluated by
   product-class rule.
 - `product_role_lca_pct` stores the in-company share:
   `100 * product_role_lca_count / lca_count`.
-- `priority_score` includes `product_role_score` in the total.
+- `priority_score` includes `product_role_score` and `product_manager_score`
+  in the total. See [`PRIORITY.md`](PRIORITY.md).
+
+Product Manager matching uses `jobpush.is_product_manager_job_title(job_title)`
+(category `product_manager` in `jobpush.product_role_title_rules`).
 
 ## Included patterns
 

@@ -23,9 +23,10 @@ repository clear migration ownership.
 | Component | Column | Points |
 |---|---|---:|
 | Target SOC role match | `target_role_score` | +1 |
-| LCA volume | `lca_count_score` | +1 when `target_role_score = 1` and `lca_count > 5` |
+| LCA volume | `lca_count_score` | +1 when `target_role_score = 1` and `lca_count > 1` |
 | Chicago metro employer | `chicago_score` | +0.5 when `target_role_score = 1` and city is in `jobpush.chicago_metro_cities` |
 | Product-class job title | `product_role_score` | +1 when `target_role_score = 1` and raw `job_title` matches `jobpush.product_role_title_rules` |
+| Product Manager title | `product_manager_score` | +0.25 when `target_role_score = 1` and raw `job_title` is Product Manager or Technical Product Manager |
 | Total | `priority_score` | sum of component scores |
 
 `target_role_lca_count`, `product_role_lca_count`, `product_role_lca_pct`,

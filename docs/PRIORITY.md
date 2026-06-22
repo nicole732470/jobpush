@@ -1,62 +1,146 @@
 # JobPush priority scoring
 
-## Scoring model
-
 `jobpush.company_targets` stores one score column per evidence type, then sums
-them into `priority_score` (higher values are crawled first).
+them into `priority_score`. Higher values are crawled first.
 
-| Column | Points | Rule |
+Current version: `priority-v6` (set in `db/refresh/refresh_company_targets.sql`).
+
+## Total formula
+
+```text
+priority_score =
+    target_role_score
+  + lca_count_score
+  + chicago_score
+  + product_role_score
+  + product_manager_score
+```
+
+Maximum possible score: **3.75**
+
+| Column | Points | When it applies |
 |---|---:|---|
-| `target_role_score` | 0 or 1 | +1 when any LCA filing matches `jobpush.target_soc_roles` |
-| `lca_count_score` | 0 or 1 | +1 when `target_role_score = 1` and `lca_count > 5` |
-| `chicago_score` | 0 or 0.5 | +0.5 when `target_role_score = 1` and city is in the Chicago metro list (IL) |
-| `product_role_score` | 0 or 1 | +1 when `target_role_score = 1` and any raw `job_title` matches `jobpush.product_role_title_rules` |
-| `priority_score` | sum | `target_role_score + lca_count_score + chicago_score + product_role_score` |
+| `target_role_score` | 0 or 1 | Company has at least one LCA filing whose `soc_code` matches an active row in `jobpush.target_soc_roles` |
+| `lca_count_score` | 0 or 1 | `target_role_score = 1` **and** `lca_count > 1` |
+| `chicago_score` | 0 or 0.5 | `target_role_score = 1` **and** employer city/state matches `jobpush.chicago_metro_cities` (IL only) |
+| `product_role_score` | 0 or 1 | `target_role_score = 1` **and** at least one raw `job_title` matches `jobpush.product_role_title_rules` |
+| `product_manager_score` | 0 or 0.25 | `target_role_score = 1` **and** at least one raw `job_title` matches Product Manager or Technical Product Manager |
+| `priority_score` | sum | Sum of all component columns above |
 
-`target_role_lca_count` remains descriptive evidence (how many filings hit a
-target SOC). It does not add extra points beyond `target_role_score`.
+## Prerequisite chain
 
-`product_role_lca_count` and `product_role_lca_pct` describe in-company
-product-class job title share. They do not add extra points beyond
-`product_role_score`.
+Most components only apply after the company already matches a target SOC role.
 
-## Target SOC roles (v2)
+```text
+target_role_score = 1
+    ├── lca_count_score        (+1 if lca_count > 1)
+    ├── chicago_score          (+0.5 if Chicago metro)
+    ├── product_role_score     (+1 if any product-class raw job_title)
+    └── product_manager_score  (+0.25 if Product Manager or Technical Product Manager)
+```
 
-The source workbook is `outputs/job_roles_20260621/LCA_All_Job_Roles_Summary.xlsx`,
+If `target_role_score = 0`, every downstream component stays 0.
+
+## Component rules (detail)
+
+### 1. `target_role_score` (+1)
+
+- **Input:** `public.lca_cases.soc_code`
+- **Match table:** `jobpush.target_soc_roles` (`active = true`)
+- **Normalization:** `jobpush.normalize_soc_code()` — eight-digit form; missing
+  extension becomes `00` (for example `15-1252` → `15125200`)
+- **Rule:** `+1` when `target_role_lca_count > 0`
+- **No prerequisite**
+
+### 2. `lca_count_score` (+1)
+
+- **Prerequisite:** `target_role_score = 1`
+- **Input:** `public.companies.lca_count` (total filings for the FEIN)
+- **Rule:** `+1` when `lca_count > 1` (at least two total LCA filings)
+
+### 3. `chicago_score` (+0.5)
+
+- **Prerequisite:** `target_role_score = 1`
+- **Input:** `employer_city`, `employer_state` on the company row
+- **Match:** `jobpush.is_chicago_metro(city, state)` against
+  `jobpush.chicago_metro_cities`
+- **Rule:** `+0.5` when city is in the Chicago metro list and state is `IL`
+
+Chicago metro cities: Arlington Heights, Aurora, Bolingbrook, Chicago,
+Des Plaines, Downers Grove, Evanston, Glenview, Hoffman Estates, Joliet,
+Mount Prospect, Naperville, Oak Brook, Orland Park, Palatine, Schaumburg,
+Skokie, Tinley Park, Wheaton.
+
+### 4. `product_role_score` (+1)
+
+- **Prerequisite:** `target_role_score = 1`
+- **Input:** raw `public.lca_cases.job_title` (not `soc_title`, not mapped titles)
+- **Match:** `jobpush.is_product_role_job_title(job_title)` using
+  `jobpush.product_role_title_rules`
+- **Rule:** `+1` when the company has at least one matching filing
+- **Full pattern list:** [`PRODUCT_ROLES.md`](PRODUCT_ROLES.md)
+
+### 5. `product_manager_score` (+0.25)
+
+- **Prerequisite:** `target_role_score = 1`
+- **Input:** raw `public.lca_cases.job_title`
+- **Match:** `jobpush.is_product_manager_job_title(job_title)` — titles whose
+  product-class category is `product_manager`:
+  - raw title contains `product manager`
+  - raw title contains `technical product manager`
+- **Rule:** `+0.25` when the company has at least one matching filing
+- **Note:** This is separate from `product_role_score`. A company with only
+  Project Manager filings gets `product_role_score` but not `product_manager_score`.
+
+## Descriptive fields (not added to `priority_score`)
+
+| Column | Meaning |
+|---|---|
+| `target_role_lca_count` | How many LCA filings hit a target SOC code |
+| `product_role_lca_count` | How many LCA filings hit a product-class job title |
+| `product_role_lca_pct` | In-company product-class share (0–100) |
+| `lca_count` | Total LCA filings for the company |
+| `single_lca_company` | `true` when `lca_count = 1` |
+| `certified_count` | Certified LCA count |
+| `last_decision_date` | Most recent LCA decision date |
+| `recent_lca` | Filing within the last year of the dataset window |
+
+## Target SOC roles
+
+Source workbook: `outputs/job_roles_20260621/LCA_All_Job_Roles_Summary.xlsx`,
 sheet `SOC标准岗位汇总`, column `是否目标`.
 
-- 97 active target SOC codes remain in `jobpush.target_soc_roles`.
-- `Dentists, General` (`29102100`) was removed in v2.
+- **97** active target SOC codes in `jobpush.target_soc_roles`
+- `Dentists, General` (`29102100`) removed in v2
 
-## Chicago metro list
-
-Stored in `jobpush.chicago_metro_cities` and checked by
-`jobpush.is_chicago_metro(employer_city, employer_state)`.
-
-Current cities: Arlington Heights, Aurora, Bolingbrook, Chicago, Des Plaines,
-Downers Grove, Evanston, Glenview, Hoffman Estates, Joliet, Mount Prospect,
-Naperville, Oak Brook, Orland Park, Palatine, Schaumburg, Skokie, Tinley Park,
-Wheaton.
-
-## Component details
-
-### SOC-code normalization
-
-Codes are stored as eight digits: major group + detailed occupation + two-digit
-extension. A code without an extension receives `00`; for example,
-`15-1252`, `15-1252.00`, and `15-1252.00 - Software Developers` normalize to
-`15125200`. Non-zero extensions remain distinct, such as `15-2051.01` becoming
-`15205101`.
-
-### Why raw job titles do not need a second matching rule
+### Why SOC codes instead of fuzzy raw title matching
 
 Every raw `job_title` belongs to an LCA row that already carries `soc_code`.
 When that SOC code is selected, all corresponding raw job titles are included.
-This is more reliable than fuzzy text matching and avoids duplicate or misspelled
-raw titles changing a company's priority.
+This is more reliable than fuzzy text matching on raw titles alone.
 
-## Deduplicated target codes
-## Deduplicated target codes
+## Refresh
+
+Recompute all scores:
+
+```bash
+psql ... -f db/refresh/refresh_company_targets.sql
+```
+
+After editing `jobpush.target_soc_roles`, `jobpush.chicago_metro_cities`, or
+`jobpush.product_role_title_rules`, rerun the refresh script.
+
+## Version history
+
+| Version | Changes |
+|---|---|
+| `role-only-v1` | Binary target-role match only |
+| `priority-v2` | 97 SOC codes; dentist removed |
+| `priority-v3` | Split into `target_role_score` + `priority_score` sum |
+| `priority-v4` | Added `lca_count_score`, `chicago_score`, `product_role_score` |
+| `priority-v6` | `lca_count_score` threshold lowered to `lca_count > 1`; added `product_manager_score` (+0.25) |
+
+## Deduplicated target SOC codes
 
 | Normalized SOC code | Representative selected title | Selected title variants |
 |---|---|---:|
