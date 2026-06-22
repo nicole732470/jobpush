@@ -12,6 +12,9 @@ PostgreSQL `jobpush` schema.
 - JobPush reads shared company and LCA data; it does not copy the source Excel
   workbooks into GitHub.
 - Only one repository may own migrations for a given table.
+- The FY2025 Q1 wage repair is a documented one-time data correction against
+  `public.lca_cases`; it does not change that table's schema or ownership. Old
+  and corrected values are retained in `jobpush.lca_wage_repair_backup`.
 
 ## Current target tables
 
@@ -41,8 +44,12 @@ See [`docs/PRIORITY.md`](docs/PRIORITY.md) for the complete rule and code list.
 ```text
 db/migrations/       JobPush-owned schema changes
 db/refresh/          repeatable data refresh SQL
+db/repair/           guarded one-time source-data corrections
 db/load/             one-time or bulk CSV loads
 config/              generated CSV inputs checked into git
 scripts/             data build scripts
 docs/                architecture and scoring notes
 ```
+
+See [`docs/LCA_WAGE_REPAIR.md`](docs/LCA_WAGE_REPAIR.md) for the FY2025 Q1
+official-source repair, validation checks, and incremental salary refresh.

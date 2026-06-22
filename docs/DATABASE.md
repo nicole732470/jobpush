@@ -18,6 +18,8 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
 | `jobpush.company_consolidation_groups` | JobPush | Conservative merged employer groups (2+ FEINs) |
 | `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
+| `jobpush.lca_wage_repair_stage` | JobPush | Reloadable official FY2025 Q1 wage repair input |
+| `jobpush.lca_wage_repair_backup` | JobPush | Immutable before/after audit for repaired LCA wage fields |
 
 The PostgreSQL schema is a namespace inside the existing database, not a
 separate database. This keeps joins and foreign keys simple while giving each
@@ -40,6 +42,12 @@ repository clear migration ownership.
 `target_role_min_annual_salary`, `product_role_lca_count`,
 `product_role_lca_pct`, `single_lca_company`, recency, certified count, and
 total LCA count remain descriptive evidence fields.
+
+The FY2025 Q1 wage repair updated values—but not schema—in shared
+`public.lca_cases`. The repair is keyed by `case_number`, preserves every old
+and new wage field in `jobpush.lca_wage_repair_backup`, and is documented in
+[`LCA_WAGE_REPAIR.md`](LCA_WAGE_REPAIR.md). JobLens remains the owner of the
+shared table.
 
 The 97 selected codes and normalization details are documented in
 [`PRIORITY.md`](PRIORITY.md). Product-class raw job title rules are documented in

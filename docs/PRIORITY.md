@@ -115,6 +115,11 @@ Skokie, Tinley Park, Wheaton.
   salary remains, the score is 0.
 - **Audit fields:** `target_role_valid_salary_lca_count` and
   `target_role_invalid_salary_lca_count`
+- **FY2025 Q1 correction:** 104,046 rows whose wage columns had been imported
+  with positional misalignment were restored from the official DOL Q1 file.
+  All 785,687 LCA rows now have a recognized wage unit, and every target-role
+  company has at least one valid annualized salary. See
+  [`LCA_WAGE_REPAIR.md`](LCA_WAGE_REPAIR.md).
 
 ### 7. `linkedin_top_employer_score` (+1)
 
@@ -166,6 +171,10 @@ bash db/run_migration_017.sh
 
 After editing `jobpush.target_soc_roles`, `jobpush.chicago_metro_cities`, or
 `jobpush.product_role_title_rules`, rerun the refresh script.
+
+For a wage-only source correction, use the incremental refresh in
+`db/refresh/refresh_repaired_consolidated_salary_scores.sql`; it avoids the
+full consolidated rebuild.
 
 ## Version history
 
