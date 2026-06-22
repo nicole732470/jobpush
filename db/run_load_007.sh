@@ -34,6 +34,9 @@ cp "$SCRIPT_DIR/../config/soc_role_title_mappings.csv" "$CSV_PATH"
 psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -v ON_ERROR_STOP=1 \
   -f "$SCRIPT_DIR/load/load_soc_role_title_mappings.sql"
 
+psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -v ON_ERROR_STOP=1 \
+  -c "\\copy jobpush.soc_role_title_mappings (raw_job_title, normalized_soc_code, soc_title, soc_lca_count, raw_lca_count, normalized_job_title) FROM '${CSV_PATH}' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')"
+
 psql -h "$RDS_HOST" -U "$RDS_USER" -d "$RDS_DB" -P pager=off -c \
   "SELECT COUNT(*) AS mapping_rows FROM jobpush.soc_role_title_mappings;"
 
