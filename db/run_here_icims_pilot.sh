@@ -43,8 +43,8 @@ BATCH_ID=$("${PSQL[@]}" -Atc \
 
 RUN_ID=$("${PSQL[@]}" -Atc \
   "INSERT INTO jobpush.crawl_runs
-       (batch_id, site_id, adapter_name, adapter_version, status)
-   VALUES ($BATCH_ID, $SITE_ID, 'icims-html', '0.1.0', 'running') RETURNING run_id;" | sed -n '1p')
+       (batch_id, site_id, adapter_name, adapter_version, status, crawl_scope, scope_method)
+   VALUES ($BATCH_ID, $SITE_ID, 'icims-html', '0.2.0', 'running', 'US', 'server_filter') RETURNING run_id;" | sed -n '1p')
 
 fail_run() {
   local exit_code=$?
@@ -63,7 +63,7 @@ fail_run() {
 }
 trap fail_run ERR
 
-python3 "$REPO_DIR/scripts/crawl_icims.py" --url "$SITE_URL" --output "$JOBS_CSV" > "$METRICS_JSON"
+python3 "$REPO_DIR/scripts/crawl_icims.py" --url "$SITE_URL" --output "$JOBS_CSV" --country US > "$METRICS_JSON"
 
 IFS=$'\t' read -r REQUESTS PAGES RAW_COUNT PARSED_COUNT DUPLICATES HTTP_STATUS LATENCY_MS < <(
   python3 - "$METRICS_JSON" <<'PY'
@@ -92,7 +92,7 @@ WITH counts AS (
       ON p.site_id=$SITE_ID AND p.external_job_id=s.external_job_id
 ), closed AS (
     SELECT count(*) AS closed_count FROM jobpush.job_postings p
-    WHERE p.site_id=$SITE_ID AND p.active
+    WHERE p.site_id=$SITE_ID AND p.active AND p.market_scope='US'
       AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id)
 )
 UPDATE jobpush.crawl_runs r
@@ -117,7 +117,7 @@ ON CONFLICT (site_id, external_job_id) DO UPDATE SET
 
 UPDATE jobpush.job_postings p
 SET active=FALSE, closed_at=now(), last_run_id=$RUN_ID, updated_at=now()
-WHERE p.site_id=$SITE_ID AND p.active
+WHERE p.site_id=$SITE_ID AND p.active AND p.market_scope='US'
   AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id);
 
 INSERT INTO jobpush.job_title_labels (normalized_title)

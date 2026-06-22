@@ -44,6 +44,10 @@ row) and `jobpush.career_sites` (zero or more real sites per company). See
 [`docs/CRAWL_DATA_MODEL.md`](docs/CRAWL_DATA_MODEL.md).
 The first website-discovery pilot and manual labeling workflow are documented
 in [`docs/CAREER_SITE_DISCOVERY.md`](docs/CAREER_SITE_DISCOVERY.md).
+The unified official-site, US-scope, repeated-crawl, and title-labeling rules
+are documented in [`docs/CRAWL_POLICY.md`](docs/CRAWL_POLICY.md); adapter and
+batch implementation details are in
+[`docs/CRAWL_EXECUTION.md`](docs/CRAWL_EXECUTION.md).
 
 ## Repository layout
 

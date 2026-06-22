@@ -8,6 +8,7 @@ set -euo pipefail
 : "${ADAPTER_SCRIPT:?}"
 : "${COHORT:?}"
 : "${PRIORITY_TIER:?}"
+: "${SCOPE_METHOD:?}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -43,8 +44,8 @@ BATCH_ID=$("${PSQL[@]}" -Atc \
    VALUES ($BATCH_ID,'$CONSOLIDATION_KEY',$SITE_ID,'running');"
 RUN_ID=$("${PSQL[@]}" -Atc \
   "INSERT INTO jobpush.crawl_runs
-      (batch_id,site_id,adapter_name,adapter_version,status,crawl_scope)
-   VALUES ($BATCH_ID,$SITE_ID,'$ADAPTER_NAME','$ADAPTER_VERSION','running','US')
+      (batch_id,site_id,adapter_name,adapter_version,status,crawl_scope,scope_method)
+   VALUES ($BATCH_ID,$SITE_ID,'$ADAPTER_NAME','$ADAPTER_VERSION','running','US','$SCOPE_METHOD')
    RETURNING run_id;" | sed -n '1p')
 
 fail_run() {

@@ -56,6 +56,9 @@ class ICIMSParser(HTMLParser):
         self._buffer: list[str] = []
         self._current: dict[str, str] = {}
         self._field_name = ""
+        self.location_options: list[tuple[str, str]] = []
+        self._in_location_select = False
+        self._option_value: str | None = None
 
     @staticmethod
     def _classes(attrs: list[tuple[str, str | None]]) -> set[str]:
@@ -64,6 +67,12 @@ class ICIMSParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr = dict(attrs)
         classes = self._classes(attrs)
+        if tag == "select" and attr.get("name") == "searchLocation":
+            self._in_location_select = True
+        elif tag == "option" and self._in_location_select:
+            self._option_value = attr.get("value")
+            self._capture = "location_option"
+            self._buffer = []
         if tag == "li" and "iCIMS_JobCardItem" in classes:
             self._card_depth = 1
             self._current = {}
@@ -97,6 +106,15 @@ class ICIMSParser(HTMLParser):
                 self.total_pages = max(self.total_pages, int(query["pr"]) + 1)
 
     def handle_endtag(self, tag: str) -> None:
+        if self._capture == "location_option" and tag == "option":
+            label = clean_text("".join(self._buffer))
+            if self._option_value:
+                self.location_options.append((self._option_value, label))
+            self._capture = None
+            self._buffer = []
+            self._option_value = None
+        if tag == "select" and self._in_location_select:
+            self._in_location_select = False
         if not self._card_depth:
             return
         if self._capture and (
@@ -139,10 +157,12 @@ class ICIMSParser(HTMLParser):
             self._buffer.append(data)
 
 
-def page_url(search_url: str, page: int) -> str:
+def page_url(search_url: str, page: int, extra_query: list[tuple[str, str]] | None = None) -> str:
     parts = urlsplit(search_url)
-    query = dict(parse_qsl(parts.query))
-    query.update({"pr": str(page), "in_iframe": "1"})
+    query = [(key, value) for key, value in parse_qsl(parts.query)
+             if key not in {"pr", "in_iframe", "searchLocation"}]
+    query.extend(extra_query or [])
+    query.extend([("pr", str(page)), ("in_iframe", "1")])
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
 
 
@@ -158,6 +178,7 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--delay", type=float, default=0.5)
+    parser.add_argument("--country", choices=("US",))
     args = parser.parse_args()
 
     started = time.monotonic()
@@ -171,13 +192,24 @@ def main() -> int:
     statuses.append(status)
     first = ICIMSParser()
     first.feed(first_html)
+    scope_query: list[tuple[str, str]] = []
+    if args.country == "US":
+        scope_query = [("searchLocation", value) for value, label in first.location_options
+                       if label.casefold().startswith("united states-")]
+        if not scope_query:
+            raise RuntimeError("iCIMS page did not expose a United States location option")
+        first_html, status = fetch(page_url(args.url, 0, scope_query), args.timeout)
+        requests_count += 1
+        statuses.append(status)
+        first = ICIMSParser()
+        first.feed(first_html)
     raw_job_count += len(first.jobs)
     for job in first.jobs:
         all_jobs[job.external_job_id] = job
 
     for page in range(1, first.total_pages):
         time.sleep(args.delay)
-        body, status = fetch(page_url(args.url, page), args.timeout)
+        body, status = fetch(page_url(args.url, page, scope_query), args.timeout)
         requests_count += 1
         statuses.append(status)
         current = ICIMSParser()
