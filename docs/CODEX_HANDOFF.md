@@ -158,6 +158,8 @@ LinkedIn 保守匹配（migration 021）：
 | 021 | LinkedIn 匹配置信度 / 排除模糊品牌 |
 | 022 | **`crawl_priority_tier`** P0/P1/P2 |
 | 023 | **`crawl_targets` + `career_sites`** crawler 运行层及同步 |
+| 024 | 4.5+ 官网候选发现、候选证据和 search run 审计 |
+| 025 | 聚合站排除、TablePlus 人工审核视图和确认/拒绝函数 |
 
 每个 migration 通常有 `db/run_migration_NNN.sh`；通过 `db/deploy_via_ssm.sh` 在 EC2 执行。
 
@@ -198,7 +200,7 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
 2. **`public.lca_cases` 大索引**：JobPush 不会自动删；见 [`JOBLENS_SHARED_INDEX_NOTES.md`](JOBLENS_SHARED_INDEX_NOTES.md)。
 3. **Wage repair staging**：`lca_wage_repair_stage` / `backup` 仍在 RDS；验证后可 `bash db/run_migration_020.sh`。
 4. **P0 名单**：用户将手动标；sync 会自动加入 `crawl_targets`。
-5. **Crawl 实现**：`crawl_targets` / `career_sites` 已就绪；实际发现器、ATS adapter 和 worker 待实现。
+5. **Crawl 实现**：4.5+ 候选已生成并等待人工审核；ATS adapter 和定时 worker 待实现。
 6. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
 7. **`per-FEIN company_targets`**：可改为 nightly-only 以省 refresh 时间（可选）。
 

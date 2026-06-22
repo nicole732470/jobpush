@@ -42,6 +42,8 @@ See [`docs/PRIORITY.md`](docs/PRIORITY.md) for the complete rule and code list.
 Crawler operations use `jobpush.crawl_targets` (one active P-tier company per
 row) and `jobpush.career_sites` (zero or more real sites per company). See
 [`docs/CRAWL_DATA_MODEL.md`](docs/CRAWL_DATA_MODEL.md).
+The first website-discovery pilot and manual labeling workflow are documented
+in [`docs/CAREER_SITE_DISCOVERY.md`](docs/CAREER_SITE_DISCOVERY.md).
 
 ## Repository layout
 

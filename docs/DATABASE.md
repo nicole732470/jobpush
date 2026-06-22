@@ -21,6 +21,9 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
 | `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
+| `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |
+| `jobpush.career_site_review_queue` | JobPush | One row per unverified URL for detailed review |
+| `jobpush.career_site_company_review_queue` | JobPush | One row per company with up to three candidates |
 | `jobpush.lca_wage_repair_stage` | JobPush | Reloadable official FY2025 Q1 wage repair input (optional; drop via migration 020) |
 | `jobpush.lca_wage_repair_backup` | JobPush | Immutable before/after audit for repaired LCA wage fields (optional; drop via migration 020) |
 

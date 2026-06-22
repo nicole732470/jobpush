@@ -57,3 +57,11 @@ The initial migration intentionally does not add blank site rows. A site record
 is created only when a real candidate URL is discovered. The company queue is
 already complete because every active P-tier company is present in
 `crawl_targets`.
+
+## Discovery pilot and manual review
+
+Migration 024 adds candidate evidence and discovery-run audit tables. Migration
+025 adds aggregator exclusions, the review queues, and
+`jobpush.review_career_site(...)`. See
+[`CAREER_SITE_DISCOVERY.md`](CAREER_SITE_DISCOVERY.md) for the 4.5+ pilot and
+TablePlus review workflow.
