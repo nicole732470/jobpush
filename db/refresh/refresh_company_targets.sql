@@ -1,57 +1,40 @@
+-- Per-FEIN audit table. Reads jobpush.employer_filing_stats (not public.lca_cases).
+
 BEGIN;
 
 WITH dataset_window AS (
-    SELECT MAX(decision_date) AS max_decision_date
-    FROM public.lca_cases
-), filing_stats AS (
-    SELECT
-        l.employer_fein AS fein,
-        COUNT(target.normalized_soc_code)::INTEGER AS target_role_lca_count,
-        MAX(l.decision_date) AS last_decision_date
-    FROM public.lca_cases l
-    LEFT JOIN jobpush.target_soc_roles target
-        ON target.active
-       AND target.normalized_soc_code = jobpush.normalize_soc_code(l.soc_code)
-    WHERE l.employer_fein IS NOT NULL
-    GROUP BY l.employer_fein
-), product_role_stats AS (
-    SELECT
-        l.employer_fein AS fein,
-        BOOL_OR(jobpush.is_product_role_job_title(l.job_title)) AS has_product_role_job,
-        BOOL_OR(jobpush.is_product_manager_job_title(l.job_title)) AS has_product_manager_job,
-        COUNT(*) FILTER (
-            WHERE jobpush.is_product_role_job_title(l.job_title)
-        )::INTEGER AS product_role_lca_count
-    FROM public.lca_cases l
-    WHERE l.employer_fein IS NOT NULL
-    GROUP BY l.employer_fein
+    SELECT COALESCE(MAX(dataset_max_decision_date), MAX(last_decision_date)) AS max_decision_date
+    FROM jobpush.employer_filing_stats
 ), source_base AS (
     SELECT
-        c.fein,
-        c.company_id,
-        c.name AS company_name,
-        c.naics_code,
-        c.naics_sector,
-        c.city AS employer_city,
-        c.state AS employer_state,
-        c.lca_count,
-        c.certified_count,
-        (c.lca_count = 1) AS single_lca_company,
-        COALESCE(f.target_role_lca_count, 0) AS target_role_lca_count,
-        COALESCE(p.has_product_role_job, FALSE) AS has_product_role_job,
-        COALESCE(p.has_product_manager_job, FALSE) AS has_product_manager_job,
-        COALESCE(p.product_role_lca_count, 0) AS product_role_lca_count,
+        company_row.fein,
+        company_row.company_id,
+        company_row.name AS company_name,
+        company_row.naics_code,
+        company_row.naics_sector,
+        company_row.city AS employer_city,
+        company_row.state AS employer_state,
+        company_row.lca_count,
+        company_row.certified_count,
+        (company_row.lca_count = 1) AS single_lca_company,
+        COALESCE(stats.target_role_lca_count, 0) AS target_role_lca_count,
+        COALESCE(stats.has_product_role_job, FALSE) AS has_product_role_job,
+        COALESCE(stats.has_product_manager_job, FALSE) AS has_product_manager_job,
+        COALESCE(stats.product_role_lca_count, 0) AS product_role_lca_count,
         ROUND(
-            100.0 * COALESCE(p.product_role_lca_count, 0) / NULLIF(c.lca_count, 0),
+            100.0 * COALESCE(stats.product_role_lca_count, 0)
+                / NULLIF(company_row.lca_count, 0),
             2
         ) AS product_role_lca_pct,
-        f.last_decision_date,
-        COALESCE(f.last_decision_date >= w.max_decision_date - 365, FALSE)
-            AS recent_lca
-    FROM public.companies c
-    LEFT JOIN filing_stats f USING (fein)
-    LEFT JOIN product_role_stats p USING (fein)
-    CROSS JOIN dataset_window w
+        stats.last_decision_date,
+        COALESCE(
+            stats.last_decision_date >= window_row.max_decision_date - 365,
+            FALSE
+        ) AS recent_lca
+    FROM public.companies company_row
+    LEFT JOIN jobpush.employer_filing_stats stats
+      ON stats.fein = company_row.fein
+    CROSS JOIN dataset_window window_row
 ), scored AS (
     SELECT
         source_base.*,
@@ -69,8 +52,11 @@ WITH dataset_window AS (
         CASE WHEN target_role_lca_count > 0 AND has_product_manager_job
             THEN 0.25::NUMERIC(4, 2) ELSE 0::NUMERIC(4, 2) END
             AS product_manager_score,
-        CASE WHEN jobpush.is_linkedin_top_employer_2026(fein)
-            THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
+        CASE WHEN EXISTS (
+            SELECT 1
+            FROM jobpush.linkedin_top_employer_company_matches match_row
+            WHERE match_row.fein = source_base.fein
+        ) THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS linkedin_top_employer_score
     FROM source_base
 ), totaled AS (
@@ -80,8 +66,7 @@ WITH dataset_window AS (
             target_role_score + lca_count_score + chicago_score
             + product_role_score + product_manager_score
             + linkedin_top_employer_score
-        )::NUMERIC(4, 2)
-            AS priority_score
+        )::NUMERIC(4, 2) AS priority_score
     FROM scored
 )
 INSERT INTO jobpush.company_targets (
@@ -127,7 +112,9 @@ ON CONFLICT (fein) DO UPDATE SET
     priority_version = EXCLUDED.priority_version,
     updated_at = now();
 
-DELETE FROM jobpush.company_targets t
-WHERE NOT EXISTS (SELECT 1 FROM public.companies c WHERE c.fein = t.fein);
+DELETE FROM jobpush.company_targets target_row
+WHERE NOT EXISTS (
+    SELECT 1 FROM public.companies company_row WHERE company_row.fein = target_row.fein
+);
 
 COMMIT;
