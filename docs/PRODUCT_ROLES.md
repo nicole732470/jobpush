@@ -11,6 +11,10 @@ Rules live in `jobpush.product_role_title_rules` and are evaluated by
 - `product_role_score = 1` only when `target_role_score = 1` and the company has
   at least one LCA row whose raw `job_title` matches a product-class rule.
 - `product_role_score = 0` otherwise.
+- `product_role_lca_count` stores how many of the company's LCA filings match a
+  product-class rule.
+- `product_role_lca_pct` stores the in-company share:
+  `100 * product_role_lca_count / lca_count`.
 - `priority_score` includes `product_role_score` in the total.
 
 ## Included patterns

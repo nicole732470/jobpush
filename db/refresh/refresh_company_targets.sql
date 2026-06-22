@@ -17,7 +17,10 @@ WITH dataset_window AS (
 ), product_role_stats AS (
     SELECT
         l.employer_fein AS fein,
-        BOOL_OR(jobpush.is_product_role_job_title(l.job_title)) AS has_product_role_job
+        BOOL_OR(jobpush.is_product_role_job_title(l.job_title)) AS has_product_role_job,
+        COUNT(*) FILTER (
+            WHERE jobpush.is_product_role_job_title(l.job_title)
+        )::INTEGER AS product_role_lca_count
     FROM public.lca_cases l
     WHERE l.employer_fein IS NOT NULL
     GROUP BY l.employer_fein
@@ -35,6 +38,11 @@ WITH dataset_window AS (
         (c.lca_count = 1) AS single_lca_company,
         COALESCE(f.target_role_lca_count, 0) AS target_role_lca_count,
         COALESCE(p.has_product_role_job, FALSE) AS has_product_role_job,
+        COALESCE(p.product_role_lca_count, 0) AS product_role_lca_count,
+        ROUND(
+            100.0 * COALESCE(p.product_role_lca_count, 0) / NULLIF(c.lca_count, 0),
+            2
+        ) AS product_role_lca_pct,
         f.last_decision_date,
         COALESCE(f.last_decision_date >= w.max_decision_date - 365, FALSE)
             AS recent_lca
@@ -69,14 +77,16 @@ INSERT INTO jobpush.company_targets (
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_lca_count,
     last_decision_date, recent_lca, target_role_score, lca_count_score,
-    chicago_score, product_role_score, priority_score, priority_version, updated_at
+    chicago_score, product_role_score, product_role_lca_count, product_role_lca_pct,
+    priority_score, priority_version, updated_at
 )
 SELECT
     fein, company_id, company_name, naics_code, naics_sector,
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_lca_count,
     last_decision_date, recent_lca, target_role_score, lca_count_score,
-    chicago_score, product_role_score, priority_score, 'priority-v4', now()
+    chicago_score, product_role_score, product_role_lca_count, product_role_lca_pct,
+    priority_score, 'priority-v4', now()
 FROM totaled
 ON CONFLICT (fein) DO UPDATE SET
     company_id = EXCLUDED.company_id,
@@ -95,6 +105,8 @@ ON CONFLICT (fein) DO UPDATE SET
     lca_count_score = EXCLUDED.lca_count_score,
     chicago_score = EXCLUDED.chicago_score,
     product_role_score = EXCLUDED.product_role_score,
+    product_role_lca_count = EXCLUDED.product_role_lca_count,
+    product_role_lca_pct = EXCLUDED.product_role_lca_pct,
     priority_score = EXCLUDED.priority_score,
     priority_version = EXCLUDED.priority_version,
     updated_at = now();

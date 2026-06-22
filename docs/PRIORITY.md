@@ -16,6 +16,10 @@ them into `priority_score` (higher values are crawled first).
 `target_role_lca_count` remains descriptive evidence (how many filings hit a
 target SOC). It does not add extra points beyond `target_role_score`.
 
+`product_role_lca_count` and `product_role_lca_pct` describe in-company
+product-class job title share. They do not add extra points beyond
+`product_role_score`.
+
 ## Target SOC roles (v2)
 
 The source workbook is `outputs/job_roles_20260621/LCA_All_Job_Roles_Summary.xlsx`,

@@ -28,8 +28,9 @@ repository clear migration ownership.
 | Product-class job title | `product_role_score` | +1 when `target_role_score = 1` and raw `job_title` matches `jobpush.product_role_title_rules` |
 | Total | `priority_score` | sum of component scores |
 
-`target_role_lca_count`, `single_lca_company`, recency, certified count, and
-total LCA count remain descriptive evidence fields.
+`target_role_lca_count`, `product_role_lca_count`, `product_role_lca_pct`,
+`single_lca_company`, recency, certified count, and total LCA count remain
+descriptive evidence fields.
 
 The 97 selected codes and normalization details are documented in
 [`PRIORITY.md`](PRIORITY.md). Product-class raw job title rules are documented in
