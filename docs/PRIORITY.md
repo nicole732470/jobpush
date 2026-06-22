@@ -2,41 +2,38 @@
 
 ## Scoring model
 
-`jobpush.company_targets` stores one component score column per evidence type,
-then rolls them up into a total crawl ranking score.
+`jobpush.company_targets` stores one score column per evidence type, then sums
+them into `priority_score` (higher values are crawled first).
 
-| Column | Meaning |
-|---|---|
-| `role_match_score` | Points from selected SOC role matching |
-| `priority_score` | Total ranking score; higher values are crawled first |
+| Column | Points | Rule |
+|---|---:|---|
+| `target_role_score` | 0 or 1 | +1 when any LCA filing matches `jobpush.target_soc_roles` |
+| `lca_count_score` | 0 or 1 | +1 when `lca_count > 5` |
+| `chicago_score` | 0 or 0.5 | +0.5 when `target_role_score = 1` and `employer_city` is in the Chicago metro list (IL) |
+| `priority_score` | sum | `target_role_score + lca_count_score + chicago_score` |
 
-`priority_score` is the sum of all component scores. Additional component
-columns will be added later; the refresh SQL will update both the component
-columns and the total.
+`target_role_lca_count` remains descriptive evidence (how many filings hit a
+target SOC). It does not add extra points beyond `target_role_score`.
 
-Today only `role_match_score` contributes to `priority_score`.
-
-## Current component: selected SOC roles v2
+## Target SOC roles (v2)
 
 The source workbook is `outputs/job_roles_20260621/LCA_All_Job_Roles_Summary.xlsx`,
 sheet `SOC标准岗位汇总`, column `是否目标`.
 
-- The user selected 282 source rows.
-- After normalizing and deduplicating SOC codes, 97 target codes remain.
-- `Dentists, General` (`29102100`) was removed in v2; it had been selected by
-  mistake and no longer contributes to `role_match_score`.
-- A company receives `role_match_score = 1` when at least one of its LCA rows
-  has an active code in `jobpush.target_soc_roles`.
-- A company with no matching LCA rows receives `role_match_score = 0`.
-- `priority_score` currently equals `role_match_score` only.
-- Industry, recency, certification status, and LCA volume do not add points yet.
+- 97 active target SOC codes remain in `jobpush.target_soc_roles`.
+- `Dentists, General` (`29102100`) was removed in v2.
 
-### Why raw job titles do not need a second matching rule
+## Chicago metro list
 
-Every raw `job_title` belongs to an LCA row that already carries `soc_code`.
-When that SOC code is selected, all corresponding raw job titles are included.
-This is more reliable than fuzzy text matching and avoids duplicate or misspelled
-raw titles changing a company's priority.
+Stored in `jobpush.chicago_metro_cities` and checked by
+`jobpush.is_chicago_metro(employer_city, employer_state)`.
+
+Current cities: Arlington Heights, Aurora, Bolingbrook, Chicago, Des Plaines,
+Downers Grove, Evanston, Glenview, Hoffman Estates, Joliet, Mount Prospect,
+Naperville, Oak Brook, Orland Park, Palatine, Schaumburg, Skokie, Tinley Park,
+Wheaton.
+
+## Component details
 
 ### SOC-code normalization
 
@@ -46,6 +43,14 @@ extension. A code without an extension receives `00`; for example,
 `15125200`. Non-zero extensions remain distinct, such as `15-2051.01` becoming
 `15205101`.
 
+### Why raw job titles do not need a second matching rule
+
+Every raw `job_title` belongs to an LCA row that already carries `soc_code`.
+When that SOC code is selected, all corresponding raw job titles are included.
+This is more reliable than fuzzy text matching and avoids duplicate or misspelled
+raw titles changing a company's priority.
+
+## Deduplicated target codes
 ## Deduplicated target codes
 
 | Normalized SOC code | Representative selected title | Selected title variants |

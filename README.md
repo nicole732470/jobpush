@@ -18,18 +18,12 @@ PostgreSQL `jobpush` schema.
 `jobpush.company_targets` contains one row per FEIN/company and is refreshed
 from the shared company and LCA tables. Scoring is deliberately explainable:
 
-- `role_match_score` is the selected-SOC role-match component;
-- every company starts at `0`;
-- `+1` when any filing matches one of the 97 deduplicated SOC codes selected in
-  the workbook's `是否目标` column;
-- `priority_score` is the total crawl ranking score and currently equals
-  `role_match_score` only;
-- industry is retained for analysis and tie-breaking, but does not add points
-  because it overlaps heavily with occupation evidence.
+- `target_role_score` is +1 when any filing matches one of the 97 target SOC codes;
+- `lca_count_score` is +1 when `lca_count > 5`;
+- `chicago_score` is +0.5 for target-role companies in the Chicago metro list (IL);
+- `priority_score` is the sum of all component scores.
 
-Higher `priority_score` values are crawled first. Filing recency, certification,
-and filing volume remain available as descriptive fields but do not affect
-scoring yet.
+Higher `priority_score` values are crawled first.
 See [`docs/PRIORITY.md`](docs/PRIORITY.md) for the complete rule and code list.
 
 ## Repository layout

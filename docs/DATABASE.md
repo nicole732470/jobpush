@@ -10,6 +10,7 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `public.company_websites` | Shared data | Verified or discovered company/career URLs |
 | `jobpush.company_targets` | JobPush | Crawl candidates, evidence and priority |
 | `jobpush.target_soc_roles` | JobPush | Deduplicated SOC codes used by priority scoring |
+| `jobpush.chicago_metro_cities` | JobPush | Chicago metro city list for `chicago_score` |
 | `jobpush.soc_role_title_mappings` | JobPush | Raw company job titles mapped to SOC standard roles |
 
 The PostgreSQL schema is a namespace inside the existing database, not a
@@ -18,18 +19,15 @@ repository clear migration ownership.
 
 ## Priority scoring
 
-`role_match_score` stores the selected-SOC role-match component. `priority_score`
-is the total crawl ranking score and currently equals `role_match_score` only.
-Additional component columns will be added later.
-
 | Component | Column | Points |
 |---|---|---:|
-| Baseline | `role_match_score` | 0 |
-| Any LCA filing whose normalized SOC code is active in `jobpush.target_soc_roles` | `role_match_score` | +1 |
-| Industry | — | 0 (stored for later analysis/tie-breaking) |
+| Target SOC role match | `target_role_score` | +1 |
+| LCA volume | `lca_count_score` | +1 when `lca_count > 5` |
+| Chicago metro employer | `chicago_score` | +0.5 when `target_role_score = 1` and city is in `jobpush.chicago_metro_cities` |
+| Total | `priority_score` | sum of component scores |
 
-`single_lca_company`, recency, certified count, and total LCA count remain
-stored as descriptive evidence. They do not change any score column yet.
+`target_role_lca_count`, `single_lca_company`, recency, certified count, and
+total LCA count remain descriptive evidence fields.
 
 The 97 selected codes and normalization details are documented in
 [`PRIORITY.md`](PRIORITY.md).
