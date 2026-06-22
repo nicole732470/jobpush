@@ -14,6 +14,13 @@ WITH dataset_window AS (
        AND target.normalized_soc_code = jobpush.normalize_soc_code(l.soc_code)
     WHERE l.employer_fein IS NOT NULL
     GROUP BY l.employer_fein
+), product_role_stats AS (
+    SELECT
+        l.employer_fein AS fein,
+        BOOL_OR(jobpush.is_product_role_job_title(l.job_title)) AS has_product_role_job
+    FROM public.lca_cases l
+    WHERE l.employer_fein IS NOT NULL
+    GROUP BY l.employer_fein
 ), source_base AS (
     SELECT
         c.fein,
@@ -27,11 +34,13 @@ WITH dataset_window AS (
         c.certified_count,
         (c.lca_count = 1) AS single_lca_company,
         COALESCE(f.target_role_lca_count, 0) AS target_role_lca_count,
+        COALESCE(p.has_product_role_job, FALSE) AS has_product_role_job,
         f.last_decision_date,
         COALESCE(f.last_decision_date >= w.max_decision_date - 365, FALSE)
             AS recent_lca
     FROM public.companies c
     LEFT JOIN filing_stats f USING (fein)
+    LEFT JOIN product_role_stats p USING (fein)
     CROSS JOIN dataset_window w
 ), scored AS (
     SELECT
@@ -43,12 +52,15 @@ WITH dataset_window AS (
         CASE WHEN target_role_lca_count > 0
               AND jobpush.is_chicago_metro(employer_city, employer_state)
             THEN 0.5::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
-            AS chicago_score
+            AS chicago_score,
+        CASE WHEN target_role_lca_count > 0 AND has_product_role_job
+            THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
+            AS product_role_score
     FROM source_base
 ), totaled AS (
     SELECT
         scored.*,
-        (target_role_score + lca_count_score + chicago_score)::NUMERIC(4, 1)
+        (target_role_score + lca_count_score + chicago_score + product_role_score)::NUMERIC(4, 1)
             AS priority_score
     FROM scored
 )
@@ -57,14 +69,14 @@ INSERT INTO jobpush.company_targets (
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_lca_count,
     last_decision_date, recent_lca, target_role_score, lca_count_score,
-    chicago_score, priority_score, priority_version, updated_at
+    chicago_score, product_role_score, priority_score, priority_version, updated_at
 )
 SELECT
     fein, company_id, company_name, naics_code, naics_sector,
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_lca_count,
     last_decision_date, recent_lca, target_role_score, lca_count_score,
-    chicago_score, priority_score, 'priority-v3', now()
+    chicago_score, product_role_score, priority_score, 'priority-v4', now()
 FROM totaled
 ON CONFLICT (fein) DO UPDATE SET
     company_id = EXCLUDED.company_id,
@@ -82,6 +94,7 @@ ON CONFLICT (fein) DO UPDATE SET
     target_role_score = EXCLUDED.target_role_score,
     lca_count_score = EXCLUDED.lca_count_score,
     chicago_score = EXCLUDED.chicago_score,
+    product_role_score = EXCLUDED.product_role_score,
     priority_score = EXCLUDED.priority_score,
     priority_version = EXCLUDED.priority_version,
     updated_at = now();

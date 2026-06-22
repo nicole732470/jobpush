@@ -9,8 +9,9 @@ them into `priority_score` (higher values are crawled first).
 |---|---:|---|
 | `target_role_score` | 0 or 1 | +1 when any LCA filing matches `jobpush.target_soc_roles` |
 | `lca_count_score` | 0 or 1 | +1 when `target_role_score = 1` and `lca_count > 5` |
-| `chicago_score` | 0 or 0.5 | +0.5 when `target_role_score = 1` and `employer_city` is in the Chicago metro list (IL) |
-| `priority_score` | sum | `target_role_score + lca_count_score + chicago_score` |
+| `chicago_score` | 0 or 0.5 | +0.5 when `target_role_score = 1` and city is in the Chicago metro list (IL) |
+| `product_role_score` | 0 or 1 | +1 when `target_role_score = 1` and any raw `job_title` matches `jobpush.product_role_title_rules` |
+| `priority_score` | sum | `target_role_score + lca_count_score + chicago_score + product_role_score` |
 
 `target_role_lca_count` remains descriptive evidence (how many filings hit a
 target SOC). It does not add extra points beyond `target_role_score`.
