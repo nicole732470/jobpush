@@ -74,5 +74,9 @@ one candidate keeps the company in review while other candidates remain.
 5. Run a stratified 4.0/3.0/2.5 sample; only low-confidence candidates require
    human review.
 
+Known external aggregators such as TechFetch belong in both the database domain
+exclude table and `scripts/discover_career_sites.py`; they must never be
+verified as a company-owned career site.
+
 `career_site_discovery_runs` records company counts, candidates, errors, and
 estimated credits for every completed batch.

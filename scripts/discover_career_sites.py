@@ -23,6 +23,7 @@ EXCLUDED_DOMAINS = {
     "virtualvocations.com", "flexjobs.com", "career.com", "instahyre.com",
     "remoterocketship.com", "levels.fyi", "dice.com", "latinograduate.com",
     "hirebase.org", "6amcity.com", "insidehighered.com", "nena.org", "acams.org",
+    "techfetch.com",
 }
 COMPANY_STOPWORDS = {
     "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation",
