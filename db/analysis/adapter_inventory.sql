@@ -25,3 +25,13 @@ FROM jobpush.job_postings
 WHERE consolidation_key = '77-0080465' AND active
 GROUP BY 1
 ORDER BY 1;
+
+\echo '=== Stored postings by adapter/source ==='
+SELECT cs.source_type,
+       COUNT(*) FILTER (WHERE posting.active) AS active_jobs,
+       COUNT(*) FILTER (WHERE posting.active AND posting.market_scope = 'US') AS active_us_jobs,
+       COUNT(DISTINCT posting.normalized_title) FILTER (WHERE posting.active) AS normalized_titles
+FROM jobpush.job_postings posting
+JOIN jobpush.career_sites cs USING (site_id)
+GROUP BY cs.source_type
+ORDER BY cs.source_type;

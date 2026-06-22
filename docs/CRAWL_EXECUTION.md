@@ -41,3 +41,20 @@ bash db/deploy_via_ssm.sh db/run_here_icims_pilot.sh
 The pilot is deliberately one company. Before expanding an adapter cohort,
 inspect parse coverage, duplicates, closures, request count, latency, and the
 title review queue.
+
+## Structured adapter representatives
+
+Migration 039 adds a US market scope and `jobpush.job_postings_us`. Two more
+public ATS adapters use the same batch/run/posting loader:
+
+- `greenhouse-api`: Strata is the representative Greenhouse board.
+- `workday-cxs`: Grubhub is the representative Workday site.
+
+Both pilots store detailed titles as `review`, record request/page metrics, and
+are rerun once to verify idempotent upserts before the adapter is widened to
+other verified sites of the same type.
+
+The live US-only surface is `jobpush.job_postings_us`. The base
+`jobpush.job_postings` table remains the crawl history and may also contain
+out-of-market postings from a global snapshot. `career_sites.target_country_code`
+records the intended market for each configured endpoint.

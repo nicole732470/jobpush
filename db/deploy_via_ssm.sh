@@ -22,7 +22,7 @@ mkdir -p "$STAGING/db/lib" "$STAGING/db/migrations" "$STAGING/db/refresh"
 [[ -d "$REPO_DIR/db/load" ]] && mkdir -p "$STAGING/db/load" && cp -R "$REPO_DIR/db/load/." "$STAGING/db/load/"
 [[ -d "$REPO_DIR/scripts" ]] && mkdir -p "$STAGING/scripts" && cp -R "$REPO_DIR/scripts/." "$STAGING/scripts/"
 
-cp "$REPO_DIR/db/lib/connect_rds.sh" "$STAGING/db/lib/"
+cp -R "$REPO_DIR/db/lib/." "$STAGING/db/lib/"
 cp -R "$REPO_DIR/db/migrations/." "$STAGING/db/migrations/"
 cp -R "$REPO_DIR/db/refresh/." "$STAGING/db/refresh/"
 
@@ -36,7 +36,7 @@ cp "$REPO_DIR/$RUN_SCRIPT" "$STAGING/$RUN_SCRIPT"
 chmod +x "$STAGING/$RUN_SCRIPT" "$STAGING/db/lib/connect_rds.sh"
 
 ARCHIVE="$(mktemp -t jobpush-ssm.XXXXXX.tgz)"
-tar czf "$ARCHIVE" -C "$STAGING" .
+COPYFILE_DISABLE=1 tar --exclude='__pycache__' --exclude='*.pyc' -czf "$ARCHIVE" -C "$STAGING" .
 PAYLOAD=$(base64 < "$ARCHIVE" | tr -d '\n')
 REMOTE_DIR="/tmp/jobpush-ssm-$$"
 
