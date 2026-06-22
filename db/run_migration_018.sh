@@ -33,7 +33,8 @@ PSQL=(psql -h "$RDS_HOST" -p "$RDS_PORT" -U "$RDS_USER" -d "$RDS_DB" -v ON_ERROR
 "${PSQL[@]}" -f "$SCRIPT_DIR/migrations/018_repair_fy2025_q1_wages.sql"
 "${PSQL[@]}" -c "\\copy jobpush.lca_wage_repair_stage FROM '$PATCH_CSV' WITH (FORMAT csv, HEADER true)"
 "${PSQL[@]}" -f "$SCRIPT_DIR/repair/repair_lca_wages_fy2025_q1.sql"
-"${PSQL[@]}" -f "$SCRIPT_DIR/refresh/refresh_repaired_consolidated_salary_scores.sql"
+"${PSQL[@]}" -f "$SCRIPT_DIR/refresh/refresh_employer_filing_stats.sql"
+"${PSQL[@]}" -f "$SCRIPT_DIR/refresh/refresh_company_targets_consolidated.sql"
 
 "${PSQL[@]}" -P pager=off -c \
   "SELECT salary_score, COUNT(*) AS companies

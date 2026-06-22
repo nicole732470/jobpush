@@ -1,3 +1,6 @@
+-- Deprecated: prefer refresh_employer_filing_stats.sql + refresh_company_targets_consolidated.sql
+-- Kept for reference; wage repair (018) now uses the full optimized pipeline.
+
 BEGIN;
 
 WITH fein_units AS (
