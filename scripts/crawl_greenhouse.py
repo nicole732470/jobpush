@@ -10,7 +10,7 @@ import json
 import re
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -53,8 +53,16 @@ def main() -> int:
         status = response.status
         payload = json.load(response)
 
+    office_ids = {int(value) for value in parse_qs(urlsplit(args.url).query).get("offices[]", [])}
+    jobs = payload.get("jobs", [])
+    if office_ids:
+        jobs = [job for job in jobs if any(
+            office.get("id") in office_ids or office.get("parent_id") in office_ids
+            for office in job.get("offices", [])
+        )]
+
     rows = []
-    for job in payload.get("jobs", []):
+    for job in jobs:
         departments = ", ".join(clean(item.get("name")) for item in job.get("departments", []))
         rows.append({
             "external_job_id": str(job["id"]),

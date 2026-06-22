@@ -59,6 +59,11 @@ Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
 other verified sites of the same type.
 
+Greenhouse URLs may contain `offices[]` filters. The public jobs API ignores
+that query parameter, so adapter version 0.2 reads the office ID from the
+verified URL and filters each API job by its returned office ID/parent ID.
+StackAdapt uses this path for its United States office group.
+
 The live US-only surface is `jobpush.job_postings_us`. The base
 `jobpush.job_postings` table remains the crawl history and may also contain
 out-of-market postings from a global snapshot. `career_sites.target_country_code`
