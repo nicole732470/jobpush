@@ -19,6 +19,7 @@ trap 'rm -rf "$STAGING"' EXIT
 
 mkdir -p "$STAGING/db/lib" "$STAGING/db/migrations" "$STAGING/db/refresh"
 [[ -d "$REPO_DIR/db/analysis" ]] && mkdir -p "$STAGING/db/analysis" && cp -R "$REPO_DIR/db/analysis/." "$STAGING/db/analysis/"
+[[ -d "$REPO_DIR/db/load" ]] && mkdir -p "$STAGING/db/load" && cp "$REPO_DIR/db/load/load_linkedin_scoring_excludes.sql" "$STAGING/db/load/"
 
 cp "$REPO_DIR/db/lib/connect_rds.sh" "$STAGING/db/lib/"
 cp -R "$REPO_DIR/db/migrations/." "$STAGING/db/migrations/"

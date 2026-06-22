@@ -15,6 +15,7 @@ name keys.
 | `jobpush.linkedin_top_employers_2026` | Deduplicated LinkedIn employer names |
 | `jobpush.linkedin_top_employer_match_terms` | Brand / alias search keys per employer |
 | `jobpush.linkedin_top_employer_company_matches` | Matched `public.companies.fein` rows |
+| `jobpush.linkedin_top_employer_scoring_excludes` | LinkedIn employers excluded from automatic scoring |
 
 ## Matching
 
@@ -42,6 +43,27 @@ Manual alias expansions (examples):
 - `EY` → `ernst-and-young`
 - `JPMorganChase` → `jpmorgan`, `jp-morgan`
 - `AT&T` → `att`, `at-and-t`
+
+## Match confidence (migration 021)
+
+Automatic FEIN matching is conservative:
+
+1. **Scoring excludes** — `config/linkedin_top_employer_scoring_excludes.csv`
+   lists ambiguous short brands (`abstract`, `vast`, `abridge`) that never
+   receive `linkedin_top_employer_score`, even if a prefix key would match.
+2. **Consolidation `skip` policy** — same employers are blocked in
+   `jobpush.company_consolidation_policies`.
+3. **`merge_strict` policy** — employers such as Sage, Shell, SAP, Koch, and
+   ICON only match when the legal `company_name` satisfies `name_allow_regex`
+   from consolidation config.
+
+Helper: `jobpush.linkedin_top_employer_match_confident()`.
+
+Deploy:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_migration_021.sh
+```
 
 ## Scoring
 

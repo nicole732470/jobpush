@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = Path.home() / "Downloads/linkedin_top_companies_2026_us_europe.xlsx"
 EMPLOYERS_CSV = ROOT / "config/linkedin_top_employers_2026.csv"
 MATCH_TERMS_CSV = ROOT / "config/linkedin_top_employer_match_terms.csv"
+SCORING_EXCLUDES_CSV = ROOT / "config/linkedin_top_employer_scoring_excludes.csv"
+
+# LinkedIn employers too ambiguous for automatic prefix scoring.
+SCORING_SKIP_EMPLOYER_KEYS = {"abstract", "vast", "abridge"}
 
 # Extra search keys for brand abbreviations and legal-name variants.
 EXTRA_MATCH_KEYS: dict[str, list[tuple[str, str]]] = {
@@ -150,6 +154,21 @@ def build_rows(input_path: Path) -> tuple[list[dict[str, object]], list[dict[str
         appearances.items(), key=lambda item: (int(item[1]["best_rank"]), item[0])
     ):
         employer_key = str(data["employer_key"])
+        if employer_key in SCORING_SKIP_EMPLOYER_KEYS:
+            employer_rows.append(
+                {
+                    "employer_key": employer_key,
+                    "linkedin_name": company,
+                    "best_rank": data["best_rank"],
+                    "appearance_count": data["appearance_count"],
+                    "regions": "; ".join(sorted(region_sets[company])),
+                    "source_url": data["source_url"],
+                    "source_year": 2026,
+                    "notes": "LinkedIn Top Companies 2026 (US + Europe lists, deduplicated)",
+                }
+            )
+            continue
+
         employer_rows.append(
             {
                 "employer_key": employer_key,

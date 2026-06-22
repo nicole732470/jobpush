@@ -123,7 +123,6 @@ southern-california-edison-sce,Southern California Edison (SCE),southern-califor
 southern-california-edison-sce,Southern California Edison (SCE),southern-california-edison-sce,prefix,linkedin_name
 state-street,State Street,state-street,prefix,brand
 thermo-fisher-scientific,Thermo Fisher Scientific,thermo-fisher-scientific,prefix,brand
-abridge,Abridge,abridge,prefix,brand
 cyera,Cyera,cyera,prefix,brand
 dana-farber-cancer-institute,Dana-Farber Cancer Institute,dana-farber-cancer-institute,prefix,brand
 johnson-and-johnson-innovative-medicine,Johnson & Johnson Innovative Medicine,johnson-and-johnson-innovative-medicine,prefix,brand
@@ -132,7 +131,6 @@ nagarro,Nagarro,nagarro,prefix,brand
 stack-infrastructure,STACK Infrastructure,stack-infrastructure,prefix,brand
 santander,Santander,santander,prefix,brand
 texas-instruments,Texas Instruments,texas-instruments,prefix,brand
-vast,Vast,vast,prefix,brand
 adp,ADP,adp,exact,brand
 applied-materials,Applied Materials,applied-materials,prefix,brand
 hp,HP,hp,exact,brand
@@ -185,7 +183,6 @@ hewlett-packard-enterprise,Hewlett Packard Enterprise,hewlett-packard-enterprise
 slb,SLB,slb,exact,brand
 agilent-technologies,Agilent Technologies,agilent-technologies,prefix,brand
 bearingpoint,BearingPoint,bearingpoint,prefix,brand
-abstract,Abstract,abstract,prefix,brand
 hogan-lovells,Hogan Lovells,hogan-lovells,prefix,brand
 fedex,FedEx,fedex,prefix,brand
 iqvia,IQVIA,iqvia,prefix,brand
