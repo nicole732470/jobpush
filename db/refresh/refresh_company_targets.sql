@@ -68,7 +68,10 @@ WITH dataset_window AS (
             AS product_role_score,
         CASE WHEN target_role_lca_count > 0 AND has_product_manager_job
             THEN 0.25::NUMERIC(4, 2) ELSE 0::NUMERIC(4, 2) END
-            AS product_manager_score
+            AS product_manager_score,
+        CASE WHEN jobpush.is_linkedin_top_employer_2026(fein)
+            THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
+            AS linkedin_top_employer_score
     FROM source_base
 ), totaled AS (
     SELECT
@@ -76,6 +79,7 @@ WITH dataset_window AS (
         (
             target_role_score + lca_count_score + chicago_score
             + product_role_score + product_manager_score
+            + linkedin_top_employer_score
         )::NUMERIC(4, 2)
             AS priority_score
     FROM scored
@@ -86,7 +90,7 @@ INSERT INTO jobpush.company_targets (
     single_lca_company, target_role_lca_count,
     last_decision_date, recent_lca, target_role_score, lca_count_score,
     chicago_score, product_role_score, product_manager_score,
-    product_role_lca_count, product_role_lca_pct,
+    linkedin_top_employer_score, product_role_lca_count, product_role_lca_pct,
     priority_score, priority_version, updated_at
 )
 SELECT
@@ -95,8 +99,8 @@ SELECT
     single_lca_company, target_role_lca_count,
     last_decision_date, recent_lca, target_role_score, lca_count_score,
     chicago_score, product_role_score, product_manager_score,
-    product_role_lca_count, product_role_lca_pct,
-    priority_score, 'priority-v6', now()
+    linkedin_top_employer_score, product_role_lca_count, product_role_lca_pct,
+    priority_score, 'priority-v7', now()
 FROM totaled
 ON CONFLICT (fein) DO UPDATE SET
     company_id = EXCLUDED.company_id,
@@ -116,6 +120,7 @@ ON CONFLICT (fein) DO UPDATE SET
     chicago_score = EXCLUDED.chicago_score,
     product_role_score = EXCLUDED.product_role_score,
     product_manager_score = EXCLUDED.product_manager_score,
+    linkedin_top_employer_score = EXCLUDED.linkedin_top_employer_score,
     product_role_lca_count = EXCLUDED.product_role_lca_count,
     product_role_lca_pct = EXCLUDED.product_role_lca_pct,
     priority_score = EXCLUDED.priority_score,

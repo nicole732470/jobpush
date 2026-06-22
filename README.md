@@ -25,6 +25,8 @@ from the shared company and LCA tables. Scoring is deliberately explainable:
   matches `jobpush.product_role_title_rules`;
 - `product_manager_score` is +0.25 when `target_role_score = 1` and any raw
   `job_title` is Product Manager or Technical Product Manager;
+- `linkedin_top_employer_score` is +1 when the company matches LinkedIn Top
+  Companies 2026 (`jobpush.linkedin_top_employer_company_matches`);
 - `priority_score` is the sum of all component scores.
 
 Higher `priority_score` values are crawled first.

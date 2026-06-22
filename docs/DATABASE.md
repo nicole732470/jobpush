@@ -13,6 +13,9 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.chicago_metro_cities` | JobPush | Chicago metro city list for `chicago_score` |
 | `jobpush.soc_role_title_mappings` | JobPush | Raw company job titles mapped to SOC standard roles |
 | `jobpush.product_role_title_rules` | JobPush | Raw `job_title` patterns for product-class role matching |
+| `jobpush.linkedin_top_employers_2026` | JobPush | Deduplicated LinkedIn Top Companies 2026 employers |
+| `jobpush.linkedin_top_employer_match_terms` | JobPush | Brand/alias match keys for LinkedIn employers |
+| `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
 
 The PostgreSQL schema is a namespace inside the existing database, not a
 separate database. This keeps joins and foreign keys simple while giving each
@@ -27,6 +30,7 @@ repository clear migration ownership.
 | Chicago metro employer | `chicago_score` | +0.5 when `target_role_score = 1` and city is in `jobpush.chicago_metro_cities` |
 | Product-class job title | `product_role_score` | +1 when `target_role_score = 1` and raw `job_title` matches `jobpush.product_role_title_rules` |
 | Product Manager title | `product_manager_score` | +0.25 when `target_role_score = 1` and raw `job_title` is Product Manager or Technical Product Manager |
+| LinkedIn Top Companies 2026 | `linkedin_top_employer_score` | +1 when FEIN matches `jobpush.linkedin_top_employer_company_matches` |
 | Total | `priority_score` | sum of component scores |
 
 `target_role_lca_count`, `product_role_lca_count`, `product_role_lca_pct`,

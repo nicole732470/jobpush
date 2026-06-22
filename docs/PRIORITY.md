@@ -3,7 +3,7 @@
 `jobpush.company_targets` stores one score column per evidence type, then sums
 them into `priority_score`. Higher values are crawled first.
 
-Current version: `priority-v6` (set in `db/refresh/refresh_company_targets.sql`).
+Current version: `priority-v7` (set in `db/refresh/refresh_company_targets.sql`).
 
 ## Total formula
 
@@ -14,9 +14,10 @@ priority_score =
   + chicago_score
   + product_role_score
   + product_manager_score
+  + linkedin_top_employer_score
 ```
 
-Maximum possible score: **3.75**
+Maximum possible score: **4.75**
 
 | Column | Points | When it applies |
 |---|---:|---|
@@ -25,6 +26,7 @@ Maximum possible score: **3.75**
 | `chicago_score` | 0 or 0.5 | `target_role_score = 1` **and** employer city/state matches `jobpush.chicago_metro_cities` (IL only) |
 | `product_role_score` | 0 or 1 | `target_role_score = 1` **and** at least one raw `job_title` matches `jobpush.product_role_title_rules` |
 | `product_manager_score` | 0 or 0.25 | `target_role_score = 1` **and** at least one raw `job_title` matches Product Manager or Technical Product Manager |
+| `linkedin_top_employer_score` | 0 or 1 | Company FEIN matches LinkedIn Top Companies 2026 list (brand-aware name match) |
 | `priority_score` | sum | Sum of all component columns above |
 
 ## Prerequisite chain
@@ -37,6 +39,9 @@ target_role_score = 1
     ├── chicago_score          (+0.5 if Chicago metro)
     ├── product_role_score     (+1 if any product-class raw job_title)
     └── product_manager_score  (+0.25 if Product Manager or Technical Product Manager)
+
+`linkedin_top_employer_score` (+1 if LinkedIn 2026 top employer match) has no
+prerequisite on `target_role_score`.
 ```
 
 If `target_role_score = 0`, every downstream component stays 0.
@@ -92,6 +97,15 @@ Skokie, Tinley Park, Wheaton.
 - **Note:** This is separate from `product_role_score`. A company with only
   Project Manager filings gets `product_role_score` but not `product_manager_score`.
 
+### 6. `linkedin_top_employer_score` (+1)
+
+- **Prerequisite:** none
+- **Input:** company FEIN matched against LinkedIn Top Companies 2026 list
+- **Match tables:** `jobpush.linkedin_top_employer_company_matches` (built from
+  `company_search_keys`, `company_aliases`, and `companies.name`)
+- **Rule:** `+1` when the FEIN matches any deduplicated LinkedIn 2026 employer
+- **Details:** [`LINKEDIN_TOP_EMPLOYERS.md`](LINKEDIN_TOP_EMPLOYERS.md)
+
 ## Descriptive fields (not added to `priority_score`)
 
 | Column | Meaning |
@@ -139,6 +153,7 @@ After editing `jobpush.target_soc_roles`, `jobpush.chicago_metro_cities`, or
 | `priority-v3` | Split into `target_role_score` + `priority_score` sum |
 | `priority-v4` | Added `lca_count_score`, `chicago_score`, `product_role_score` |
 | `priority-v6` | `lca_count_score` threshold lowered to `lca_count > 1`; added `product_manager_score` (+0.25) |
+| `priority-v7` | Added `linkedin_top_employer_score` (+1) from LinkedIn Top Companies 2026 |
 
 ## Deduplicated target SOC codes
 

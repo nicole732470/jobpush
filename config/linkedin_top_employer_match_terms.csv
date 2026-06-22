@@ -1,0 +1,215 @@
+employer_key,linkedin_name,match_key,match_kind,term_source
+asml,ASML,asml,prefix,brand
+abbvie,AbbVie,abbvie,prefix,brand
+accenture,Accenture,accenture,prefix,brand
+amazon,Amazon,amazon,prefix,brand
+american-express,American Express,american-express,prefix,brand
+cvs-health,CVS Health,cvs-health,prefix,brand
+capital-one,Capital One,capital-one,prefix,brand
+citi,Citi,citi,prefix,brand
+citi,Citi,citibank,prefix,manual_alias
+citi,Citi,citigroup,prefix,manual_alias
+comcast,Comcast,comcast,prefix,brand
+delta-air-lines,Delta Air Lines,delta-air-lines,prefix,brand
+google,Google,google,prefix,brand
+groupe-credit-agricole,Groupe Crédit Agricole,groupe-credit-agricole,prefix,brand
+jpmorganchase,JPMorganChase,jp-morgan,prefix,manual_alias
+jpmorganchase,JPMorganChase,jpmorgan,prefix,manual_alias
+jpmorganchase,JPMorganChase,jpmorganchase,prefix,brand
+salesforce,Salesforce,salesforce,prefix,brand
+shell,Shell,shell,prefix,brand
+stryker,Stryker,stryker,prefix,brand
+the-walt-disney-company,The Walt Disney Company,the-walt-disney,prefix,brand:stripped
+the-walt-disney-company,The Walt Disney Company,the-walt-disney-company,prefix,brand
+alphabet-google,Alphabet/Google,alphabet,prefix,brand
+alphabet-google,Alphabet/Google,alphabet-google,prefix,linkedin_name
+alphabet-google,Alphabet/Google,google,prefix,brand
+amadeus,Amadeus,amadeus,prefix,brand
+apple,Apple,apple,prefix,brand
+astrazeneca,AstraZeneca,astrazeneca,prefix,brand
+bbva,BBVA,bbva,prefix,brand
+mass-general-brigham,Mass General Brigham,mass-general-brigham,prefix,brand
+mcdonald-s,McDonald's,mcdonald-s,prefix,brand
+medtronic,Medtronic,medtronic,prefix,brand
+micron-technology,Micron Technology,micron-technology,prefix,brand
+microsoft,Microsoft,microsoft,prefix,brand
+nvidia,NVIDIA,nvidia,prefix,brand
+schneider-electric,Schneider Electric,schneider-electric,prefix,brand
+sysco,Sysco,sysco,prefix,brand
+wellstar-health-system,Wellstar Health System,wellstar-health-system,prefix,brand
+at-and-t,AT&T,at-and-t,prefix,brand
+at-and-t,AT&T,att,prefix,manual_alias
+bank-of-america,Bank of America,bank-of-america,prefix,brand
+caixabank,CaixaBank,caixabank,prefix,brand
+emory-healthcare,Emory Healthcare,emory-healthcare,prefix,brand
+exxonmobil,ExxonMobil,exxonmobil,prefix,brand
+merck,Merck,merck,prefix,brand
+sap,SAP,sap,exact,brand
+sap,SAP,sap,prefix,manual_alias
+sanofi,Sanofi,sanofi,prefix,brand
+siemens,Siemens,siemens,prefix,brand
+united-airlines,United Airlines,united-airlines,prefix,brand
+vertex-pharmaceuticals,Vertex Pharmaceuticals,vertex-pharmaceuticals,prefix,brand
+amgen,Amgen,amgen,prefix,brand
+ey,EY,ernst-and-young,prefix,manual_alias
+ey,EY,ernst-young,prefix,manual_alias
+ey,EY,ey,exact,brand
+eli-lilly-and-company,Eli Lilly and Company,eli-lilly-and,prefix,brand:stripped
+eli-lilly-and-company,Eli Lilly and Company,eli-lilly-and-company,prefix,brand
+fidelity-investments,Fidelity Investments,fidelity-investments,prefix,brand
+freddie-mac,Freddie Mac,freddie-mac,prefix,brand
+groupe-bpce,Groupe BPCE,groupe-bpce,prefix,brand
+incyte,Incyte,incyte,prefix,brand
+the-home-depot,The Home Depot,the-home-depot,prefix,brand
+venture-global-lng,Venture Global LNG,venture-global-lng,prefix,brand
+adobe,Adobe,adobe,prefix,brand
+anduril-industries,Anduril Industries,anduril-industries,prefix,brand
+bnp-paribas,BNP Paribas,bnp-paribas,prefix,brand
+bloomberg,Bloomberg,bloomberg,prefix,brand
+cencora,Cencora,cencora,prefix,brand
+leonardo,Leonardo,leonardo,prefix,brand
+lockheed-martin,Lockheed Martin,lockheed-martin,prefix,brand
+pwc,PwC,pricewaterhouse,prefix,manual_alias
+pwc,PwC,pwc,exact,brand
+pwc,PwC,pwc,prefix,manual_alias
+rabobank,Rabobank,rabobank,prefix,brand
+servicenow,ServiceNow,servicenow,prefix,brand
+the-coca-cola-company,The Coca-Cola Company,the-coca-cola,prefix,brand:stripped
+the-coca-cola-company,The Coca-Cola Company,the-coca-cola-company,prefix,brand
+wells-fargo,Wells Fargo,wells-fargo,prefix,brand
+american-airlines,American Airlines,american-airlines,prefix,brand
+boston-consulting-group-bcg,Boston Consulting Group (BCG),bcg,exact,manual_alias
+boston-consulting-group-bcg,Boston Consulting Group (BCG),boston-consulting,prefix,brand:stripped
+boston-consulting-group-bcg,Boston Consulting Group (BCG),boston-consulting-group,prefix,brand
+boston-consulting-group-bcg,Boston Consulting Group (BCG),boston-consulting-group-bcg,prefix,linkedin_name
+ericsson,Ericsson,ericsson,prefix,brand
+gsk,GSK,gsk,exact,brand
+gilead-sciences,Gilead Sciences,gilead-sciences,prefix,brand
+honeywell,Honeywell,honeywell,prefix,brand
+l-oreal,L'Oréal,l-oreal,prefix,brand
+marriott-international,Marriott International,marriott-international,prefix,brand
+northern-trust,Northern Trust,northern-trust,prefix,brand
+northrop-grumman,Northrop Grumman,northrop-grumman,prefix,brand
+prysmian,Prysmian,prysmian,prefix,brand
+reckitt,Reckitt,reckitt,prefix,brand
+roche,Roche,roche,prefix,brand
+the-tjx-companies-inc,"The TJX Companies, Inc.",the-tjx-companies,prefix,brand:stripped
+the-tjx-companies-inc,"The TJX Companies, Inc.",the-tjx-companies-inc,prefix,brand
+truist,Truist,truist,prefix,brand
+airbus,Airbus,airbus,prefix,brand
+edwards-lifesciences,Edwards Lifesciences,edwards-lifesciences,prefix,brand
+ferrovie-dello-stato-italiane-s-p-a,Ferrovie dello Stato Italiane S.p.A.,ferrovie-dello-stato-italiane-s-p-a,prefix,brand
+leidos,Leidos,leidos,prefix,brand
+liberty-mutual-insurance,Liberty Mutual Insurance,liberty-mutual-insurance,prefix,brand
+mastercard,Mastercard,mastercard,prefix,brand
+medline,Medline,medline,prefix,brand
+ntt,NTT,ntt,exact,brand
+pepsico,PepsiCo,pepsico,prefix,brand
+tesla,Tesla,tesla,prefix,brand
+uthealth-houston,UTHealth Houston,uthealth-houston,prefix,brand
+walmart,Walmart,walmart,prefix,brand
+a-p-moller-maersk,A.P. Moller - Maersk,a-p-moller-maersk,prefix,brand
+abbott,Abbott,abbott,prefix,brand
+alstom,Alstom,alstom,prefix,brand
+baker-hughes,Baker Hughes,baker-hughes,prefix,brand
+citadel-credit-union,Citadel Credit Union,citadel-credit-union,prefix,brand
+corpay,Corpay,corpay,prefix,brand
+lloyds-banking-group,Lloyds Banking Group,lloyds-banking,prefix,brand:stripped
+lloyds-banking-group,Lloyds Banking Group,lloyds-banking-group,prefix,brand
+pacific-gas-and-electric-company,Pacific Gas and Electric Company,pacific-gas-and-electric,prefix,brand:stripped
+pacific-gas-and-electric-company,Pacific Gas and Electric Company,pacific-gas-and-electric-company,prefix,brand
+poste-italiane,Poste Italiane,poste-italiane,prefix,brand
+southern-california-edison-sce,Southern California Edison (SCE),southern-california-edison,prefix,brand
+southern-california-edison-sce,Southern California Edison (SCE),southern-california-edison-sce,prefix,linkedin_name
+state-street,State Street,state-street,prefix,brand
+thermo-fisher-scientific,Thermo Fisher Scientific,thermo-fisher-scientific,prefix,brand
+abridge,Abridge,abridge,prefix,brand
+cyera,Cyera,cyera,prefix,brand
+dana-farber-cancer-institute,Dana-Farber Cancer Institute,dana-farber-cancer-institute,prefix,brand
+johnson-and-johnson-innovative-medicine,Johnson & Johnson Innovative Medicine,johnson-and-johnson-innovative-medicine,prefix,brand
+lummus-technology,Lummus Technology,lummus-technology,prefix,brand
+nagarro,Nagarro,nagarro,prefix,brand
+stack-infrastructure,STACK Infrastructure,stack-infrastructure,prefix,brand
+santander,Santander,santander,prefix,brand
+texas-instruments,Texas Instruments,texas-instruments,prefix,brand
+vast,Vast,vast,prefix,brand
+adp,ADP,adp,exact,brand
+applied-materials,Applied Materials,applied-materials,prefix,brand
+hp,HP,hp,exact,brand
+lonza,Lonza,lonza,prefix,brand
+madrigal-pharmaceuticals,Madrigal Pharmaceuticals,madrigal-pharmaceuticals,prefix,brand
+morgan-stanley,Morgan Stanley,morgan-stanley,prefix,brand
+stmicroelectronics,STMicroelectronics,stmicroelectronics,prefix,brand
+select-water-solutions,Select Water Solutions,select-water-solutions,prefix,brand
+the-options-clearing-corporation-occ,The Options Clearing Corporation (OCC),the-options-clearing,prefix,brand:stripped
+the-options-clearing-corporation-occ,The Options Clearing Corporation (OCC),the-options-clearing-corporation,prefix,brand
+the-options-clearing-corporation-occ,The Options Clearing Corporation (OCC),the-options-clearing-corporation-occ,prefix,linkedin_name
+the-world-bank-group,The World Bank Group,the-world-bank,prefix,brand:stripped
+the-world-bank-group,The World Bank Group,the-world-bank-group,prefix,brand
+air-france-klm,Air France-KLM,air-france-klm,prefix,brand
+kyndryl,Kyndryl,kyndryl,prefix,brand
+ibm,IBM,ibm,exact,brand
+indra-group,Indra Group,indra,prefix,brand:stripped
+indra-group,Indra Group,indra-group,prefix,brand
+procter-and-gamble,Procter & Gamble,procter-and-gamble,prefix,brand
+procter-and-gamble,Procter & Gamble,procter-gamble,prefix,manual_alias
+unisys,Unisys,unisys,prefix,brand
+boehringer-ingelheim,Boehringer Ingelheim,boehringer-ingelheim,prefix,brand
+intesa-sanpaolo,Intesa Sanpaolo,intesa-sanpaolo,prefix,brand
+unitedhealth-group,UnitedHealth Group,unitedhealth,prefix,brand:stripped
+unitedhealth-group,UnitedHealth Group,unitedhealth-group,prefix,brand
+hsbc,HSBC,hsbc,prefix,brand
+infosys,Infosys,infosys,prefix,brand
+johnson-controls,Johnson Controls,johnson-controls,prefix,brand
+technipfmc,TechnipFMC,technipfmc,prefix,brand
+bayer,Bayer,bayer,prefix,brand
+boston-scientific,Boston Scientific,boston-scientific,prefix,brand
+generali,Generali,generali,prefix,brand
+kpmg,KPMG,kpmg,prefix,brand
+coty,Coty,coty,prefix,brand
+dxc-technology,DXC Technology,dxc-technology,prefix,brand
+icon-plc,ICON plc,icon,prefix,brand:stripped
+icon-plc,ICON plc,icon-plc,prefix,brand
+lenovo,Lenovo,lenovo,prefix,brand
+bain-and-company,Bain & Company,bain,prefix,manual_alias
+bain-and-company,Bain & Company,bain-and,prefix,brand:stripped
+bain-and-company,Bain & Company,bain-and-company,prefix,brand
+societe-generale,Societe Generale,societe-generale,prefix,brand
+vertiv,Vertiv,vertiv,prefix,brand
+hitachi,Hitachi,hitachi,prefix,brand
+tata-consultancy-services,Tata Consultancy Services,tata-consultancy-services,prefix,brand
+henkel,Henkel,henkel,prefix,brand
+unicredit,UniCredit,unicredit,prefix,brand
+avio-aero,Avio Aero,avio-aero,prefix,brand
+hewlett-packard-enterprise,Hewlett Packard Enterprise,hewlett-packard-enterprise,prefix,brand
+slb,SLB,slb,exact,brand
+agilent-technologies,Agilent Technologies,agilent-technologies,prefix,brand
+bearingpoint,BearingPoint,bearingpoint,prefix,brand
+abstract,Abstract,abstract,prefix,brand
+hogan-lovells,Hogan Lovells,hogan-lovells,prefix,brand
+fedex,FedEx,fedex,prefix,brand
+iqvia,IQVIA,iqvia,prefix,brand
+pfizer,Pfizer,pfizer,prefix,brand
+uber,Uber,uber,prefix,brand
+barclays,Barclays,barclays,prefix,brand
+forvis-mazars-group,Forvis Mazars Group,forvis-mazars,prefix,brand:stripped
+forvis-mazars-group,Forvis Mazars Group,forvis-mazars-group,prefix,brand
+sage,Sage,sage,prefix,brand
+koch,Koch,koch,prefix,brand
+caterpillar-inc,Caterpillar Inc.,caterpillar,prefix,brand:stripped
+caterpillar-inc,Caterpillar Inc.,caterpillar-inc,prefix,brand
+kaiser-permanente,Kaiser Permanente,kaiser-permanente,prefix,brand
+general-motors,General Motors,general-motors,prefix,brand
+ford-motor-company,Ford Motor Company,ford-motor,prefix,brand:stripped
+ford-motor-company,Ford Motor Company,ford-motor-company,prefix,brand
+boeing,Boeing,boeing,prefix,brand
+state-farm,State Farm,state-farm,prefix,brand
+pnc,PNC,pnc,exact,brand
+akzonobel,AkzoNobel,akzonobel,prefix,brand
+stellantis,Stellantis,stellantis,prefix,brand
+synchrony,Synchrony,synchrony,prefix,brand
+rtx,RTX,rtx,exact,brand
+lear-corporation,Lear Corporation,lear,prefix,brand:stripped
+lear-corporation,Lear Corporation,lear-corporation,prefix,brand
+t-mobile-deutsche-telekom,T-Mobile (Deutsche Telekom),t-mobile,prefix,brand
+t-mobile-deutsche-telekom,T-Mobile (Deutsche Telekom),t-mobile-deutsche-telekom,prefix,linkedin_name
