@@ -1,16 +1,35 @@
-# JobPush priority rule
+# JobPush priority scoring
 
-## Current rule: selected SOC roles v1
+## Scoring model
+
+`jobpush.company_targets` stores one component score column per evidence type,
+then rolls them up into a total crawl ranking score.
+
+| Column | Meaning |
+|---|---|
+| `role_match_score` | Points from selected SOC role matching |
+| `priority_score` | Total ranking score; higher values are crawled first |
+
+`priority_score` is the sum of all component scores. Additional component
+columns will be added later; the refresh SQL will update both the component
+columns and the total.
+
+Today only `role_match_score` contributes to `priority_score`.
+
+## Current component: selected SOC roles v2
 
 The source workbook is `outputs/job_roles_20260621/LCA_All_Job_Roles_Summary.xlsx`,
 sheet `SOC标准岗位汇总`, column `是否目标`.
 
 - The user selected 282 source rows.
-- After normalizing and deduplicating SOC codes, 98 target codes remain.
-- A company receives `priority_score = 1` when at least one of its LCA rows
+- After normalizing and deduplicating SOC codes, 97 target codes remain.
+- `Dentists, General` (`29102100`) was removed in v2; it had been selected by
+  mistake and no longer contributes to `role_match_score`.
+- A company receives `role_match_score = 1` when at least one of its LCA rows
   has an active code in `jobpush.target_soc_roles`.
-- A company with no matching LCA rows receives `priority_score = 0`.
-- Industry, recency, certification status, and LCA volume do not add points.
+- A company with no matching LCA rows receives `role_match_score = 0`.
+- `priority_score` currently equals `role_match_score` only.
+- Industry, recency, certification status, and LCA volume do not add points yet.
 
 ### Why raw job titles do not need a second matching rule
 
@@ -122,7 +141,6 @@ extension. A code without an extension receives `00`; for example,
 | `17206300` | Computer Hardware Engineers, R&D | 1 |
 | `19302200` | Survey Researchers | 1 |
 | `25102100` | Computer Science Teachers, Postsecondary | 1 |
-| `29102100` | Dentists, General | 1 |
 | `33302106` | Intelligence Analysts | 1 |
 | `40903100` | Sales Engineers | 2 |
 | `41303100` | Securities, Commodities, and Financial Services Sales Agents | 1 |

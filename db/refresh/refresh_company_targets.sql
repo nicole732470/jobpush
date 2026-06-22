@@ -37,21 +37,28 @@ WITH dataset_window AS (
 ), source AS (
     SELECT
         source_base.*,
-        CASE WHEN target_role_match THEN 1 ELSE 0 END AS priority_score
+        CASE WHEN target_role_match THEN 1 ELSE 0 END AS role_match_score
     FROM source_base
+), scored AS (
+    SELECT
+        source.*,
+        role_match_score AS priority_score
+    FROM source
 )
 INSERT INTO jobpush.company_targets (
     fein, company_id, company_name, naics_code, naics_sector,
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_match, target_role_lca_count,
-    last_decision_date, recent_lca, priority_score, priority_version, updated_at
+    last_decision_date, recent_lca, role_match_score, priority_score,
+    priority_version, updated_at
 )
 SELECT
     fein, company_id, company_name, naics_code, naics_sector,
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_match, target_role_lca_count,
-    last_decision_date, recent_lca, priority_score, 'selected-soc-v1', now()
-FROM source
+    last_decision_date, recent_lca, role_match_score, priority_score,
+    'selected-soc-v2', now()
+FROM scored
 ON CONFLICT (fein) DO UPDATE SET
     company_id = EXCLUDED.company_id,
     company_name = EXCLUDED.company_name,
@@ -66,6 +73,7 @@ ON CONFLICT (fein) DO UPDATE SET
     target_role_lca_count = EXCLUDED.target_role_lca_count,
     last_decision_date = EXCLUDED.last_decision_date,
     recent_lca = EXCLUDED.recent_lca,
+    role_match_score = EXCLUDED.role_match_score,
     priority_score = EXCLUDED.priority_score,
     priority_version = EXCLUDED.priority_version,
     updated_at = now();
