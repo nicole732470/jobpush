@@ -1,9 +1,13 @@
 # JobPush priority scoring
 
-`jobpush.company_targets` stores one score column per evidence type, then sums
-them into `priority_score`. Higher values are crawled first.
+`jobpush.company_targets_consolidated` is the canonical crawl-priority table.
+It stores one score column per evidence type, then sums them into
+`priority_score`. Higher values are crawled first. The per-FEIN
+`jobpush.company_targets` table remains available for audit and sponsorship
+resolution, but is not the crawl queue.
 
-Current version: `priority-v7` (set in `db/refresh/refresh_company_targets.sql`).
+Current crawl version: `priority-v8-consolidated` (set in
+`db/refresh/refresh_company_targets_consolidated.sql`).
 
 ## Total formula
 
@@ -14,10 +18,11 @@ priority_score =
   + chicago_score
   + product_role_score
   + product_manager_score
+  + salary_score
   + linkedin_top_employer_score
 ```
 
-Maximum possible score: **4.75**
+Maximum possible score: **5.75**
 
 | Column | Points | When it applies |
 |---|---:|---|
@@ -26,7 +31,8 @@ Maximum possible score: **4.75**
 | `chicago_score` | 0 or 0.5 | `target_role_score = 1` **and** employer city/state matches `jobpush.chicago_metro_cities` (IL only) |
 | `product_role_score` | 0 or 1 | `target_role_score = 1` **and** at least one raw `job_title` matches `jobpush.product_role_title_rules` |
 | `product_manager_score` | 0 or 0.25 | `target_role_score = 1` **and** at least one raw `job_title` matches Product Manager or Technical Product Manager |
-| `linkedin_top_employer_score` | 0 or 1 | Company FEIN matches LinkedIn Top Companies 2026 list (brand-aware name match) |
+| `salary_score` | 0 or 1 | `target_role_score = 1` **and** minimum valid annualized target-role salary is at least $90,000 |
+| `linkedin_top_employer_score` | 0 or 1 | `target_role_score = 1` **and** any member FEIN matches LinkedIn Top Companies 2026 |
 | `priority_score` | sum | Sum of all component columns above |
 
 ## Prerequisite chain
@@ -38,10 +44,9 @@ target_role_score = 1
     ├── lca_count_score        (+1 if lca_count > 1)
     ├── chicago_score          (+0.5 if Chicago metro)
     ├── product_role_score     (+1 if any product-class raw job_title)
-    └── product_manager_score  (+0.25 if Product Manager or Technical Product Manager)
-
-`linkedin_top_employer_score` (+1 if LinkedIn 2026 top employer match) has no
-prerequisite on `target_role_score`.
+    ├── product_manager_score  (+0.25 if Product Manager or Technical Product Manager)
+    ├── salary_score           (+1 if minimum valid annualized target salary >= $90,000)
+    └── linkedin_top_employer_score (+1 if LinkedIn 2026 top employer match)
 ```
 
 If `target_role_score = 0`, every downstream component stays 0.
@@ -97,10 +102,25 @@ Skokie, Tinley Park, Wheaton.
 - **Note:** This is separate from `product_role_score`. A company with only
   Project Manager filings gets `product_role_score` but not `product_manager_score`.
 
-### 6. `linkedin_top_employer_score` (+1)
+### 6. `salary_score` (+1)
 
-- **Prerequisite:** none
-- **Input:** company FEIN matched against LinkedIn Top Companies 2026 list
+- **Prerequisite:** `target_role_score = 1`
+- **Input:** `wage_rate_of_pay_from` and `wage_unit_of_pay`, only for LCA rows
+  whose SOC code matches `jobpush.target_soc_roles`
+- **Annualization:** Year ×1, Month ×12, Bi-Weekly ×26, Week ×52, Hour ×2080
+- **Rule:** take the minimum valid annualized target-role salary across all FEIN
+  members; `+1` when that minimum is at least **$90,000**
+- **Missing/invalid data:** only the five units above are valid. Invalid or
+  missing salary rows are excluded from the minimum. If no valid target-role
+  salary remains, the score is 0.
+- **Audit fields:** `target_role_valid_salary_lca_count` and
+  `target_role_invalid_salary_lca_count`
+
+### 7. `linkedin_top_employer_score` (+1)
+
+- **Prerequisite:** `target_role_score = 1`
+- **Input:** any consolidated member FEIN matched against LinkedIn Top Companies
+  2026 list
 - **Match tables:** `jobpush.linkedin_top_employer_company_matches` (built from
   `company_search_keys`, `company_aliases`, and `companies.name`)
 - **Rule:** `+1` when the FEIN matches any deduplicated LinkedIn 2026 employer
@@ -111,6 +131,9 @@ Skokie, Tinley Park, Wheaton.
 | Column | Meaning |
 |---|---|
 | `target_role_lca_count` | How many LCA filings hit a target SOC code |
+| `target_role_min_annual_salary` | Minimum valid annualized salary among target-role filings |
+| `target_role_valid_salary_lca_count` | Target-role filings with usable salary and unit |
+| `target_role_invalid_salary_lca_count` | Target-role filings excluded because salary/unit is invalid or missing |
 | `product_role_lca_count` | How many LCA filings hit a product-class job title |
 | `product_role_lca_pct` | In-company product-class share (0–100) |
 | `lca_count` | Total LCA filings for the company |
@@ -135,10 +158,10 @@ This is more reliable than fuzzy text matching on raw titles alone.
 
 ## Refresh
 
-Recompute all scores:
+Recompute the canonical crawl scores:
 
 ```bash
-psql ... -f db/refresh/refresh_company_targets.sql
+bash db/run_migration_017.sh
 ```
 
 After editing `jobpush.target_soc_roles`, `jobpush.chicago_metro_cities`, or
@@ -154,6 +177,7 @@ After editing `jobpush.target_soc_roles`, `jobpush.chicago_metro_cities`, or
 | `priority-v4` | Added `lca_count_score`, `chicago_score`, `product_role_score` |
 | `priority-v6` | `lca_count_score` threshold lowered to `lca_count > 1`; added `product_manager_score` (+0.25) |
 | `priority-v7` | Added `linkedin_top_employer_score` (+1) from LinkedIn Top Companies 2026 |
+| `priority-v8-consolidated` | Canonicalized crawl priority on merged employers; added `salary_score` (+1 at $90k minimum) and gated every score on `target_role_score = 1` |
 
 ## Deduplicated target SOC codes
 

@@ -13,10 +13,12 @@ PostgreSQL `jobpush` schema.
   workbooks into GitHub.
 - Only one repository may own migrations for a given table.
 
-## Current target table
+## Current target tables
 
 `jobpush.company_targets` contains one row per FEIN/company and is refreshed
-from the shared company and LCA tables. Scoring is deliberately explainable:
+from the shared company and LCA tables. It remains the audit layer. Crawl
+sorting uses `jobpush.company_targets_consolidated`, which combines approved
+same-brand FEINs and recomputes scoring. Scoring is deliberately explainable:
 
 - `target_role_score` is +1 when any filing matches one of the 97 target SOC codes;
 - `lca_count_score` is +1 when `target_role_score = 1` and `lca_count > 1`;
@@ -25,8 +27,10 @@ from the shared company and LCA tables. Scoring is deliberately explainable:
   matches `jobpush.product_role_title_rules`;
 - `product_manager_score` is +0.25 when `target_role_score = 1` and any raw
   `job_title` is Product Manager or Technical Product Manager;
-- `linkedin_top_employer_score` is +1 when the company matches LinkedIn Top
-  Companies 2026 (`jobpush.linkedin_top_employer_company_matches`);
+- `salary_score` is +1 when the minimum valid annualized salary among target
+  roles is at least $90,000;
+- `linkedin_top_employer_score` is +1 when the company has a target role and a
+  member FEIN matches LinkedIn Top Companies 2026;
 - `priority_score` is the sum of all component scores.
 
 Higher `priority_score` values are crawled first.

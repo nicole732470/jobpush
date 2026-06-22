@@ -42,7 +42,10 @@ Union behavior the user asked for falls out naturally:
 
 - If any member has product-class titles → group `product_role_score = 1`
 - If any member is in Chicago metro → group `chicago_score = 0.5`
-- If any member matched LinkedIn top employers → group `linkedin_top_employer_score = 1`
+- If the minimum valid annualized target-role salary across members is at least
+  $90,000 → group `salary_score = 1`
+- If any member matched LinkedIn top employers and the group has a target role →
+  group `linkedin_top_employer_score = 1`
 - `lca_count`, `target_role_lca_count`, `product_role_lca_count` are **summed**
 
 Singleton companies (not merged into any group) still appear in

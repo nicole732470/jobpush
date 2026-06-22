@@ -45,10 +45,11 @@ Manual alias expansions (examples):
 
 ## Scoring
 
-- `linkedin_top_employer_score = 1` when the company FEIN appears in
-  `jobpush.linkedin_top_employer_company_matches`
-- No prerequisite on `target_role_score`
-- Included in `priority_score` total (`priority-v7`)
+- In the canonical consolidated crawl table,
+  `linkedin_top_employer_score = 1` when `target_role_score = 1` and any member
+  FEIN appears in `jobpush.linkedin_top_employer_company_matches`.
+- Included in consolidated `priority_score` total (`priority-v8-consolidated`).
+- The older per-FEIN `company_targets` table remains on `priority-v7` for audit.
 
 ## Maintenance
 
@@ -69,5 +70,5 @@ To recompute only company matches after editing match terms:
 
 ```bash
 psql ... -f db/refresh/rebuild_linkedin_top_employer_matches.sql
-psql ... -f db/refresh/refresh_company_targets.sql
+psql ... -f db/refresh/refresh_company_targets_consolidated.sql
 ```

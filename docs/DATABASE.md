@@ -32,12 +32,14 @@ repository clear migration ownership.
 | Chicago metro employer | `chicago_score` | +0.5 when `target_role_score = 1` and city is in `jobpush.chicago_metro_cities` |
 | Product-class job title | `product_role_score` | +1 when `target_role_score = 1` and raw `job_title` matches `jobpush.product_role_title_rules` |
 | Product Manager title | `product_manager_score` | +0.25 when `target_role_score = 1` and raw `job_title` is Product Manager or Technical Product Manager |
-| LinkedIn Top Companies 2026 | `linkedin_top_employer_score` | +1 when FEIN matches `jobpush.linkedin_top_employer_company_matches` |
+| Minimum target-role salary | `salary_score` | +1 when `target_role_score = 1` and minimum valid annualized target-role salary is at least $90,000 |
+| LinkedIn Top Companies 2026 | `linkedin_top_employer_score` | +1 when `target_role_score = 1` and a member FEIN matches `jobpush.linkedin_top_employer_company_matches` |
 | Total | `priority_score` | sum of component scores |
 
-`target_role_lca_count`, `product_role_lca_count`, `product_role_lca_pct`,
-`single_lca_company`, recency, certified count, and total LCA count remain
-descriptive evidence fields.
+`target_role_lca_count`, target salary coverage counts,
+`target_role_min_annual_salary`, `product_role_lca_count`,
+`product_role_lca_pct`, `single_lca_company`, recency, certified count, and
+total LCA count remain descriptive evidence fields.
 
 The 97 selected codes and normalization details are documented in
 [`PRIORITY.md`](PRIORITY.md). Product-class raw job title rules are documented in
