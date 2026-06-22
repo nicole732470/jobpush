@@ -163,18 +163,29 @@ This is more reliable than fuzzy text matching on raw titles alone.
 
 ## Refresh
 
-Recompute the canonical crawl scores:
+Recompute priority scores (JobPush-only writes; reads `public.lca_cases` once):
 
 ```bash
-bash db/run_migration_017.sh
+bash db/refresh/run_refresh_pipeline.sh
+```
+
+Deploy migration 019 (creates `employer_filing_stats` + initial populate):
+
+```bash
+bash db/run_migration_019.sh
 ```
 
 After editing `jobpush.target_soc_roles`, `jobpush.chicago_metro_cities`, or
-`jobpush.product_role_title_rules`, rerun the refresh script.
+`jobpush.product_role_title_rules`, rerun the full pipeline.
 
-For a wage-only source correction, use the incremental refresh in
-`db/refresh/refresh_repaired_consolidated_salary_scores.sql`; it avoids the
-full consolidated rebuild.
+After LinkedIn or consolidation config changes only:
+
+```bash
+bash db/refresh/run_refresh_pipeline.sh --skip-filing-stats --skip-per-fein
+```
+
+See [`PERFORMANCE.md`](PERFORMANCE.md) for timing expectations and JobLens
+safety boundaries.
 
 ## Version history
 
