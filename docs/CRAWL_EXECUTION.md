@@ -49,6 +49,8 @@ public ATS adapters use the same batch/run/posting loader:
 
 - `greenhouse-api`: Strata is the representative Greenhouse board.
 - `workday-cxs`: Grubhub is the representative Workday site.
+- `oracle-cloud-rest`: JPMorgan is the representative Oracle Recruiting Cloud
+  site; the adapter discovers and applies the United States location facet.
 
 Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
