@@ -19,7 +19,7 @@ Rebuild JobPush priority tables. All writes stay in jobpush schema.
 Options:
   --skip-filing-stats   Skip lca_cases scan (use after rule-only config changes)
   --skip-per-fein       Skip jobpush.company_targets audit refresh
-  --only NAME           Run one step: filing-stats | per-fein | consolidated
+  --only NAME           Run one step: filing-stats | per-fein | consolidated | crawl-targets
 
 Typical flows:
   Full rebuild (new LCA data or wage repair):
@@ -91,6 +91,11 @@ fi
 if should_run consolidated; then
   run_step "company_targets_consolidated crawl queue" \
     "$SCRIPT_DIR/refresh_company_targets_consolidated.sql"
+  run_step "crawl_targets operational queue sync" \
+    "$SCRIPT_DIR/sync_crawl_targets.sql"
+elif [[ "$ONLY" == "crawl-targets" ]]; then
+  run_step "crawl_targets operational queue sync" \
+    "$SCRIPT_DIR/sync_crawl_targets.sql"
 fi
 
 "${PSQL[@]}" -P pager=off -c \
@@ -100,3 +105,12 @@ fi
   "SELECT COUNT(*) AS consolidated_rows,
           MAX(priority_score) AS max_priority
    FROM jobpush.company_targets_consolidated;"
+
+if [[ -z "$ONLY" || "$ONLY" == "consolidated" || "$ONLY" == "crawl-targets" ]]; then
+  "${PSQL[@]}" -P pager=off -c \
+    "SELECT priority_tier, COUNT(*) AS active_crawl_targets
+     FROM jobpush.crawl_targets
+     WHERE enabled
+     GROUP BY priority_tier
+     ORDER BY priority_tier;"
+fi

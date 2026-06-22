@@ -19,6 +19,8 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
 | `jobpush.company_consolidation_groups` | JobPush | Conservative merged employer groups (2+ FEINs) |
 | `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
+| `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
+| `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
 | `jobpush.lca_wage_repair_stage` | JobPush | Reloadable official FY2025 Q1 wage repair input (optional; drop via migration 020) |
 | `jobpush.lca_wage_repair_backup` | JobPush | Immutable before/after audit for repaired LCA wage fields (optional; drop via migration 020) |
 
@@ -79,4 +81,3 @@ bash db/run_migration_019.sh                     # deploy FEIN stats layer
 ```
 
 Details: [`PERFORMANCE.md`](PERFORMANCE.md).
-

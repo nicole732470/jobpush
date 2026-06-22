@@ -41,7 +41,9 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 
 | 表 | 用途 |
 |---|---|
-| **`jobpush.company_targets_consolidated`** | **Crawl 主队列**（合并品牌 + 单 FEIN），含 `priority_score`、`crawl_priority_tier` |
+| **`jobpush.company_targets_consolidated`** | **公司分析与P档来源表**（合并品牌 + 单 FEIN），含 `priority_score`、`crawl_priority_tier` |
+| **`jobpush.crawl_targets`** | **Crawler 运行队列**；从 consolidated 同步 P0/P1/P2，保留发现状态 |
+| **`jobpush.career_sites`** | 一个公司可对应多个真实 corporate/career/ATS 站点及抓取状态 |
 | `jobpush.company_targets` | 每 FEIN 审计表（`priority-v7`），非 crawl 队列 |
 | `jobpush.employer_filing_stats` | 物化层：一次扫 `lca_cases` 得到的 per-FEIN 聚合 |
 | `jobpush.company_consolidation_*` | 保守多 FEIN 合并（Amazon、Apple 等） |
@@ -155,6 +157,7 @@ LinkedIn 保守匹配（migration 021）：
 | 020 | 可选删除 wage repair staging 表（仅 jobpush） |
 | 021 | LinkedIn 匹配置信度 / 排除模糊品牌 |
 | 022 | **`crawl_priority_tier`** P0/P1/P2 |
+| 023 | **`crawl_targets` + `career_sites`** crawler 运行层及同步 |
 
 每个 migration 通常有 `db/run_migration_NNN.sh`；通过 `db/deploy_via_ssm.sh` 在 EC2 执行。
 
@@ -194,8 +197,8 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
 1. **RDS 实例过小**：`t4g.micro`；filing stats 全表扫描仍 ~5min。可与 JobLens 协调升 `t4g.small`。
 2. **`public.lca_cases` 大索引**：JobPush 不会自动删；见 [`JOBLENS_SHARED_INDEX_NOTES.md`](JOBLENS_SHARED_INDEX_NOTES.md)。
 3. **Wage repair staging**：`lca_wage_repair_stage` / `backup` 仍在 RDS；验证后可 `bash db/run_migration_020.sh`。
-4. **P0 名单**：用户将手动标；crawl 逻辑需后续接 `crawl_priority_tier`（当前仅列已就绪）。
-5. **Crawl 实现**：本仓库主要是 **DB 队列 + 打分**；实际爬虫/JobLens 集成可能在其他 repo。
+4. **P0 名单**：用户将手动标；sync 会自动加入 `crawl_targets`。
+5. **Crawl 实现**：`crawl_targets` / `career_sites` 已就绪；实际发现器、ATS adapter 和 worker 待实现。
 6. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
 7. **`per-FEIN company_targets`**：可改为 nightly-only 以省 refresh 时间（可选）。
 
