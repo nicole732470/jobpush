@@ -76,3 +76,7 @@ Migration 024 adds candidate evidence and discovery-run audit tables. Migration
 `jobpush.review_career_site(...)`. See
 [`CAREER_SITE_DISCOVERY.md`](CAREER_SITE_DISCOVERY.md) for the 4.5+ pilot and
 TablePlus review workflow.
+
+Migration 038 adds batch/run monitoring, postings, and detailed title labels.
+See [`CRAWL_EXECUTION.md`](CRAWL_EXECUTION.md) for the first adapter pilot and
+the metrics checked before widening a batch.
