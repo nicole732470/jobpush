@@ -1,0 +1,18 @@
+deny_pattern,notes
+sandeep gunnala,False positive on sage prefix
+skyworth,False positive on sage prefix
+sage therapeutics,Unrelated biotech
+sage veterinary,Unrelated veterinary chain
+sage dental,Unrelated dental chain
+sage hospitality,Unrelated hospitality
+sage publications,Unrelated publisher
+sage bionetworks,Unrelated nonprofit
+sage care ,Unrelated care provider
+sage builders,Unrelated construction
+sage growth partners,Unrelated consulting
+sage electrochromics,Unrelated materials company
+sage metrix,Unrelated company
+sage bloom,Unrelated company
+sage consulting,Unrelated consulting
+sage ai labs,Unrelated company
+sage it inc,Unrelated IT staffing; not Sage Group

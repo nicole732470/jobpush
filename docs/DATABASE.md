@@ -16,6 +16,8 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.linkedin_top_employers_2026` | JobPush | Deduplicated LinkedIn Top Companies 2026 employers |
 | `jobpush.linkedin_top_employer_match_terms` | JobPush | Brand/alias match keys for LinkedIn employers |
 | `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
+| `jobpush.company_consolidation_groups` | JobPush | Conservative merged employer groups (2+ FEINs) |
+| `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
 
 The PostgreSQL schema is a namespace inside the existing database, not a
 separate database. This keeps joins and foreign keys simple while giving each

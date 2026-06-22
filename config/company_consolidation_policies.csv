@@ -1,0 +1,89 @@
+employer_key,linkedin_name,policy,min_feins,name_allow_regex,name_deny_regex,notes
+amazon,Amazon,merge_all,2,,,Distinctive brand; all matched Amazon legal entities
+apple,Apple,merge_all,2,,,Distinctive brand
+microsoft,Microsoft,merge_all,2,,,Distinctive brand
+google,Google,merge_all,2,,,Distinctive brand
+alphabet-google,Alphabet/Google,merge_all,2,,,Alphabet and Google legal entities
+meta,Meta,merge_all,2,,,Meta / Facebook entities
+salesforce,Salesforce,merge_all,2,,,Distinctive brand
+jpmorganchase,JPMorganChase,merge_all,2,,,Distinctive brand
+fidelity-investments,Fidelity Investments,merge_all,2,,,Distinctive brand
+morgan-stanley,Morgan Stanley,merge_all,2,,,Distinctive brand
+wells-fargo,Wells Fargo,merge_all,2,,,Distinctive brand
+bank-of-america,Bank of America,merge_all,2,,,Distinctive brand
+capital-one,Capital One,merge_all,2,,,Distinctive brand
+citi,Citi,merge_all,2,,,Distinctive brand
+goldman-sachs,Goldman Sachs,merge_all,2,,,Distinctive brand
+accenture,Accenture,merge_all,2,,,Distinctive brand
+siemens,Siemens,merge_all,2,,,Distinctive brand
+boeing,Boeing,merge_all,2,,,Distinctive brand
+honeywell,Honeywell,merge_all,2,,,Distinctive brand
+exxonmobil,ExxonMobil,merge_all,2,,,Distinctive brand
+general-motors,General Motors,merge_all,2,,,Distinctive brand
+ford-motor-company,Ford Motor Company,merge_all,2,,,Distinctive brand
+caterpillar-inc,Caterpillar Inc.,merge_all,2,,,Distinctive brand
+fedex,FedEx,merge_all,2,,,Distinctive brand
+pepsico,PepsiCo,merge_all,2,,,Distinctive brand
+medtronic,Medtronic,merge_all,2,,,Distinctive brand
+schneider-electric,Schneider Electric,merge_all,2,,,Distinctive brand
+lonza,Lonza,merge_all,2,,,Distinctive brand
+bayer,Bayer,merge_all,2,,,Distinctive brand
+barclays,Barclays,merge_all,2,,,Distinctive brand
+american-express,American Express,merge_all,2,,,Distinctive brand
+at-and-t,AT&T,merge_all,2,,,Distinctive brand
+mastercard,Mastercard,merge_all,2,,,Distinctive brand
+hsbc,HSBC,merge_all,2,,,Distinctive brand
+infosys,Infosys,merge_all,2,,,Distinctive brand
+iqvia,IQVIA,merge_all,2,,,Distinctive brand
+leidos,Leidos,merge_all,2,,,Distinctive brand
+synchrony,Synchrony,merge_all,2,,,Distinctive brand
+sanofi,Sanofi,merge_all,2,,,Distinctive brand
+abbvie,AbbVie,merge_all,2,,,Distinctive brand
+bloomberg,Bloomberg,merge_all,2,,,Distinctive brand
+tesla,Tesla,merge_all,2,,,Distinctive brand
+uber,Uber,merge_all,2,,,Distinctive brand
+lenovo,Lenovo,merge_all,2,,,Distinctive brand
+applied-materials,Applied Materials,merge_all,2,,,Distinctive brand
+airbus,Airbus,merge_all,2,,,Distinctive brand
+state-street,State Street,merge_all,2,,,Distinctive brand
+cencora,Cencora,merge_all,2,,,Distinctive brand
+truist,Truist,merge_all,2,,,Distinctive brand
+johnson-controls,Johnson Controls,merge_all,2,,,Distinctive brand
+medline,Medline,merge_all,2,,,Distinctive brand
+mcdonald-s,McDonald's,merge_all,2,,,Distinctive brand
+the-coca-cola-company,The Coca-Cola Company,merge_all,2,,,Distinctive brand
+edwards-lifesciences,Edwards Lifesciences,merge_all,2,,,Distinctive brand
+dxc-technology,DXC Technology,merge_all,2,,,Distinctive brand
+sysco,Sysco,merge_all,2,,,Distinctive brand
+henkel,Henkel,merge_all,2,,,Distinctive brand
+incyte,Incyte,merge_all,2,,,Distinctive brand
+indra-group,Indra Group,merge_all,2,,,Distinctive brand
+bbva,BBVA,merge_all,2,,,Distinctive brand
+santander,Santander,merge_all,2,,,Distinctive brand
+bnp-paribas,BNP Paribas,merge_all,2,,,Distinctive brand
+boehringer-ingelheim,Boehringer Ingelheim,merge_all,2,,,Distinctive brand
+ey,EY,merge_all,2,,,Distinctive brand
+pwc,PwC,merge_all,2,,,Distinctive brand
+merck,Merck,merge_all,2,,,Distinctive brand
+abbott,Abbott,merge_all,2,,,Distinctive brand
+hitachi,Hitachi,merge_all,2,,,Distinctive brand
+roche,Roche,merge_all,2,,,Distinctive brand
+shell,Shell,merge_strict,2,^shell ,,Oil company subsidiaries only
+sap,SAP,merge_strict,2,^(sap |sap america|sap national|sap labs|sap se),,SAP corporate entities
+koch,Koch,merge_strict,2,^(koch |koch industries|koch companies|koch ag),,Koch Industries family
+icon-plc,ICON plc,merge_strict,2,^(icon plc|icon clinical|icon ),,CRO ICON plc entities
+sage,Sage,merge_strict,2,^(sage software|sage intacct|sage group technologies),,Sage Group software only
+asml,ASML,merge_all,2,,,Distinctive brand
+adobe,Adobe,merge_all,2,,,Distinctive brand
+bain-and-company,Bain & Company,merge_all,2,,,Distinctive brand
+mass-general-brigham,Mass General Brigham,merge_all,2,,,Distinctive brand
+l-oreal,L'Oréal,merge_all,2,,,Distinctive brand
+ericsson,Ericsson,merge_all,2,,,Distinctive brand
+amadeus,Amadeus,merge_all,2,,,Distinctive brand
+alstom,Alstom,merge_all,2,,,Distinctive brand
+unisys,Unisys,merge_all,2,,,Distinctive brand
+corpay,Corpay,merge_all,2,,,Distinctive brand
+vertiv,Vertiv,merge_all,2,,,Distinctive brand
+vast,Vast,skip,2,,,Ambiguous short brand name
+abstract,Abstract,skip,2,,,Ambiguous short brand name
+abridge,Abridge,skip,2,,,Ambiguous short brand name
