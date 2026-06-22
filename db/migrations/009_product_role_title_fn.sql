@@ -7,7 +7,8 @@ IMMUTABLE
 AS $$
     SELECT (COALESCE(title, '') ~*
         '(product manager|product owner|technical product manager|product engineer|'
-        'solution(s)? engineer|systems? engineer|product management|product lead|'
+        'solution(s)? architect|solution(s)? engineer|sales engineer|'
+        'systems? architects?|systems? engineers?|product management|product lead|'
         'head of product|product director|principal product manager|'
         'associate product manager|senior product manager|group product manager|'
         'vp[, ]+product|vice president[, ]+product|product program manager|'
