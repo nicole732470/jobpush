@@ -24,6 +24,25 @@ priority_score =
 
 Maximum possible score: **5.75**
 
+## Crawl priority tiers (`crawl_priority_tier`)
+
+Automated tiers on `jobpush.company_targets_consolidated`:
+
+| Tier | Rule | Meaning |
+|---|---|---|
+| **P1** | `priority_score > 3` | Above 3.0 (e.g. 3.25, 4.0, 5.25) |
+| **P2** | `priority_score IN (3.0, 2.5)` | Exactly 3.0 or 2.5 |
+| **P0** | Manual only | Set in SQL/TablePlus; preserved across refresh |
+| *(null)* | Everything else | Not in automated crawl bands |
+
+Manual P0 example:
+
+```sql
+UPDATE jobpush.company_targets_consolidated
+SET crawl_priority_tier = 'P0', updated_at = now()
+WHERE consolidation_key = '91-1144442';
+```
+
 | Column | Points | When it applies |
 |---|---:|---|
 | `target_role_score` | 0 or 1 | Company has at least one LCA filing whose `soc_code` matches an active row in `jobpush.target_soc_roles` |
