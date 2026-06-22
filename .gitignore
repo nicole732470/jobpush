@@ -10,3 +10,4 @@ __pycache__/
 *.xlsx
 *.xls
 *.csv
+!config/*.csv

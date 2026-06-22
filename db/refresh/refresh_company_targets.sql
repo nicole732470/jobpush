@@ -5,15 +5,15 @@ WITH dataset_window AS (
     FROM public.lca_cases
 ), filing_stats AS (
     SELECT
-        employer_fein AS fein,
-        COUNT(*) FILTER (
-            WHERE LEFT(REGEXP_REPLACE(COALESCE(soc_code, ''), '[^0-9]', '', 'g'), 2)
-                  IN ('11', '13', '15')
-        )::INTEGER AS target_role_lca_count,
-        MAX(decision_date) AS last_decision_date
-    FROM public.lca_cases
-    WHERE employer_fein IS NOT NULL
-    GROUP BY employer_fein
+        l.employer_fein AS fein,
+        COUNT(target.normalized_soc_code)::INTEGER AS target_role_lca_count,
+        MAX(l.decision_date) AS last_decision_date
+    FROM public.lca_cases l
+    LEFT JOIN jobpush.target_soc_roles target
+        ON target.active
+       AND target.normalized_soc_code = jobpush.normalize_soc_code(l.soc_code)
+    WHERE l.employer_fein IS NOT NULL
+    GROUP BY l.employer_fein
 ), source_base AS (
     SELECT
         c.fein,
@@ -50,7 +50,7 @@ SELECT
     fein, company_id, company_name, naics_code, naics_sector,
     employer_city, employer_state, lca_count, certified_count,
     single_lca_company, target_role_match, target_role_lca_count,
-    last_decision_date, recent_lca, priority_score, 'role-only-v1', now()
+    last_decision_date, recent_lca, priority_score, 'selected-soc-v1', now()
 FROM source
 ON CONFLICT (fein) DO UPDATE SET
     company_id = EXCLUDED.company_id,

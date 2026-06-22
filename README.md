@@ -16,18 +16,17 @@ PostgreSQL `jobpush` schema.
 ## Current target table
 
 `jobpush.company_targets` contains one row per FEIN/company and is refreshed
-from the shared company and LCA tables. The initial priority is deliberately
-explainable:
+from the shared company and LCA tables. Priority is deliberately explainable:
 
 - every company starts at `0`;
-- `+1` when any filing is in SOC major group 11
-  (management), 13 (business and financial operations), or 15 (computer and
-  mathematical occupations);
+- `+1` when any filing matches one of the 98 deduplicated SOC codes selected in
+  the workbook's `是否目标` column;
 - industry is retained for analysis and tie-breaking, but does not add points
   because it overlaps heavily with occupation evidence.
 
 Higher scores are crawled first. Filing recency, certification, and filing
 volume remain available as descriptive fields but do not affect priority.
+See [`docs/PRIORITY.md`](docs/PRIORITY.md) for the complete rule and code list.
 
 ## Repository layout
 
