@@ -56,6 +56,9 @@ ON CONFLICT (consolidation_key) DO UPDATE SET
 
 After editing overrides, refresh consolidated and sync `crawl_targets`.
 
+Current manual overrides include Salesforce and the main Cognizant US entity
+at P0, Google and Alphabet/Google at P0, and LEAR CORPORATION downgraded to P2.
+
 | Column | Points | When it applies |
 |---|---:|---|
 | `target_role_score` | 0 or 1 | Company has at least one LCA filing whose `soc_code` matches an active row in `jobpush.target_soc_roles` |

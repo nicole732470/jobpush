@@ -81,8 +81,8 @@ priority_score =
 
 生产占比（全表 68,958）：
 
-- **P0**：2（Salesforce、Cognizant主美国实体）
-- **P1**：4,654（6.75%）
+- **P0**：4（Salesforce、Cognizant主美国实体、Google、Alphabet/Google）
+- **P1**：4,652（6.75%）
 - **P2**：14,486（21.01%）
 - 未分档：49,816（72.24%）
 
@@ -167,6 +167,7 @@ LinkedIn 保守匹配（migration 021）：
 | 024 | 4.5+ 官网候选发现、候选证据和 search run 审计 |
 | 025 | 聚合站排除、TablePlus 人工审核视图和确认/拒绝函数 |
 | 026 | 持久人工P档override；区分computed与effective tier |
+| 027 | 将旧Google/Alphabet直接P0设置迁移到持久override表 |
 
 每个 migration 通常有 `db/run_migration_NNN.sh`；通过 `db/deploy_via_ssm.sh` 在 EC2 执行。
 
