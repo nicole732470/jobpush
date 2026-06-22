@@ -53,3 +53,5 @@ docs/                architecture and scoring notes
 
 See [`docs/LCA_WAGE_REPAIR.md`](docs/LCA_WAGE_REPAIR.md) for the FY2025 Q1
 official-source repair, validation checks, and incremental salary refresh.
+
+Handoff notes for the next engineer: [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md).
