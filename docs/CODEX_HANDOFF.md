@@ -1,8 +1,8 @@
 # JobPush → Codex 交接说明
 
-最后更新：2026-06-22  
+最后更新：2026-06-23  
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已与本文描述的 migration **001–022** 对齐部署。
+生产 RDS 已部署 migration **001–049**。
 
 ---
 
@@ -210,9 +210,13 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
 2. **`public.lca_cases` 大索引**：JobPush 不会自动删；见 [`JOBLENS_SHARED_INDEX_NOTES.md`](JOBLENS_SHARED_INDEX_NOTES.md)。
 3. **Wage repair staging**：`lca_wage_repair_stage` / `backup` 仍在 RDS；验证后可 `bash db/run_migration_020.sh`。
 4. **P0/P2人工档位**：统一写 `crawl_priority_overrides`；sync 自动更新 `crawl_targets`。
-5. **Crawl 实现**：4.5+ 候选已生成并等待人工审核；ATS adapter 和定时 worker 待实现。
-6. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
-7. **`per-FEIN company_targets`**：可改为 nightly-only 以省 refresh 时间（可选）。
+5. **Crawl 生产链路**：iCIMS、Greenhouse、Workday、Oracle Cloud、Apple adapters
+   已接入 EC2 小时级 timer；P0/P1/P2 实际频率为 24/72/168 小时。继续人工审核
+   官网，只有 verified + US-ready + supported adapter 才进入调度。
+6. **职位人工标注**：SOC 精确匹配已自动分类；剩余 7,100 个 detailed titles 在
+   `job_title_review_queue`，先处理导出表中的 171 个 HIGH 标题。
+7. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
+8. **`per-FEIN company_targets`**：可改为 nightly-only 以省 refresh 时间（可选）。
 
 ---
 

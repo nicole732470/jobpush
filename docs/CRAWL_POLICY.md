@@ -49,8 +49,20 @@ office identifiers exist.
 ## 4. Scheduling and batches
 
 P tier chooses ordering and eventual frequency; it does not change parsing.
-Exact P0/P1/P2 intervals are not yet approved, so production scheduling remains
-unset. Until then, runs are explicit measured batches.
+Production intervals are P0 every 24 hours, P1 every 72 hours, and P2 every
+168 hours. The EC2 systemd timer checks hourly, but a site enters the run queue
+only when all of these are true:
+
+- a human set `verification_status = 'verified'` after confirming the official
+  company career or ATS endpoint;
+- `crawl_enabled = true`;
+- `target_country_code = 'US'` and `scope_method <> 'unknown'`;
+- `source_type` has a production adapter;
+- `next_crawl_at <= now()`.
+
+`verified` means the URL belongs to the intended company. It does not by itself
+mean that JobPush has an adapter or a safe US filter. `crawl_schedule_queue`
+enforces the full gate.
 
 Every batch records targets, requests, pages, latency, parsed jobs, duplicates,
 new/updated/closed jobs, target/review counts, and errors. Expand an adapter to
@@ -69,3 +81,6 @@ Live titles are normalized and first matched exactly against
 
 The historical raw-title/SOC file is therefore the first labeling layer, not a
 replacement for reviewing new, more detailed career-site titles.
+
+Manual labeling and the editable workbook are documented in
+[`JOB_TITLE_LABELING.md`](JOB_TITLE_LABELING.md).

@@ -48,6 +48,8 @@ The unified official-site, US-scope, repeated-crawl, and title-labeling rules
 are documented in [`docs/CRAWL_POLICY.md`](docs/CRAWL_POLICY.md); adapter and
 batch implementation details are in
 [`docs/CRAWL_EXECUTION.md`](docs/CRAWL_EXECUTION.md).
+The editable detailed-title review workflow is in
+[`docs/JOB_TITLE_LABELING.md`](docs/JOB_TITLE_LABELING.md).
 
 ## Repository layout
 

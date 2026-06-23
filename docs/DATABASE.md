@@ -25,6 +25,12 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |
 | `jobpush.career_site_review_queue` | JobPush | One row per unverified URL for detailed review |
 | `jobpush.career_site_company_review_queue` | JobPush | One row per company with up to three candidates |
+| `jobpush.crawl_batches` / `crawl_runs` | JobPush | Batch and per-site request, parsing, change, latency, and error metrics |
+| `jobpush.job_postings` / `job_postings_us` | JobPush | Career-site posting history and active US surface |
+| `jobpush.job_title_labels` | JobPush | Automatic or manual detailed-title decision |
+| `jobpush.job_title_label_history` | JobPush | Immutable audit trail for manual label changes |
+| `jobpush.crawl_schedule_queue` | JobPush | Verified, US-ready, adapter-supported sites due by P frequency |
+| `jobpush.crawl_adapter_health` / `crawl_site_alerts` | JobPush | Operational success rates and actionable crawl anomalies |
 | `jobpush.lca_wage_repair_stage` | JobPush | Reloadable official FY2025 Q1 wage repair input (optional; drop via migration 020) |
 | `jobpush.lca_wage_repair_backup` | JobPush | Immutable before/after audit for repaired LCA wage fields (optional; drop via migration 020) |
 

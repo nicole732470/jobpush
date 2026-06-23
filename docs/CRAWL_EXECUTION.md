@@ -74,3 +74,25 @@ applied by migration 046. `job_title_soc_match_candidates` explains every
 suggestion; `job_title_review_queue` contains only unresolved titles and is the
 safe TablePlus surface to export for manual labeling. Manual decisions are
 never overwritten by the automatic rule.
+
+## Production scheduler and monitoring
+
+Migration 048 adds `crawl_schedule_queue`, `crawl_adapter_health`, and
+`crawl_site_alerts`. The due runner is:
+
+```bash
+bash db/run_due_crawl_batch.sh 10
+```
+
+`deploy/install_crawl_scheduler_via_ssm.sh` installs an hourly EC2 systemd
+timer. The hourly check is cheap; actual requests occur only at the P-tier
+interval. Successful runs advance `next_crawl_at`. Failed runs use exponential
+backoff capped at 24 hours.
+
+The first scheduled production batch on 2026-06-23 completed 7/7 sites without
+failure. Five adapter types had a 100% trailing-seven-day success rate and no
+active alerts after the batch.
+
+```bash
+bash db/deploy_via_ssm.sh db/run_crawl_operations_dashboard.sh
+```
