@@ -44,3 +44,7 @@ and append an immutable row to `job_title_label_history`.
 - First labeling tranche (`HIGH`): 171 titles
 
 The export query is `db/analysis/export_job_title_review.sql`.
+
+Personal technical and seniority boundaries come from the shared JobLens
+candidate profile, not from SOC alone. See
+[`SHARED_JOB_SEARCH_PROFILE.md`](SHARED_JOB_SEARCH_PROFILE.md).
