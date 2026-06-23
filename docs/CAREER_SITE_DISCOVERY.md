@@ -38,8 +38,12 @@ Candidate source distribution:
 ## TablePlus review workflow
 
 Open schema `jobpush`, then view
-`career_site_company_review_queue`. It shows one company per row with up to
-three candidate URLs.
+`career_site_company_review_queue_ranked`. It shows one company per row with up
+to three candidate URLs and sorts manual P0 first, followed by P1/P2 score.
+
+`career_site_company_dashboard` is the unified status view. It deliberately
+keeps completed verified companies visible, so manual P0 companies such as
+Google do not disappear after review.
 
 Review candidate 1 first. If it is wrong, inspect candidate 2 and candidate 3.
 The detailed one-row-per-URL view is `career_site_review_queue`.
@@ -73,6 +77,20 @@ one candidate keeps the company in review while other candidates remain.
 4. Add adapters for confirmed ATS sources.
 5. Run a stratified 4.0/3.0/2.5 sample; only low-confidence candidates require
    human review.
+
+Human review is a calibration sample, not a requirement for every company.
+`career_site_review_precision` measures verified/rejected precision by source
+type and candidate rank. Auto-verification may be enabled later only for a
+narrow structured-ATS segment after it has enough reviewed examples and at
+least 98% observed precision. Generic HTML and conflicting candidates remain
+manual.
+
+## Effective-tier expansion (2026-06-23)
+
+The first expansion searched 150 never-searched P-tier companies, with manual
+P0 first and high-score P1/P2 after it. It used 150 Tavily basic credits,
+completed with zero search errors, and retained 381 candidates. The ranked
+company review queue then contained 2 P0 and 221 P1 companies.
 
 Known external aggregators such as TechFetch belong in both the database domain
 exclude table and `scripts/discover_career_sites.py`; they must never be

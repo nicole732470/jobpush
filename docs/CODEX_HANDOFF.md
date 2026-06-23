@@ -213,6 +213,9 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
 5. **Crawl 生产链路**：iCIMS、Greenhouse、Workday、Oracle Cloud、Apple adapters
    已接入 EC2 小时级 timer；P0/P1/P2 实际频率为 24/72/168 小时。继续人工审核
    官网，只有 verified + US-ready + supported adapter 才进入调度。
+   官网审核使用 `career_site_company_review_queue_ranked`（P0优先）；统一状态使用
+   `career_site_company_dashboard`，其中 verified P0 也不会消失。2026-06-23 已新增
+   搜索150家公司、381个候选，队列为2个P0 + 221个P1。
 6. **职位人工标注**：SOC 精确匹配已自动分类；剩余 7,100 个 detailed titles 在
    `job_title_review_queue`，先处理导出表中的 171 个 HIGH 标题。
 7. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
