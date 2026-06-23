@@ -26,6 +26,7 @@ Examples:
 
 - **Amazon / Apple / Fidelity** → `merge_all`
 - **Sage** → `merge_strict` → only Sage Software, Sage Intacct, Sage Group Technologies
+- **Ulta** → `merge_strict` → `Ulta, Inc.` + `Ulta Beauty Credit Services Corporation` (not consult**ulta**ncy false positives)
 - **Vast / Abstract / Abridge** → `skip`
 
 Config files:

@@ -80,6 +80,7 @@ mass-general-brigham,Mass General Brigham,merge_all,2,,,Distinctive brand
 l-oreal,L'Oréal,merge_all,2,,,Distinctive brand
 ericsson,Ericsson,merge_all,2,,,Distinctive brand
 amadeus,Amadeus,merge_all,2,,,Distinctive brand
+ulta,Ulta,merge_strict,2,"^(ulta[, ]|ulta beauty)",,Ulta retail entities only
 alstom,Alstom,merge_all,2,,,Distinctive brand
 unisys,Unisys,merge_all,2,,,Distinctive brand
 corpay,Corpay,merge_all,2,,,Distinctive brand
