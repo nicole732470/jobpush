@@ -54,6 +54,8 @@ The cross-project job-search intent source and safe learning loop are in
 [`docs/SHARED_JOB_SEARCH_PROFILE.md`](docs/SHARED_JOB_SEARCH_PROFILE.md).
 The dated title/site audit calendar and activation gates are in
 [`docs/LEARNING_OPERATIONS.md`](docs/LEARNING_OPERATIONS.md).
+The copy-paste TablePlus queries for a company's current jobs and networking
+summary are in [`docs/NETWORKING_JOB_SQL.md`](docs/NETWORKING_JOB_SQL.md).
 
 ## Repository layout
 
