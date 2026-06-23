@@ -37,13 +37,18 @@ Candidate source distribution:
 
 ## TablePlus review workflow
 
-Open schema `jobpush`, then view
-`career_site_company_review_queue_ranked`. It shows one company per row with up
-to three candidate URLs and sorts manual P0 first, followed by P1/P2 score.
+Open schema `jobpush`, then use only **`career_site_review_workbench`** for
+human work. It is the canonical one-company-per-row surface and contains up to
+three candidates plus the verified URL. It sorts:
 
-`career_site_company_dashboard` is the unified status view. It deliberately
-keeps completed verified companies visible, so manual P0 companies such as
-Google do not disappear after review.
+1. manual P0 needing review;
+2. verified manual P0 (kept visible, including Google);
+3. Chicago + LinkedIn, Chicago, LinkedIn, large sponsors;
+4. remaining score/diverse samples.
+
+Older `career_site_review_queue` and `career_site_company_review_queue` views
+remain only for backward-compatible scripts. They are not the human entry
+point.
 
 Review candidate 1 first. If it is wrong, inspect candidate 2 and candidate 3.
 The detailed one-row-per-URL view is `career_site_review_queue`.
@@ -91,6 +96,12 @@ The first expansion searched 150 never-searched P-tier companies, with manual
 P0 first and high-score P1/P2 after it. It used 150 Tavily basic credits,
 completed with zero search errors, and retained 381 candidates. The ranked
 company review queue then contained 2 P0 and 221 P1 companies.
+
+A second 50-company potential-P0 sample deliberately avoided alphabetical
+selection. It stratified Chicago, LinkedIn Top Employer, large LCA sponsor, and
+cross-score random groups. It retained 123 candidates with zero search errors;
+examples include Ford, General Motors, Nike, Siemens, Bloomberg, Morningstar,
+Medtronic, Deere, Motorola, Dropbox, and Chicago employers.
 
 Known external aggregators such as TechFetch belong in both the database domain
 exclude table and `scripts/discover_career_sites.py`; they must never be

@@ -25,6 +25,7 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |
 | `jobpush.career_site_review_queue` | JobPush | One row per unverified URL for detailed review |
 | `jobpush.career_site_company_review_queue` | JobPush | One row per company with up to three candidates |
+| **`jobpush.career_site_review_workbench`** | **JobPush** | **Canonical human surface: pending + verified companies, P0/potential-P0 first** |
 | `jobpush.crawl_batches` / `crawl_runs` | JobPush | Batch and per-site request, parsing, change, latency, and error metrics |
 | `jobpush.job_postings` / `job_postings_us` | JobPush | Career-site posting history and active US surface |
 | `jobpush.job_title_labels` | JobPush | Automatic or manual detailed-title decision |

@@ -62,6 +62,6 @@ unset TAVILY_API_KEY
 "${PSQL[@]}" -P pager=off -c \
   "SELECT run_id,cohort,target_count,candidate_count,error_count,estimated_credits,status
    FROM jobpush.career_site_discovery_runs WHERE run_id='$RUN_ID';
-   SELECT priority_tier,count(*) AS companies
-   FROM jobpush.career_site_company_review_queue_ranked
-   GROUP BY priority_tier ORDER BY priority_tier;"
+   SELECT priority_tier,action_status,count(*) AS companies
+   FROM jobpush.career_site_review_workbench
+   GROUP BY priority_tier,action_status ORDER BY priority_tier,action_status;"
