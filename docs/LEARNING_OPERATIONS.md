@@ -34,7 +34,7 @@ flowchart TB
 | 2026-06-30 | Audit ML/hardware/seniority false-positive clusters and profile questions | Review P0, then Chicago/LinkedIn/large-sponsor candidates; calculate precision |
 | 2026-07-07 | Second weekly audit; compare unresolved and override rates | Audit structured ATS decisions and wrong-company/domain patterns |
 | 2026-07-23 | Monthly activation-readiness review for shared profile | Decide whether any structured-ATS segment qualifies for controlled auto-verification |
-| Hourly | No human action; title rules run only after a crawl | EC2 checks due sites; requests follow P0=24h, P1=72h, P2=168h |
+| Hourly | No human action; title rules run only after a crawl | GitHub Actions checks due sites; requests follow P0=24h, P1=72h, P2=168h |
 | Weekly while new | Review highest-volume unresolved and regressions | Review new P0/potential-P0 candidates and alerts |
 | Monthly after stable | Drift and 5–10% audit sample | Precision, adapter health, US scope, and 5–10% auto-decision audit |
 
@@ -64,7 +64,7 @@ change.
 
 | Owner | Due | Task | Status |
 |---|---|---|---|
-| Nicole | 2026-06-30 | Answer or revise the five `open_questions` in the JobLens YAML | Pending |
+| Nicole | 2026-06-23 | Answer or revise the five `open_questions` in the JobLens YAML | Completed |
 | Codex | 2026-06-30 | Build the first holdout report from the 171 HIGH labels; propose rules without activating them | Pending |
 | Nicole | Ongoing | Review `career_site_review_workbench`, starting with P0 then potential-P0 signals | In progress |
 | Codex | 2026-06-30 | Report website precision by source type and candidate rank | Pending |
