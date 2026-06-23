@@ -6,7 +6,7 @@ WHERE consolidation_key = 'ulta'
 ORDER BY candidate_rank, site_id;
 
 \echo '=== Ulta review queue ==='
-SELECT * FROM jobpush.career_site_company_review_queue
+SELECT * FROM jobpush.career_site_review_workbench
 WHERE consolidation_key = 'ulta';
 
 \echo '=== Ulta crawl_targets ==='

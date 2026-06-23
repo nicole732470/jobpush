@@ -1,6 +1,6 @@
 \echo '=== Mass General Brigham review queue ==='
 SELECT *
-FROM jobpush.career_site_company_review_queue
+FROM jobpush.career_site_review_workbench
 WHERE canonical_name ILIKE '%mass general%brigham%'
    OR consolidation_key = 'mass-general-brigham';
 

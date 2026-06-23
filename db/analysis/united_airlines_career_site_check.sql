@@ -16,5 +16,5 @@ WHERE consolidation_key IN (
 ORDER BY site_id;
 
 \echo '=== United review queue ==='
-SELECT * FROM jobpush.career_site_company_review_queue
+SELECT * FROM jobpush.career_site_review_workbench
 WHERE canonical_name ILIKE '%united airline%';

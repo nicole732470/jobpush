@@ -1,10 +1,12 @@
 \echo '=== Review queue (companies still pending) ==='
 SELECT COUNT(*) AS companies_in_queue
-FROM jobpush.career_site_company_review_queue;
+FROM jobpush.career_site_review_workbench
+WHERE action_status = 'REVIEW_CANDIDATES';
 
 \echo '=== By priority tier ==='
 SELECT priority_tier, COUNT(*) AS companies
-FROM jobpush.career_site_company_review_queue
+FROM jobpush.career_site_review_workbench
+WHERE action_status = 'REVIEW_CANDIDATES'
 GROUP BY priority_tier
 ORDER BY priority_tier;
 

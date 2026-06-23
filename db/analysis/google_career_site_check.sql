@@ -20,5 +20,5 @@ WHERE consolidation_key IN ('google', 'alphabet-google')
 ORDER BY site_id;
 
 \echo '=== Google review queue ==='
-SELECT * FROM jobpush.career_site_company_review_queue
+SELECT * FROM jobpush.career_site_review_workbench
 WHERE consolidation_key IN ('google', 'alphabet-google');

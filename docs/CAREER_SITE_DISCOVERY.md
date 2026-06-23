@@ -46,12 +46,10 @@ three candidates plus the verified URL. It sorts:
 3. Chicago + LinkedIn, Chicago, LinkedIn, large sponsors;
 4. remaining score/diverse samples.
 
-Older `career_site_review_queue` and `career_site_company_review_queue` views
-remain only for backward-compatible scripts. They are not the human entry
-point.
-
 Review candidate 1 first. If it is wrong, inspect candidate 2 and candidate 3.
-The detailed one-row-per-URL view is `career_site_review_queue`.
+Migration 057 removed those redundant human-facing views. Candidate URLs are
+already exposed as columns in `career_site_review_workbench`; use
+`career_sites` only when a detailed one-row-per-URL audit is needed.
 
 Confirm a site:
 
