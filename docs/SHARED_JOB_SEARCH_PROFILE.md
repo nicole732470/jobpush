@@ -67,9 +67,12 @@ the broad shared profile remains draft.
 4. Evaluate proposed rules against manual labels and a holdout set.
 5. Review the proposed rule diff and affected examples.
 6. Change the profile to `active` only after approval.
-7. Publish an immutable snapshot with profile version, Git commit, checksum,
+7. Explicitly synchronize the JobLens owner database profile. Editing YAML
+   alone does not alter a logged-in account, and the existing sync command also
+   updates the golden resume.
+8. Publish an immutable snapshot with profile version, Git commit, checksum,
    and timestamp.
-8. JobPush loads that snapshot and records its version on every rule decision.
+9. JobPush loads that snapshot and records its version on every rule decision.
 
 If validation or publication fails, JobPush keeps the last valid profile and
 sends ambiguous titles to review.
