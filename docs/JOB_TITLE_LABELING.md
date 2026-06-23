@@ -20,6 +20,10 @@ by active posting count and company count. Only these columns should be edited:
 Do not edit `normalized_title`; it is the database key. Start with `HIGH`, then
 `MEDIUM`. It is not necessary to label the long tail in one session.
 
+- `HIGH`: at least 5 active postings, or present at 3 or more companies
+- `MEDIUM`: at least 2 active postings
+- `LATER`: one active posting and fewer than 3 companies
+
 Returned decisions are applied with:
 
 ```sql
