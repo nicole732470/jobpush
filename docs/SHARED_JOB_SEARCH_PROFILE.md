@@ -16,6 +16,22 @@ JobPush stores only a source pointer in
 copy. The canonical structure and learning contract are documented in the
 JobLens file `docs/JOB_SEARCH_PROFILE.md`.
 
+```mermaid
+flowchart LR
+    USERS["Ordinary JobLens users"] --> PUBLIC["CandidateProfile public schema"]
+    NICOLE["Nicole Golden Set YAML"] --> DOCUMENT["CandidateProfileDocument"]
+    DOCUMENT --> PUBLIC_PART["Public profile projection"]
+    DOCUMENT --> PRIVATE_RULES["Private draft rules and learning metadata"]
+    PRIVATE_RULES --> APPROVED{"Profile active and approved?"}
+    APPROVED -- "No" --> EXACT["JobPush uses exact manual labels only"]
+    APPROVED -- "Yes" --> SNAPSHOT["Versioned JobPush rule snapshot"]
+```
+
+The internal document fields are not part of the ordinary `/me/profile` API,
+onboarding form, or saved user JSON. Seniority/technical learning metadata stays
+owner-only until a separately approved product feature exposes generic fields
+to all users.
+
 ## Current status
 
 Profile version `2026-06-23-draft-1` adds:
@@ -107,3 +123,6 @@ version, activation date, and last audit date.
 
 The profile learns from approved examples; the model does not become the source
 of truth for its own future labels.
+
+The dated audit calendar is maintained in
+[`LEARNING_OPERATIONS.md`](LEARNING_OPERATIONS.md).

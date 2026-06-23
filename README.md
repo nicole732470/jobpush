@@ -52,6 +52,8 @@ The editable detailed-title review workflow is in
 [`docs/JOB_TITLE_LABELING.md`](docs/JOB_TITLE_LABELING.md).
 The cross-project job-search intent source and safe learning loop are in
 [`docs/SHARED_JOB_SEARCH_PROFILE.md`](docs/SHARED_JOB_SEARCH_PROFILE.md).
+The dated title/site audit calendar and activation gates are in
+[`docs/LEARNING_OPERATIONS.md`](docs/LEARNING_OPERATIONS.md).
 
 ## Repository layout
 

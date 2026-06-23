@@ -1,7 +1,7 @@
 {
   "canonical_repository": "https://github.com/nicole732470/joblens",
   "canonical_path": "evals/golden_set/candidate_profile.yaml",
-  "source_commit": "fa1da3e",
+  "source_commit": "1b9b3c8",
   "profile_version": "2026-06-23-draft-1",
   "profile_status": "draft",
   "jobpush_enforcement": "manual_exact_labels_only",

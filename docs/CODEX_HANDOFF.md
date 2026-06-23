@@ -218,6 +218,9 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
    兼容。2026-06-23 已先搜索150家公司/381候选，再增加50家潜在P0混合样本/123候选。
 6. **职位人工标注**：SOC 精确匹配已自动分类；剩余 7,100 个 detailed titles 在
    `job_title_review_queue`，先处理导出表中的 171 个 HIGH 标题。
+   HIGH已于2026-06-23全部标注并导入（37 target / 133 non-target / 1 review）。
+   共享画像仍为draft；普通用户API保持原格式，owner-only学习字段不进入表单/用户JSON。
+   首次规则与官网精度抽检计划为2026-06-30，详见 `LEARNING_OPERATIONS.md`。
 7. **Amazon JC 类 title**：是否纳入 product engineer 类别，曾讨论未决。
 8. **`per-FEIN company_targets`**：可改为 nightly-only 以省 refresh 时间（可选）。
 

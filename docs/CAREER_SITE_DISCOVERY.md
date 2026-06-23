@@ -109,3 +109,23 @@ verified as a company-owned career site.
 
 `career_site_discovery_runs` records company counts, candidates, errors, and
 estimated credits for every completed batch.
+
+## Discovery-to-crawl flow
+
+```mermaid
+flowchart LR
+    COMPANY["P-tier company"] --> SEARCH["Career-site candidate search"]
+    SEARCH --> WORKBENCH["career_site_review_workbench"]
+    WORKBENCH --> VERIFY{"Official company site verified?"}
+    VERIFY -- "No" --> REJECT["Reject or retain for review"]
+    VERIFY -- "Yes" --> SCOPE{"US scope and supported adapter?"}
+    SCOPE -- "No" --> BACKLOG["Verified backlog; no automatic crawl"]
+    SCOPE -- "Yes" --> SCHEDULE["P0 / P1 / P2 scheduler"]
+    SCHEDULE --> RUN["Adapter crawl and run metrics"]
+    RUN --> MONITOR["Success, zero jobs, country scope, changes"]
+    MONITOR --> WORKBENCH
+```
+
+Human review calibrates discovery precision; it is not a requirement to review
+every company forever. Structured ATS groups may become auto-verifiable only
+after the sample and precision gates in `LEARNING_OPERATIONS.md` are met.

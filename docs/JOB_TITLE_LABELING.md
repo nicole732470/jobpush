@@ -48,3 +48,24 @@ The export query is `db/analysis/export_job_title_review.sql`.
 Personal technical and seniority boundaries come from the shared JobLens
 candidate profile, not from SOC alone. See
 [`SHARED_JOB_SEARCH_PROFILE.md`](SHARED_JOB_SEARCH_PROFILE.md).
+
+## Classification flow
+
+```mermaid
+flowchart TD
+    POSTING["Official-site job posting"] --> NORMALIZE["Normalize detailed title"]
+    NORMALIZE --> MANUAL{"Exact manual label exists?"}
+    MANUAL -- "Yes" --> FINAL["Use target / non-target / review label"]
+    MANUAL -- "No" --> ACTIVE{"Shared profile version is active?"}
+    ACTIVE -- "Yes" --> BOUNDARY["Apply seniority and technical boundaries"]
+    ACTIVE -- "No" --> SOC["Exact historical title / SOC evidence"]
+    BOUNDARY --> SOC
+    SOC --> CONFIDENT{"One unambiguous result?"}
+    CONFIDENT -- "Yes" --> FINAL
+    CONFIDENT -- "No" --> QUEUE["job_title_review_queue"]
+    QUEUE --> HUMAN["Human label with reason"]
+    HUMAN --> FINAL
+```
+
+Manual labels always win. A draft profile never activates broad exclusions;
+unresolved titles stay in review.
