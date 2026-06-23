@@ -56,13 +56,19 @@ fail_run() {
      UPDATE jobpush.crawl_batch_targets SET status='failed' WHERE batch_id=$BATCH_ID AND site_id=$SITE_ID;
      UPDATE jobpush.crawl_batches SET status='failed',failed_target_count=1,finished_at=now() WHERE batch_id=$BATCH_ID;
      UPDATE jobpush.career_sites SET crawl_status='failed',consecutive_failures=consecutive_failures+1,
-       last_error='Adapter pilot failed with exit code $code',last_crawled_at=now(),updated_at=now()
+       last_error='Adapter pilot failed with exit code $code',last_crawled_at=now(),
+       next_crawl_at=now()+make_interval(hours => LEAST(24, GREATEST(1, power(2, consecutive_failures)::int))),
+       updated_at=now()
        WHERE site_id=$SITE_ID;" || true
   exit "$code"
 }
 trap fail_run ERR
 
-python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market US > "$METRICS_JSON"
+if [[ "$SOURCE_TYPE" == "icims" ]]; then
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US > "$METRICS_JSON"
+else
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market US > "$METRICS_JSON"
+fi
 IFS=$'\t' read -r REQUESTS PAGES RAW_COUNT PARSED_COUNT DUPLICATES HTTP_STATUS LATENCY_MS < <(
   python3 - "$METRICS_JSON" <<'PY'
 import json,sys
@@ -129,6 +135,7 @@ UPDATE jobpush.crawl_batches SET status='succeeded',successful_target_count=1,
   review_job_count=(SELECT review_job_count FROM jobpush.crawl_runs WHERE run_id=$RUN_ID),
   finished_at=now() WHERE batch_id=$BATCH_ID;
 UPDATE jobpush.career_sites SET crawl_status='succeeded',last_crawled_at=now(),last_success_at=now(),
+  next_crawl_at=now()+make_interval(hours => COALESCE(crawl_interval_hours, 168)),
   consecutive_failures=0,last_error=NULL,updated_at=now() WHERE site_id=$SITE_ID;
 COMMIT;
 SQL

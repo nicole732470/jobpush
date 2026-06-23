@@ -44,6 +44,9 @@ class Job:
     category: str
     job_url: str
     description_snippet: str
+    market_scope: str = "US"
+    posted_text: str = ""
+    employment_type: str = ""
 
 
 class ICIMSParser(HTMLParser):
