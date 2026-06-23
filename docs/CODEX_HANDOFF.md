@@ -81,7 +81,7 @@ priority_score =
 
 生产占比（全表 68,958）：
 
-- **P0**：5（Salesforce、Cognizant主美国实体、Google、Alphabet/Google、HERE）
+- **P0**：7（Salesforce、Cognizant主美国实体、Google、Alphabet/Google、HERE、Grubhub Holdings Inc.、JPMorgan Chase & Co.）
 - **P1**：4,650（6.74%）
 - **P2**：14,487（21.01%）
 - 未分档：49,816（72.24%）

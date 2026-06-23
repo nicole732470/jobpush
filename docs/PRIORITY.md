@@ -57,8 +57,9 @@ ON CONFLICT (consolidation_key) DO UPDATE SET
 After editing overrides, refresh consolidated and sync `crawl_targets`.
 
 Current manual overrides include Salesforce and the main Cognizant US entity
-at P0, Google and Alphabet/Google at P0, HERE North America at P0, and LEAR
-CORPORATION and Baker Hughes downgraded to P2.
+at P0, Google and Alphabet/Google at P0, HERE North America at P0, Grubhub
+Holdings Inc. at P0, JPMorgan Chase & Co. at P0, and LEAR CORPORATION and
+Baker Hughes downgraded to P2.
 
 | Column | Points | When it applies |
 |---|---:|---|
