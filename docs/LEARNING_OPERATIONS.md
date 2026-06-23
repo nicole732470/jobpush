@@ -59,3 +59,15 @@ flowchart TB
 No model output is allowed to promote itself into an active rule. The system
 may generate a proposal and evidence bundle; a human approves the versioned
 change.
+
+## Current TODO
+
+| Owner | Due | Task | Status |
+|---|---|---|---|
+| Nicole | 2026-06-30 | Answer or revise the five `open_questions` in the JobLens YAML | Pending |
+| Codex | 2026-06-30 | Build the first holdout report from the 171 HIGH labels; propose rules without activating them | Pending |
+| Nicole | Ongoing | Review `career_site_review_workbench`, starting with P0 then potential-P0 signals | In progress |
+| Codex | 2026-06-30 | Report website precision by source type and candidate rank | Pending |
+| Codex | After profile approval | Implement immutable snapshot publisher in JobLens and versioned loader in JobPush | Blocked on approval |
+| Nicole + Codex | After successful evaluation | Change profile from draft to active and explicitly decide whether to run owner sync | Blocked on evaluation |
+| Codex | 2026-07-23 | Produce monthly drift, override, unresolved-title, adapter, and country-scope report | Scheduled |
