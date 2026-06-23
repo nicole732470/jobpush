@@ -56,6 +56,8 @@ The dated title/site audit calendar and activation gates are in
 [`docs/LEARNING_OPERATIONS.md`](docs/LEARNING_OPERATIONS.md).
 The copy-paste TablePlus queries for a company's current jobs and networking
 summary are in [`docs/NETWORKING_JOB_SQL.md`](docs/NETWORKING_JOB_SQL.md).
+Manual website review and priority operations that can be run without Codex
+are in [`docs/SELF_SERVICE_OPERATIONS.md`](docs/SELF_SERVICE_OPERATIONS.md).
 
 ## Repository layout
 
