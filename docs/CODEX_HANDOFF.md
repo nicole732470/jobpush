@@ -211,11 +211,11 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
 3. **Wage repair staging**：`lca_wage_repair_stage` / `backup` 仍在 RDS；验证后可 `bash db/run_migration_020.sh`。
 4. **P0/P2人工档位**：统一写 `crawl_priority_overrides`；sync 自动更新 `crawl_targets`。
 5. **Crawl 生产链路**：iCIMS、Greenhouse、Workday、Oracle Cloud、Apple adapters
-   已接入 EC2 小时级 timer；P0/P1/P2 实际频率为 24/72/168 小时。继续人工审核
+   已接入 GitHub Actions 小时级调度（OIDC → SSM → EC2）；P0/P1/P2 实际频率为 24/72/168 小时。继续人工审核
    官网，只有 verified + US-ready + supported adapter 才进入调度。
    官网人工审核只使用 `career_site_review_workbench`；它把pending + verified整合为
-   一张公司级视图，P0/潜在P0优先，Google等verified P0不会消失。旧queue只为脚本
-   兼容。2026-06-23 已先搜索150家公司/381候选，再增加50家潜在P0混合样本/123候选。
+   一张公司级视图，P0/潜在P0优先，Google等verified P0不会消失。Migration 057
+   已删除其余重复人工queue。2026-06-23 已先搜索150家公司/381候选，再增加50家潜在P0混合样本/123候选。
 6. **职位人工标注**：SOC 精确匹配已自动分类；剩余 7,100 个 detailed titles 在
    `job_title_review_queue`，先处理导出表中的 171 个 HIGH 标题。
    HIGH已于2026-06-23全部标注并导入（37 target / 133 non-target / 1 review）。

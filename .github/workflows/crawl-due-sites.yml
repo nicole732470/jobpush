@@ -1,0 +1,30 @@
+name: Crawl due career sites
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-career-site-crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to AWS with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Run due-site batch on the production EC2 host
+        run: bash db/deploy_via_ssm.sh db/run_due_crawl_batch.sh

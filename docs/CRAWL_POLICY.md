@@ -50,7 +50,7 @@ office identifiers exist.
 
 P tier chooses ordering and eventual frequency; it does not change parsing.
 Production intervals are P0 every 24 hours, P1 every 72 hours, and P2 every
-168 hours. The EC2 systemd timer checks hourly, but a site enters the run queue
+168 hours. GitHub Actions checks hourly, but a site enters the run queue
 only when all of these are true:
 
 - a human set `verification_status = 'verified'` after confirming the official
