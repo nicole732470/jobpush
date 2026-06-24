@@ -147,12 +147,13 @@ Two score-ordered expansion runs completed against P0/P1 demand before P2:
 |---:|---:|---:|
 | 640 | 1,629 | 0 |
 | 980 | 2,475 | 0 |
-| **1,620** | **4,104** | **0** |
+| 980 | 2,357 | 0 |
+| **2,600** | **6,461** | **0** |
 
-After these runs, the P1 discovery state was 23 verified, 1,848 awaiting
-candidate review, 35 not found, and 2,739 not yet searched. The second run used
-a newly rotated independent Tavily account and reserved approximately 20 of its
-1,000 free-plan credits based on request count.
+After these runs, the P1 discovery state was 23 verified, 2,808 awaiting
+candidate review, 55 not found, and 1,759 not yet searched. Each 980-company
+run used a newly rotated independent Tavily account and reserved approximately
+20 of its 1,000 free-plan credits based on request count.
 
 Operational caveat: Tavily's `/usage` response still reported zero immediately
 after the 980 successful searches. Treat request count as the conservative
