@@ -1,6 +1,6 @@
 # Company job list for networking
 
-Use [`db/analysis/company_job_list_for_networking.sql`](../db/analysis/company_job_list_for_networking.sql)
+Use [`db/manual/company_job_list_for_networking.sql`](../db/manual/company_job_list_for_networking.sql)
 directly in TablePlus. It deliberately uses three short, read-only queries:
 
 1. enter part of a company name and find its exact `consolidation_key`;
