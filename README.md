@@ -58,6 +58,8 @@ The copy-paste TablePlus queries for a company's current jobs and networking
 summary are in [`docs/NETWORKING_JOB_SQL.md`](docs/NETWORKING_JOB_SQL.md).
 Manual website review and priority operations that can be run without Codex
 are in [`docs/SELF_SERVICE_OPERATIONS.md`](docs/SELF_SERVICE_OPERATIONS.md).
+The private daily jobs, application queue, and crawler-health dashboard is
+documented in [`docs/DASHBOARD.md`](docs/DASHBOARD.md).
 
 ## Repository layout
 
