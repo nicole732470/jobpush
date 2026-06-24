@@ -139,6 +139,27 @@ not expected to cover all P1 companies manually. Only promote narrow structured
 ATS patterns to auto-verification after the precision gates in
 `LEARNING_OPERATIONS.md` are satisfied.
 
+### 2026-06-24 expansion runs
+
+Two score-ordered expansion runs completed against P0/P1 demand before P2:
+
+| Companies searched | Candidates retained | Search errors |
+|---:|---:|---:|
+| 640 | 1,629 | 0 |
+| 980 | 2,475 | 0 |
+| **1,620** | **4,104** | **0** |
+
+After these runs, the P1 discovery state was 23 verified, 1,848 awaiting
+candidate review, 35 not found, and 2,739 not yet searched. The second run used
+a newly rotated independent Tavily account and reserved approximately 20 of its
+1,000 free-plan credits based on request count.
+
+Operational caveat: Tavily's `/usage` response still reported zero immediately
+after the 980 successful searches. Treat request count as the conservative
+credit ledger until the provider usage endpoint catches up; do not launch
+another large batch merely because that endpoint temporarily shows unused
+credits.
+
 ## Tavily credential storage and rotation
 
 The active Tavily key is stored only in AWS Secrets Manager:
