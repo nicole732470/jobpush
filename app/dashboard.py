@@ -9,15 +9,22 @@ import streamlit as st
 from db import execute, query
 
 
-st.set_page_config(page_title="JobPush Daily", page_icon="↗", layout="wide")
+st.set_page_config(page_title="JobPush Ops", page_icon="↗", layout="wide")
 st.markdown(
     """
     <style>
-      .block-container {padding-top: 1.6rem; padding-bottom: 3rem;}
-      [data-testid="stMetric"] {background:#f7f8fa;border:1px solid #e7e9ee;
-        border-radius:14px;padding:14px 16px;}
-      h1 {letter-spacing:-0.04em;}
+      .stApp {background: linear-gradient(180deg,#fbfcff 0%,#f6f8fb 42%,#f7f7f4 100%);}
+      .block-container {padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1500px;}
+      [data-testid="stMetric"] {background:rgba(255,255,255,.88);border:1px solid #e4e7ec;
+        border-radius:18px;padding:15px 17px;box-shadow:0 8px 24px rgba(16,24,40,.045);}
+      h1 {letter-spacing:-0.045em; margin-bottom:.15rem;}
+      h2, h3 {letter-spacing:-0.025em;}
       .quiet {color:#667085;font-size:.92rem;}
+      .hero {padding:18px 22px;border-radius:24px;background:linear-gradient(135deg,#111827 0%,#25314a 58%,#43506b 100%);
+        color:#fff;margin-bottom:18px;box-shadow:0 16px 38px rgba(17,24,39,.16);}
+      .hero .quiet {color:#d0d5dd;}
+      .section-card {background:rgba(255,255,255,.8);border:1px solid #eaecf0;border-radius:18px;padding:14px 16px;}
+      div[data-testid="stDataFrame"] {border-radius:16px; overflow:hidden;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -35,21 +42,152 @@ def crawl_funnel() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
-def jobs(days: int, company: str, tiers: tuple[str, ...], role_statuses: tuple[str, ...]) -> pd.DataFrame:
+def coverage_by_tier() -> pd.DataFrame:
+    return query(
+        """
+        WITH target_counts AS (
+            SELECT priority_tier, COUNT(*) AS companies
+            FROM jobpush.crawl_targets
+            WHERE enabled AND priority_tier IN ('P0','P1','P2')
+            GROUP BY priority_tier
+        ), candidate_counts AS (
+            SELECT target.priority_tier,
+                   COUNT(DISTINCT site.consolidation_key) FILTER (WHERE site.verification_status='unverified') AS companies_with_candidates,
+                   COUNT(DISTINCT site.consolidation_key) FILTER (WHERE site.verification_status='verified') AS companies_with_verified_site,
+                   COUNT(*) FILTER (WHERE site.verification_status='verified' AND site.crawl_enabled) AS verified_enabled_sites
+            FROM jobpush.career_sites site
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+            GROUP BY target.priority_tier
+        ), schedule_counts AS (
+            SELECT priority_tier,
+                   COUNT(*) AS schedulable_sites,
+                   COUNT(*) FILTER (WHERE is_due) AS due_now,
+                   COUNT(*) FILTER (WHERE last_crawled_at IS NULL) AS never_crawled
+            FROM jobpush.crawl_schedule_queue
+            GROUP BY priority_tier
+        )
+        SELECT target_counts.priority_tier,
+               target_counts.companies,
+               COALESCE(candidate_counts.companies_with_candidates, 0) AS companies_with_candidates,
+               COALESCE(candidate_counts.companies_with_verified_site, 0) AS companies_with_verified_site,
+               COALESCE(candidate_counts.verified_enabled_sites, 0) AS verified_enabled_sites,
+               COALESCE(schedule_counts.schedulable_sites, 0) AS schedulable_sites,
+               COALESCE(schedule_counts.due_now, 0) AS due_now,
+               COALESCE(schedule_counts.never_crawled, 0) AS never_crawled,
+               ROUND(COALESCE(candidate_counts.companies_with_verified_site, 0)::numeric / NULLIF(target_counts.companies, 0), 4) AS verified_company_rate
+        FROM target_counts
+        LEFT JOIN candidate_counts USING (priority_tier)
+        LEFT JOIN schedule_counts USING (priority_tier)
+        ORDER BY CASE target_counts.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def p1_score_distribution() -> pd.DataFrame:
+    return query(
+        """
+        SELECT priority_score, COUNT(*) AS companies
+        FROM jobpush.crawl_targets
+        WHERE enabled AND priority_tier = 'P1'
+        GROUP BY priority_score
+        ORDER BY priority_score DESC
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def jobs(
+    days: int,
+    company: str,
+    title: str,
+    location: str,
+    tiers: tuple[str, ...],
+    role_statuses: tuple[str, ...],
+    app_statuses: tuple[str, ...],
+) -> pd.DataFrame:
     return query(
         """
         SELECT site_id, external_job_id, canonical_name, priority_tier, title,
-               location, role_status, canonical_role, application_status,
+               location, category, role_status, canonical_role,
+               CASE
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%%product%%manager%%'
+                       OR normalized_title LIKE '%%business%%analyst%%'
+                       OR normalized_title LIKE '%%data%%analyst%%'
+                       OR normalized_title LIKE '%%strategy%%analyst%%'
+                       OR normalized_title LIKE '%%operations%%analyst%%'
+                   ) THEN 'stack_1_business_product_data'
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%%software%%'
+                       OR normalized_title LIKE '%%systems%%analyst%%'
+                       OR normalized_title LIKE '%%information%%system%%'
+                   ) THEN 'stack_2_software_systems'
+                   WHEN role_status = 'target' THEN 'stack_3_other_target'
+                   ELSE role_status
+               END AS role_stack,
+               application_status,
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs
         WHERE first_seen_at >= now() - make_interval(days => %s)
           AND (%s = '' OR canonical_name ILIKE '%%' || %s || '%%')
+          AND (%s = '' OR title ILIKE '%%' || %s || '%%' OR canonical_role ILIKE '%%' || %s || '%%')
+          AND (%s = '' OR location ILIKE '%%' || %s || '%%')
           AND priority_tier = ANY(%s)
           AND role_status = ANY(%s)
+          AND application_status = ANY(%s)
         ORDER BY first_seen_at DESC, canonical_name, title
-        LIMIT 3000
+        LIMIT 5000
         """,
-        (days, company, company, list(tiers), list(role_statuses)),
+        (
+            days,
+            company,
+            company,
+            title,
+            title,
+            title,
+            location,
+            location,
+            list(tiers),
+            list(role_statuses),
+            list(app_statuses),
+        ),
+    )
+
+
+@st.cache_data(ttl=60)
+def company_jobs(company: str) -> pd.DataFrame:
+    return query(
+        """
+        SELECT canonical_name, priority_tier, title, location,
+               role_status, canonical_role, application_status,
+               first_seen_at, last_seen_at, job_url
+        FROM jobpush.dashboard_jobs
+        WHERE %s <> '' AND canonical_name ILIKE '%%' || %s || '%%'
+        ORDER BY CASE role_status WHEN 'target' THEN 0 WHEN 'review' THEN 1 ELSE 2 END,
+                 first_seen_at DESC, title
+        LIMIT 1000
+        """,
+        (company, company),
+    )
+
+
+@st.cache_data(ttl=60)
+def recent_failures() -> pd.DataFrame:
+    return query(
+        """
+        SELECT run.started_at, target.priority_tier, target.canonical_name,
+               site.source_type, run.status, run.requests_count, run.pages_fetched,
+               run.parsed_job_count, run.new_job_count, run.closed_job_count,
+               run.latency_ms, run.error_code, run.error_message, site.site_url
+        FROM jobpush.crawl_runs run
+        JOIN jobpush.career_sites site USING (site_id)
+        JOIN jobpush.crawl_targets target USING (consolidation_key)
+        WHERE run.status = 'failed'
+        ORDER BY run.started_at DESC
+        LIMIT 200
+        """
     )
 
 
@@ -68,8 +206,15 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
     )
 
 
-st.title("JobPush Daily")
-st.markdown('<div class="quiet">US career-site monitoring · America/Chicago</div>', unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="hero">
+      <h1>JobPush Ops</h1>
+      <div class="quiet">P0/P1 career-site monitoring · all companies · dates shown in America/Chicago</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 activity = daily_activity()
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
@@ -91,15 +236,18 @@ for column, (label, value) in zip(metric_columns, metrics):
 st.sidebar.header("Job filters")
 days = st.sidebar.select_slider("First seen within", options=[1, 3, 7, 14, 30, 90], value=7, format_func=lambda value: f"{value} days")
 company = st.sidebar.text_input("Company contains")
-tiers = tuple(st.sidebar.multiselect("Priority tier", ["P0", "P1", "P2"], default=["P0", "P1", "P2"]))
+title = st.sidebar.text_input("Title / role contains")
+location = st.sidebar.text_input("Location contains")
+tiers = tuple(st.sidebar.multiselect("Priority tier", ["P0", "P1", "P2"], default=["P0", "P1"]))
 role_statuses = tuple(st.sidebar.multiselect("Role decision", ["target", "review", "non_target"], default=["target", "review"]))
-if not tiers or not role_statuses:
-    st.warning("Select at least one priority tier and one role decision.")
+app_statuses = tuple(st.sidebar.multiselect("Application status", ["new", "saved", "apply_next", "applied", "dismissed"], default=["new", "saved", "apply_next"]))
+if not tiers or not role_statuses or not app_statuses:
+    st.warning("Select at least one priority tier, role decision, and application status.")
     st.stop()
 
-job_frame = jobs(days, company.strip(), tiers, role_statuses)
-overview_tab, jobs_tab, apply_tab, health_tab, coverage_tab = st.tabs(
-    ["Overview", "New jobs", "Application queue", "Crawl health", "Coverage"]
+job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
+overview_tab, jobs_tab, breakdown_tab, company_tab, apply_tab, health_tab, coverage_tab = st.tabs(
+    ["Overview", "New jobs", "Breakdowns", "Company view", "Application queue", "Crawl health", "Coverage"]
 )
 
 with overview_tab:
@@ -127,8 +275,53 @@ with overview_tab:
 
 with jobs_tab:
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
-    st.caption("Target roles appear first when you select only target + review in the sidebar.")
+    st.caption("Use the sidebar to filter by company, title/role, location, P-tier, role decision, and application status.")
     dataframe(job_frame)
+
+with breakdown_tab:
+    st.subheader("Role, company, and location breakdowns")
+    if job_frame.empty:
+        st.info("No jobs match the current filters.")
+    else:
+        left, right = st.columns(2)
+        with left:
+            st.caption("By role stack")
+            st.bar_chart(job_frame.groupby("role_stack").size().sort_values(ascending=False), height=260)
+            st.caption("By canonical role")
+            role_counts = (
+                job_frame.assign(canonical_role=job_frame["canonical_role"].fillna("Unlabeled"))
+                .groupby("canonical_role")
+                .size()
+                .sort_values(ascending=False)
+                .head(30)
+            )
+            st.dataframe(role_counts.reset_index(name="jobs"), hide_index=True, use_container_width=True, height=360)
+        with right:
+            st.caption("By company")
+            company_counts = job_frame.groupby(["priority_tier", "canonical_name"]).size().reset_index(name="jobs")
+            company_counts = company_counts.sort_values(["jobs", "canonical_name"], ascending=[False, True]).head(50)
+            st.dataframe(company_counts, hide_index=True, use_container_width=True, height=300)
+            st.caption("By location text")
+            location_counts = (
+                job_frame.assign(location=job_frame["location"].fillna("Location not listed"))
+                .groupby("location")
+                .size()
+                .sort_values(ascending=False)
+                .head(50)
+            )
+            st.dataframe(location_counts.reset_index(name="jobs"), hide_index=True, use_container_width=True, height=320)
+
+with company_tab:
+    st.subheader("Company job list")
+    lookup = st.text_input("Open one company", value=company.strip(), placeholder="e.g. Pfizer, Google, StackAdapt")
+    company_frame = company_jobs(lookup.strip()) if lookup.strip() else pd.DataFrame()
+    if lookup.strip() and company_frame.empty:
+        st.info("No active US jobs found for that company name.")
+    elif not lookup.strip():
+        st.caption("Type a company name to see its active US jobs and links.")
+    else:
+        st.caption(f"{len(company_frame):,} active US jobs matched.")
+        dataframe(company_frame, height=620)
 
 with apply_tab:
     actionable = job_frame[job_frame["role_status"] == "target"].copy()
@@ -180,6 +373,18 @@ with health_tab:
         """
     )
     st.dataframe(recent_runs, hide_index=True, use_container_width=True, height=420)
+    st.subheader("Recent failures")
+    failures = recent_failures()
+    if failures.empty:
+        st.success("No failed crawl runs recorded.")
+    else:
+        st.dataframe(
+            failures,
+            hide_index=True,
+            use_container_width=True,
+            height=360,
+            column_config={"site_url": st.column_config.LinkColumn("Site", display_text="Open ↗")},
+        )
 
 with coverage_tab:
     funnel = crawl_funnel().iloc[0]
@@ -206,3 +411,12 @@ with coverage_tab:
     )
     st.dataframe(coverage, hide_index=True, use_container_width=True)
     st.caption("A verified site remains excluded until its adapter and safe US scope are known.")
+    st.subheader("Coverage by priority tier")
+    st.dataframe(coverage_by_tier(), hide_index=True, use_container_width=True)
+    st.subheader("P1 score distribution")
+    p1_scores = p1_score_distribution()
+    left, right = st.columns([1.1, 1])
+    with left:
+        st.bar_chart(p1_scores.set_index("priority_score"), height=300)
+    with right:
+        st.dataframe(p1_scores, hide_index=True, use_container_width=True, height=300)

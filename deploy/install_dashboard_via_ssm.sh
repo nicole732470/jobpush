@@ -31,7 +31,7 @@ COMMAND_ID=$(aws ssm send-command \
   --document-name AWS-RunShellScript \
   --parameters commands="[
 \"set -euo pipefail\",
-\"if [[ -d '$INSTALL_DIR/.git' ]]; then git -C '$INSTALL_DIR' fetch origin main && git -C '$INSTALL_DIR' checkout main && git -C '$INSTALL_DIR' pull --ff-only origin main; else git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
+\"if [[ -d '$INSTALL_DIR/.git' ]]; then git -C '$INSTALL_DIR' fetch origin main && git -C '$INSTALL_DIR' checkout main && git -C '$INSTALL_DIR' restore deploy/run_dashboard.sh && git -C '$INSTALL_DIR' pull --ff-only origin main; else git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
 \"python3 -m venv '$INSTALL_DIR/.venv-dashboard'\",
 \"'$INSTALL_DIR/.venv-dashboard/bin/pip' install --quiet --upgrade pip\",
 \"'$INSTALL_DIR/.venv-dashboard/bin/pip' install --quiet -r '$INSTALL_DIR/app/requirements.txt'\",

@@ -1,4 +1,4 @@
-# JobPush Daily dashboard
+# JobPush Ops dashboard
 
 The first dashboard is a private Streamlit app running on the existing EC2
 host and reading the existing private RDS database. It is deliberately bound
@@ -17,14 +17,27 @@ Codex token.
 ## Current pages
 
 - today's new target/review jobs, closed jobs, crawl runs, and failures;
-- filterable active US job list with direct links;
+- default P0/P1 active US job list with direct links;
+- filters for company, title/role, location, priority tier, role decision, and
+  application status;
+- role-stack, canonical-role, company, and location breakdowns;
+- one-company job list for networking/application planning;
 - personal saved/apply-next/applied/dismissed workflow;
-- adapter health, recent run logs, and active alerts;
-- full company-to-schedulable-site coverage funnel.
+- adapter health, recent run logs, failed run details, and active alerts;
+- full company-to-schedulable-site coverage funnel, P0/P1/P2 coverage by tier,
+  and P1 score distribution.
 
-`first_seen_at` and daily boundaries are displayed using America/Chicago.
+The dashboard covers all monitored companies. `first_seen_at` and daily
+boundaries are displayed using America/Chicago so "today" is consistent with
+Nicole's working timezone; this is not a Chicago-company filter.
 Application decisions live in `jobpush.job_application_actions`; title target
 classification and personal application state remain separate.
+
+`role_stack` is currently a dashboard-level convenience grouping derived from
+`job_title_labels.classification_status`, `canonical_role`, and title text. If
+the stack-1/2/3 taxonomy becomes a durable product rule, promote it into
+`jobpush.job_title_labels` or a versioned config file instead of treating this
+display rule as source of truth.
 
 ## Deployment
 
