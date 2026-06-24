@@ -18,14 +18,27 @@ STAGING="$(mktemp -d -t jobpush-ssm-deploy.XXXXXX)"
 trap 'rm -rf "$STAGING"' EXIT
 
 mkdir -p "$STAGING/db/lib" "$STAGING/db/migrations" "$STAGING/db/refresh"
-[[ -d "$REPO_DIR/db/analysis" ]] && mkdir -p "$STAGING/db/analysis" && cp -R "$REPO_DIR/db/analysis/." "$STAGING/db/analysis/"
-[[ -d "$REPO_DIR/db/manual" ]] && mkdir -p "$STAGING/db/manual" && cp -R "$REPO_DIR/db/manual/." "$STAGING/db/manual/"
-[[ -d "$REPO_DIR/db/load" ]] && mkdir -p "$STAGING/db/load" && cp -R "$REPO_DIR/db/load/." "$STAGING/db/load/"
-[[ -d "$REPO_DIR/scripts" ]] && mkdir -p "$STAGING/scripts" && cp -R "$REPO_DIR/scripts/." "$STAGING/scripts/"
+if [[ -d "$REPO_DIR/scripts" ]]; then
+  mkdir -p "$STAGING/scripts"
+  for script in \
+    crawl_apple_jobs.py crawl_greenhouse.py crawl_icims.py \
+    crawl_oracle_cloud.py crawl_workday.py discover_career_sites.py \
+    market_scope.py; do
+    [[ -f "$REPO_DIR/scripts/$script" ]] && cp "$REPO_DIR/scripts/$script" "$STAGING/scripts/$script"
+  done
+fi
 
 cp -R "$REPO_DIR/db/lib/." "$STAGING/db/lib/"
-cp -R "$REPO_DIR/db/migrations/." "$STAGING/db/migrations/"
-cp -R "$REPO_DIR/db/refresh/." "$STAGING/db/refresh/"
+
+# SSM RunCommand has a small document payload limit. Include only SQL/shell
+# assets explicitly referenced by the selected runner instead of copying every
+# historical migration and analysis file on every deployment.
+while IFS= read -r referenced; do
+  [[ -n "$referenced" && -f "$REPO_DIR/db/$referenced" ]] || continue
+  mkdir -p "$STAGING/db/$(dirname "$referenced")"
+  cp "$REPO_DIR/db/$referenced" "$STAGING/db/$referenced"
+done < <(rg -o '(migrations|analysis|refresh|load|repair)/[A-Za-z0-9_./-]+\.(sql|sh|csv)' \
+  "$REPO_DIR/$RUN_SCRIPT" | sort -u)
 
 for extra in "$@"; do
   dest="$STAGING/$extra"
