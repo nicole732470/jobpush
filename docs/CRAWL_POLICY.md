@@ -97,11 +97,11 @@ Live titles are normalized and first matched exactly against
 - only non-target SOC matches: automatic `non_target`;
 - mixed SOC matches or no exact match: `review`;
 - exact manual labels always override automatic rules;
-- explicit profile hard exclusions (Lead, Staff, Principal, Director, VP,
-  Chief, ML-model, mechanical/electrical/CAD/embedded/hardware boundaries) run
-  before SOC suggestions and are versioned as `profile-boundary-v1`;
-- every new title is evaluated by the boundary trigger at insert time, so the
-  system does not send obvious exclusions back to the human queue forever.
+- executable profile title rules (`profile-title-rules-v1`) now run before SOC
+  suggestions for both target tracks and avoid tracks;
+- every new title is evaluated by the profile trigger at insert time, so the
+  system does not send obvious target/avoid cases back to the human queue
+  forever.
 
 The historical raw-title/SOC file is therefore the first labeling layer, not a
 replacement for reviewing new, more detailed career-site titles.

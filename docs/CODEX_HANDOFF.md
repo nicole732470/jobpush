@@ -2,7 +2,7 @@
 
 最后更新：2026-06-24
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–063**。
+生产 RDS 已部署 migration **001–064**。
 
 ---
 
