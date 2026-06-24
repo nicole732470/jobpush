@@ -105,6 +105,15 @@ If `target_role_score = 0`, every downstream component stays 0.
 - **Input:** `public.companies.lca_count` (total filings for the FEIN)
 - **Rule:** `+1` when `lca_count > 1` (at least two total LCA filings)
 
+On 2026-06-24 we tested a narrower alternative: for companies with exactly two
+filings, award no point when both titles are strict high-seniority titles (CEO,
+Chief, President/VP, Director/Head/Executive, Senior Manager, or Principal).
+Only 447 of 7,207 two-filing target companies (6.20%) met that condition, and
+only 25 were current P1 companies (385 P2; 37 unranked). Because the effect on
+the working P1 queue is small relative to the extra permanent aggregation and
+rule complexity, production keeps the simple `lca_count > 1` rule. Reproducible
+SQL: `db/analysis/lca_two_filing_leadership_impact.sql`.
+
 ### 3. `chicago_score` (+0.5)
 
 - **Prerequisite:** `target_role_score = 1`

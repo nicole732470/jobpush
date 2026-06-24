@@ -18,6 +18,8 @@ Codex token.
 
 - today's new target/review jobs, closed jobs, crawl runs, and failures;
 - default P0/P1 active US job list with direct links;
+- CSV download for the current filtered job view and one-company job list;
+- downloadable 100/250/500/1,000/2,000-title human review batches;
 - filters for company, title/role, location, priority tier, role decision, and
   application status;
 - role-stack, canonical-role, company, and location breakdowns;
@@ -25,13 +27,19 @@ Codex token.
 - personal saved/apply-next/applied/dismissed workflow;
 - adapter health, recent run logs, failed run details, and active alerts;
 - full company-to-schedulable-site coverage funnel, P0/P1/P2 coverage by tier,
-  and P1 score distribution.
+  P0/P1/P2 company-level scoring tables, and all priority-score distributions;
+- separate human-verified and system-auto-trusted site coverage.
 
 The dashboard covers all monitored companies. `first_seen_at` and daily
 boundaries are displayed using America/Chicago so "today" is consistent with
 Nicole's working timezone; this is not a Chicago-company filter.
 Application decisions live in `jobpush.job_application_actions`; title target
 classification and personal application state remain separate.
+
+Application status is a personal workflow, not a classifier: `new` means no
+application decision, `saved` is an interesting bookmark, `apply_next` is the
+shortlist, `applied` means submitted, and `dismissed` means intentionally
+skipped. The dashboard explains these values in the Application queue tab.
 
 `role_stack` is currently a dashboard-level convenience grouping derived from
 `job_title_labels.classification_status`, `canonical_role`, and title text. If

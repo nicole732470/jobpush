@@ -54,6 +54,12 @@ def coverage_by_tier() -> pd.DataFrame:
             SELECT target.priority_tier,
                    COUNT(DISTINCT site.consolidation_key) FILTER (WHERE site.verification_status='unverified') AS companies_with_candidates,
                    COUNT(DISTINCT site.consolidation_key) FILTER (WHERE site.verification_status='verified') AS companies_with_verified_site,
+                   COUNT(DISTINCT site.consolidation_key) FILTER (
+                       WHERE site.verification_status='verified' AND COALESCE(site.reviewed_by, '') NOT LIKE 'system:%%'
+                   ) AS human_verified_companies,
+                   COUNT(DISTINCT site.consolidation_key) FILTER (
+                       WHERE site.verification_status='verified' AND site.reviewed_by LIKE 'system:%%'
+                   ) AS auto_trusted_companies,
                    COUNT(*) FILTER (WHERE site.verification_status='verified' AND site.crawl_enabled) AS verified_enabled_sites
             FROM jobpush.career_sites site
             JOIN jobpush.crawl_targets target USING (consolidation_key)
@@ -71,6 +77,8 @@ def coverage_by_tier() -> pd.DataFrame:
                target_counts.companies,
                COALESCE(candidate_counts.companies_with_candidates, 0) AS companies_with_candidates,
                COALESCE(candidate_counts.companies_with_verified_site, 0) AS companies_with_verified_site,
+               COALESCE(candidate_counts.human_verified_companies, 0) AS human_verified_companies,
+               COALESCE(candidate_counts.auto_trusted_companies, 0) AS auto_trusted_companies,
                COALESCE(candidate_counts.verified_enabled_sites, 0) AS verified_enabled_sites,
                COALESCE(schedule_counts.schedulable_sites, 0) AS schedulable_sites,
                COALESCE(schedule_counts.due_now, 0) AS due_now,
@@ -95,6 +103,52 @@ def p1_score_distribution() -> pd.DataFrame:
         ORDER BY priority_score DESC
         """
     )
+
+
+@st.cache_data(ttl=60)
+def company_targets(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        SELECT target.consolidation_key, target.canonical_name,
+               target.priority_tier, target.priority_score,
+               target.priority_source, target.discovery_status,
+               consolidated.lca_count, consolidated.target_role_lca_count,
+               consolidated.target_role_score, consolidated.lca_count_score,
+               consolidated.chicago_score, consolidated.product_role_score,
+               consolidated.product_manager_score, consolidated.salary_score,
+               consolidated.linkedin_top_employer_score,
+               consolidated.employer_city, consolidated.employer_state
+        FROM jobpush.crawl_targets target
+        JOIN jobpush.company_targets_consolidated consolidated USING (consolidation_key)
+        WHERE target.enabled AND target.priority_tier = ANY(%s)
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                 target.priority_score DESC, target.canonical_name
+        """,
+        (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
+def title_review_queue(limit: int = 2000) -> pd.DataFrame:
+    frame = query(
+        """
+        SELECT normalized_title, example_title, active_posting_count,
+               company_count, suggestion_reason, matched_soc_codes,
+               matched_soc_titles
+        FROM jobpush.job_title_review_queue
+        ORDER BY active_posting_count DESC, company_count DESC, normalized_title
+        LIMIT %s
+        """,
+        (limit,),
+    )
+    frame["人工判断（请填写）"] = ""
+    frame["标准岗位（可选）"] = ""
+    frame["判断原因/备注（可选）"] = ""
+    return frame
+
+
+def csv_bytes(frame: pd.DataFrame) -> bytes:
+    return frame.to_csv(index=False).encode("utf-8-sig")
 
 
 @st.cache_data(ttl=60)
@@ -246,8 +300,8 @@ if not tiers or not role_statuses or not app_statuses:
     st.stop()
 
 job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
-overview_tab, jobs_tab, breakdown_tab, company_tab, apply_tab, health_tab, coverage_tab = st.tabs(
-    ["Overview", "New jobs", "Breakdowns", "Company view", "Application queue", "Crawl health", "Coverage"]
+overview_tab, jobs_tab, review_tab, breakdown_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
+    ["Overview", "New jobs", "Title review", "Breakdowns", "Company view", "Company tiers", "Application queue", "Crawl health", "Coverage"]
 )
 
 with overview_tab:
@@ -276,7 +330,22 @@ with overview_tab:
 with jobs_tab:
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
     st.caption("Use the sidebar to filter by company, title/role, location, P-tier, role decision, and application status.")
+    st.download_button(
+        "Download filtered jobs (CSV)", csv_bytes(job_frame),
+        file_name=f"jobpush_jobs_{chicago_today}.csv", mime="text/csv",
+    )
     dataframe(job_frame)
+
+with review_tab:
+    st.subheader("Detailed title review queue")
+    st.caption("Only unresolved normalized titles appear here. Exact manual labels and published hard exclusions are already removed.")
+    review_limit = st.select_slider("Review batch size", options=[100, 250, 500, 1000, 2000], value=500)
+    review_frame = title_review_queue(review_limit)
+    st.download_button(
+        "Download title review batch (CSV)", csv_bytes(review_frame),
+        file_name=f"jobpush_title_review_{chicago_today}_{review_limit}.csv", mime="text/csv",
+    )
+    dataframe(review_frame, height=610)
 
 with breakdown_tab:
     st.subheader("Role, company, and location breakdowns")
@@ -321,11 +390,43 @@ with company_tab:
         st.caption("Type a company name to see its active US jobs and links.")
     else:
         st.caption(f"{len(company_frame):,} active US jobs matched.")
+        st.download_button(
+            "Download this company job list (CSV)", csv_bytes(company_frame),
+            file_name=f"jobpush_company_jobs_{chicago_today}.csv", mime="text/csv",
+        )
         dataframe(company_frame, height=620)
+
+with target_tab:
+    st.subheader("Company priority tables")
+    st.caption("Select P tiers and download the corresponding company-level scoring table.")
+    target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2"], default=["P0", "P1"], key="company-target-tiers"))
+    if not target_tiers:
+        st.info("Select at least one P tier.")
+    else:
+        target_frame = company_targets(target_tiers)
+        tier_summary = target_frame.groupby("priority_tier", as_index=False).agg(
+            companies=("consolidation_key", "count"),
+            average_score=("priority_score", "mean"),
+            median_lca=("lca_count", "median"),
+        )
+        st.dataframe(tier_summary, hide_index=True, use_container_width=True)
+        st.download_button(
+            "Download company tier table (CSV)", csv_bytes(target_frame),
+            file_name=f"jobpush_company_tiers_{'_'.join(target_tiers)}_{chicago_today}.csv", mime="text/csv",
+        )
+        st.dataframe(target_frame, hide_index=True, use_container_width=True, height=600)
 
 with apply_tab:
     actionable = job_frame[job_frame["role_status"] == "target"].copy()
     st.subheader("Target roles to review and apply")
+    with st.expander("What do new / saved / apply_next / applied / dismissed mean?"):
+        st.markdown(
+            "- **new**: newly discovered; no decision yet.\n"
+            "- **saved**: interesting, but not queued for immediate application.\n"
+            "- **apply_next**: next application shortlist.\n"
+            "- **applied**: application submitted.\n"
+            "- **dismissed**: reviewed and intentionally skipped."
+        )
     if actionable.empty:
         st.info("No target roles match the current filters.")
     else:
@@ -413,6 +514,23 @@ with coverage_tab:
     st.caption("A verified site remains excluded until its adapter and safe US scope are known.")
     st.subheader("Coverage by priority tier")
     st.dataframe(coverage_by_tier(), hide_index=True, use_container_width=True)
+    st.subheader("All priority score bands")
+    score_bands = query(
+        """
+        SELECT priority_tier, priority_score, count(*) AS companies,
+               round(100.0 * count(*) / sum(count(*)) OVER (PARTITION BY priority_tier), 2) AS pct_within_tier
+        FROM jobpush.crawl_targets
+        WHERE enabled AND priority_tier IN ('P0','P1','P2')
+        GROUP BY priority_tier, priority_score
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                 priority_score DESC
+        """
+    )
+    st.download_button(
+        "Download score distribution (CSV)", csv_bytes(score_bands),
+        file_name=f"jobpush_priority_score_distribution_{chicago_today}.csv", mime="text/csv",
+    )
+    st.dataframe(score_bands, hide_index=True, use_container_width=True, height=360)
     st.subheader("P1 score distribution")
     p1_scores = p1_score_distribution()
     left, right = st.columns([1.1, 1])

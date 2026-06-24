@@ -7,6 +7,10 @@ LCA/SOC workbook. JobPush therefore uses two layers:
    classified automatically by migration 046.
 2. Unmatched or SOC-conflicting titles remain in
    `jobpush.job_title_review_queue` for human review.
+3. Explicit personal hard boundaries are applied before the review queue. The
+   `profile-boundary-v1` trigger classifies obvious seniority and technical
+   exclusions for both existing and newly crawled titles. Exact manual labels
+   always win.
 
 ## Human workflow
 
@@ -35,15 +39,20 @@ SELECT jobpush.apply_manual_job_title_label(
 Manual decisions use `rule_version = 'manual-v1'`, override automatic rules,
 and append an immutable row to `job_title_label_history`.
 
-## Current production snapshot (2026-06-23)
+## Current production snapshot (2026-06-24)
 
 - Automatically classified target titles: 111
 - Automatically classified non-target titles: 100
-- Remaining review titles: 7,100
-- Active postings represented by review titles: 9,560
+- Profile-boundary non-target titles after the first two scaled crawl batches: 5,453
+- Remaining distinct review titles: 13,779
+- Active US postings represented by review titles: 8,783
+- Active US target postings: 510
 - First labeling tranche (`HIGH`): 171 titles
+- Second editable tranche: 500 titles, generated after publishing the hard
+  exclusions and ordered by active posting/company frequency.
 
 The export query is `db/analysis/export_job_title_review.sql`.
+The private dashboard can also export a fresh review batch without Codex.
 
 Personal technical and seniority boundaries come from the shared JobLens
 candidate profile, not from SOC alone. See
