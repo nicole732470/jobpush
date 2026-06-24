@@ -79,13 +79,18 @@ more companies only after a representative site passes a second idempotent run.
 - Candidate rank must be 1 and the company must be P0/P1.
 - Greenhouse and Workday may be auto-trusted with conservative local US
   classification.
-- Generic HTML, Ashby, Lever, and SmartRecruiters remain out until a supported
-  adapter and precision evidence exist.
+- Lever, Ashby, and SmartRecruiters now have public-API adapters. Rank-1 P0/P1
+  candidates can enter a controlled auto-trust rollout when no verified site
+  already exists; crawl health and entity mismatch remain rollback gates.
+- Generic HTML remains outside automatic promotion.
 - iCIMS auto-trust was rolled back after its initial sample produced 0/3 safe
   US-scope runs. Human-confirmed iCIMS remains supported.
 - The first Greenhouse/Workday expansion sample produced 43 successes and four
   Workday failures among 47 attempted sites; failures stay visible in
   `crawl_runs` and receive backoff.
+- `career_site_selection_candidates` is the explainable selection surface; it
+  records selected/review/rejected reasoning instead of hiding site choice in
+  scheduler code.
 
 ## 5. Job relevance
 

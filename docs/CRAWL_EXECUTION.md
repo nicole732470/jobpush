@@ -54,10 +54,21 @@ public ATS adapters use the same batch/run/posting loader:
 - `apple-jobs-api`: Apple uses its own public search API. It is already limited
   to the United States, fetches search summaries only, and uses four workers
   because Apple fixes the response size at 20 jobs per page.
+- `lever-api`: Lever public postings API, with local US market classification.
+- `ashby-posting-api`: Ashby public job-board API, including compensation when
+  the board exposes it.
+- `smartrecruiters-api`: SmartRecruiters public company-postings API with
+  paginated normalization.
 
 Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
 other verified sites of the same type.
+
+Migration 068 adds `career_site_selection_candidates`, which exposes every
+site-selection score and decision. Rank-1 P0/P1 Lever, Ashby, and
+SmartRecruiters candidates may be auto-trusted only when no verified site
+already exists. Human verified/rejected decisions remain authoritative, and
+404/entity-mismatch failures must be rolled back during rollout.
 
 Greenhouse URLs may contain `offices[]` filters. The public jobs API ignores
 that query parameter, so adapter version 0.2 reads the office ID from the

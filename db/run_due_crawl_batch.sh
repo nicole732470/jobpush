@@ -32,6 +32,12 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="apple-jobs-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_apple_jobs.py" ;;
     greenhouse)
       adapter_name="greenhouse-api"; adapter_version="0.2.0"; adapter_script="scripts/crawl_greenhouse.py" ;;
+    lever)
+      adapter_name="lever-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_lever.py" ;;
+    ashby)
+      adapter_name="ashby-posting-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_ashby.py" ;;
+    smartrecruiters)
+      adapter_name="smartrecruiters-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_smartrecruiters.py" ;;
     icims)
       adapter_name="icims-html"; adapter_version="0.3.0"; adapter_script="scripts/crawl_icims.py" ;;
     oracle_cloud)
