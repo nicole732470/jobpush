@@ -139,6 +139,30 @@ not expected to cover all P1 companies manually. Only promote narrow structured
 ATS patterns to auto-verification after the precision gates in
 `LEARNING_OPERATIONS.md` are satisfied.
 
+## Tavily credential storage and rotation
+
+The active Tavily key is stored only in AWS Secrets Manager:
+
+- secret: `joblens/app`
+- JSON field: `TAVILY_API_KEY`
+- region: `us-east-2`
+
+It must not be committed to this repository, pasted into documentation, or
+stored as plaintext on EC2. Discovery runners retrieve it at runtime and unset
+the process variable after the search finishes.
+
+Rotate the key from an authenticated local terminal with:
+
+```bash
+bash db/rotate_tavily_key.sh
+```
+
+The script reads the key without echoing it, verifies it against Tavily's usage
+endpoint, preserves all other fields in `joblens/app`, and creates a new AWS
+Secrets Manager version. A newly registered free account should report its own
+independent plan usage. Check remaining credits before choosing a batch size;
+keep a small reserve for validation and retries.
+
 ## Discovery-to-crawl flow
 
 ```mermaid
