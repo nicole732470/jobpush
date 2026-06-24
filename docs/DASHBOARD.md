@@ -16,8 +16,8 @@ Codex token.
 
 ## Current pages
 
-- today's new target/review jobs, closed jobs, crawl runs, and failures;
-- default P0/P1 active US job list with direct links;
+- today's active-US new target/review jobs, US closed jobs, crawl runs, and failures;
+- default P0/P1 active US `target` job list with direct links;
 - CSV download for the current filtered job view and one-company job list;
 - downloadable 100/250/500/1,000/2,000-title human review batches;
 - filters for company, title/role, location, priority tier, role decision, and
@@ -35,6 +35,11 @@ boundaries are displayed using America/Chicago so "today" is consistent with
 Nicole's working timezone; this is not a Chicago-company filter.
 Application decisions live in `jobpush.job_application_actions`; title target
 classification and personal application state remain separate.
+
+The top-line job metrics use `jobpush.job_postings_us`, so non-US title-language
+signals and inactive/closed postings do not inflate Nicole's daily recommendation
+counts. If you want to audit the classifier, include `review` in the sidebar;
+the default recommendation view intentionally shows `target` only.
 
 Application status is a personal workflow, not a classifier: `new` means no
 application decision, `saved` is an interesting bookmark, `apply_next` is the
