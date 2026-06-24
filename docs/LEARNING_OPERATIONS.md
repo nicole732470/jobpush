@@ -53,15 +53,17 @@ JobPush now has four learning layers, in this order:
 
 1. **Exact human labels** (`manual-v1`) from Nicole's review workbooks. These
    are immutable audit evidence and always override system rules.
-2. **Deterministic profile rules** (`profile-title-rules-v1`) compiled from the
+2. **Deterministic profile rules** (`profile-title-rules-v2`) compiled from the
    shared candidate profile and repeated manual-label clusters. This handles
    obvious target/avoid cases such as Product Manager, Software Engineer, HR,
    accounting, warehouse/retail, manufacturing floor, hardware, and non-US
    language signals.
-3. **AI proposal layer** (planned). JobPush should call the same OpenAI setup
-   used by JobLens, classify ambiguous titles/JDs with structured JSON, and
-   produce proposed labels plus reasons. Model output should enter review or a
-   holdout report first; it must not silently overwrite `manual-v1`.
+3. **AI classifier layer** (`ai-title-classifier-v1`). JobPush calls the same
+   OpenAI-compatible setup used by JobLens, classifies ambiguous titles with
+   structured JSON, and records proposed labels plus reasons in
+   `jobpush.job_title_ai_classifications`. High-confidence decisions can be
+   applied only when the title is still `review`; model output must never
+   overwrite `manual-v1`.
 4. **Release gate**. A proposed rule or model prompt becomes active only after
    a versioned migration/config update, metrics, and rollback plan.
 
@@ -69,19 +71,24 @@ This means YAML is not just documentation. It must be compiled into either a
 deterministic rule snapshot or an AI prompt/config snapshot. Editing YAML alone
 does not change production behavior until that publish step happens.
 
-## AI integration plan
+## AI integration plan and current constraint
 
-When the deterministic queue stops yielding obvious wins, add a JobPush title/JD
-classifier that reuses JobLens' OpenAI configuration and secret instead of
-creating a separate JobPush key. The classifier should:
+The JobPush title classifier now reuses JobLens' OpenAI-compatible configuration
+and secret instead of creating a separate JobPush key. The classifier should:
 
 - read the canonical candidate profile snapshot;
-- accept title, company, source URL, location, category, and description snippet;
+- accept title, company/source context, location, category, and eventually
+  description snippets;
 - return `target`, `non_target`, or `review`, plus track, confidence, and
   explanation;
 - never override manual labels;
 - write model version, prompt version, profile version, and input hash for audit;
 - sample low-confidence and high-impact decisions back into the review workbook.
+
+Current caveat on 2026-06-24: the `joblens/app` secret points at OpenRouter
+`openai/gpt-oss-20b:free`. A 300-title run hit free-model rate limits and some
+malformed JSON responses. Until the model/key is upgraded, keep AI batches small
+and treat the deterministic rule table as the primary production classifier.
 
 AI is for semantic generalization and proposal generation; deterministic rules
 remain cheaper, faster, and safer for obvious strings.
@@ -107,7 +114,7 @@ change.
 | Codex | 2026-06-30 | Build the first holdout report from the 171 HIGH labels; propose rules without activating them | Pending |
 | Nicole | Ongoing | Review `career_site_review_workbench`, starting with P0 then potential-P0 signals | In progress |
 | Codex | 2026-06-30 | Report website precision by source type and candidate rank | Pending |
-| Codex | 2026-06-30 | Add first AI proposal report using JobLens OpenAI config for ambiguous titles | Pending |
+| Codex | 2026-06-24 | Add first AI classifier using JobLens OpenAI config for ambiguous titles | Implemented; rate-limited by current free model |
 | Codex | 2026-06-30 | Implement next structured ATS adapters, starting with Lever/Ashby/SmartRecruiters by volume and API stability | Pending |
 | Codex | After profile approval | Implement immutable snapshot publisher in JobLens and versioned loader in JobPush | Blocked on approval |
 | Nicole + Codex | After successful evaluation | Change profile from draft to active and explicitly decide whether to run owner sync | Blocked on evaluation |

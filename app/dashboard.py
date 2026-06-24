@@ -293,7 +293,7 @@ company = st.sidebar.text_input("Company contains")
 title = st.sidebar.text_input("Title / role contains")
 location = st.sidebar.text_input("Location contains")
 tiers = tuple(st.sidebar.multiselect("Priority tier", ["P0", "P1", "P2"], default=["P0", "P1"]))
-role_statuses = tuple(st.sidebar.multiselect("Role decision", ["target", "review", "non_target"], default=["target", "review"]))
+role_statuses = tuple(st.sidebar.multiselect("Role decision", ["target", "review", "non_target"], default=["target"]))
 app_statuses = tuple(st.sidebar.multiselect("Application status", ["new", "saved", "apply_next", "applied", "dismissed"], default=["new", "saved", "apply_next"]))
 if not tiers or not role_statuses or not app_statuses:
     st.warning("Select at least one priority tier, role decision, and application status.")
@@ -329,7 +329,7 @@ with overview_tab:
 
 with jobs_tab:
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
-    st.caption("Use the sidebar to filter by company, title/role, location, P-tier, role decision, and application status.")
+    st.caption("Default view is recommended target jobs only. Add review/non-target in the sidebar when auditing the classifier.")
     st.download_button(
         "Download filtered jobs (CSV)", csv_bytes(job_frame),
         file_name=f"jobpush_jobs_{chicago_today}.csv", mime="text/csv",

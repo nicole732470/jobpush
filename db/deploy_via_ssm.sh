@@ -23,7 +23,7 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
   for script in \
     crawl_apple_jobs.py crawl_greenhouse.py crawl_icims.py \
     crawl_oracle_cloud.py crawl_workday.py discover_career_sites.py \
-    market_scope.py; do
+    classify_job_titles_ai.py market_scope.py; do
     [[ -f "$REPO_DIR/scripts/$script" ]] && cp "$REPO_DIR/scripts/$script" "$STAGING/scripts/$script"
   done
 fi

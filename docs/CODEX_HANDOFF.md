@@ -2,7 +2,7 @@
 
 最后更新：2026-06-24
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–064**。
+生产 RDS 已部署 migration **001–066**。
 
 ---
 
@@ -50,8 +50,13 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 | `jobpush.linkedin_top_employer_*` | LinkedIn 2026 Top Employers 匹配与打分 |
 | `jobpush.product_role_title_rules` | Product 类 job title 规则 |
 | `jobpush.target_soc_roles` | 97 个目标 SOC 码 |
+| `jobpush.profile_title_rule_terms` | JobPush title 推荐规则表；`profile-title-rules-v2` 从这里读取 target / avoid 规则 |
+| `jobpush.job_title_ai_classifications` | AI title 判定审计表；只允许高置信度填补 `review`，不能覆盖 manual |
 
 行数（约，2026-06-22）：consolidated **68,958**；employer_filing_stats **69,250**。
+
+2026-06-24 更新：dashboard 默认只展示 `target` jobs。`review` 是 classifier
+审计池，不是 Nicole 每天要投递的推荐池。
 
 ---
 

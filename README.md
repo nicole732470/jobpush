@@ -50,6 +50,9 @@ batch implementation details are in
 [`docs/CRAWL_EXECUTION.md`](docs/CRAWL_EXECUTION.md).
 The editable detailed-title review workflow is in
 [`docs/JOB_TITLE_LABELING.md`](docs/JOB_TITLE_LABELING.md).
+The production title recommender now uses `profile-title-rules-v2` plus an
+optional audited AI batch classifier. Dashboard job results default to
+`target` only; `review` is for classifier improvement, not the daily apply list.
 The cross-project job-search intent source and safe learning loop are in
 [`docs/SHARED_JOB_SEARCH_PROFILE.md`](docs/SHARED_JOB_SEARCH_PROFILE.md).
 The dated title/site audit calendar and activation gates are in

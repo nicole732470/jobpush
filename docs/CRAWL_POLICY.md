@@ -97,7 +97,7 @@ Live titles are normalized and first matched exactly against
 - only non-target SOC matches: automatic `non_target`;
 - mixed SOC matches or no exact match: `review`;
 - exact manual labels always override automatic rules;
-- executable profile title rules (`profile-title-rules-v1`) now run before SOC
+- executable profile title rules (`profile-title-rules-v2`) now run before SOC
   suggestions for both target tracks and avoid tracks;
 - every new title is evaluated by the profile trigger at insert time, so the
   system does not send obvious target/avoid cases back to the human queue
