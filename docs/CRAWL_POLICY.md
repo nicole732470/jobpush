@@ -44,6 +44,9 @@ office identifiers exist.
 - A US run may close only prior US jobs. It must never close overseas jobs that
   were simply outside the request.
 - Ambiguous locations become `unknown`, not US and not automatically closed.
+- Greenhouse and Workday global feeds use conservative per-posting location
+  classification. Only explicit US/state evidence enters `job_postings_us`;
+  ambiguous locations remain `unknown` for review.
 - Run scope and method are copied into `crawl_runs` for audit.
 
 ## 4. Scheduling and batches

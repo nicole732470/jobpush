@@ -12,6 +12,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from market_scope import classify_market_scope
+
 
 FIELDS = ["external_job_id", "title", "normalized_title", "location", "category",
           "job_url", "description_snippet", "market_scope", "posted_text", "employment_type"]
@@ -75,7 +77,9 @@ def main() -> int:
                 "category": "",
                 "job_url": f"{parsed.scheme}://{parsed.netloc}/{site}{path}",
                 "description_snippet": "",
-                "market_scope": args.default_market,
+                "market_scope": classify_market_scope(
+                    clean(job.get("locationsText")), args.default_market
+                ),
                 "posted_text": clean(job.get("postedOn")),
                 "employment_type": clean(job.get("timeType")),
             }

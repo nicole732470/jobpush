@@ -13,6 +13,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
+from market_scope import classify_market_scope
+
 
 FIELDS = ["external_job_id", "title", "normalized_title", "location", "category",
           "job_url", "description_snippet", "market_scope", "posted_text", "employment_type"]
@@ -72,7 +74,9 @@ def main() -> int:
             "category": departments,
             "job_url": clean(job.get("absolute_url")),
             "description_snippet": strip_html(job.get("content"))[:1000],
-            "market_scope": args.default_market,
+            "market_scope": classify_market_scope(
+                clean((job.get("location") or {}).get("name")), args.default_market
+            ),
             "posted_text": clean(job.get("updated_at")),
             "employment_type": "",
         })
