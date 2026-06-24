@@ -108,6 +108,37 @@ verified as a company-owned career site.
 `career_site_discovery_runs` records company counts, candidates, errors, and
 estimated credits for every completed batch.
 
+## P0/P1 monthly expansion policy (2026-06-24)
+
+The operating goal is to make P0/P1 usable before spending time or credits on
+P2. Use `db/run_discover_career_sites_p0_p1.sh` for the normal expansion path:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_discover_career_sites_p0_p1.sh
+```
+
+That runner searches only enabled P0/P1 companies that have never had a
+retained verified/unverified career-site candidate. It orders by effective tier
+and then `priority_score DESC`, so the highest-scored P1 companies consume
+credits first. The default batch cap is 600 companies / roughly 600 Tavily basic
+search credits. Override with `DISCOVERY_LIMIT` only when running directly on
+the EC2 host or after extending the deployment wrapper to pass environment
+variables.
+
+Do not run all P-tier companies automatically. Current constraints are:
+
+- Tavily free Researcher plan is 1,000 credits/month.
+- One basic search is approximately one credit per company.
+- P1 alone is several thousand companies, so full P1 requires paid credits or
+  multiple monthly resets.
+- P2 remains paused until P0/P1 discovery, verification, adapter coverage, and
+  dashboard monitoring are stable.
+
+Human review is used to calibrate precision and mark high-value sites; it is
+not expected to cover all P1 companies manually. Only promote narrow structured
+ATS patterns to auto-verification after the precision gates in
+`LEARNING_OPERATIONS.md` are satisfied.
+
 ## Discovery-to-crawl flow
 
 ```mermaid
