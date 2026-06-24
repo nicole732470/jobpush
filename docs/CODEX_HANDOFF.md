@@ -44,6 +44,8 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 | **`jobpush.company_targets_consolidated`** | **公司分析与P档来源表**（合并品牌 + 单 FEIN），含 `priority_score`、`crawl_priority_tier` |
 | **`jobpush.crawl_targets`** | **Crawler 运行队列**；从 consolidated 同步 P0/P1/P2，保留发现状态 |
 | **`jobpush.career_sites`** | 一个公司可对应多个真实 corporate/career/ATS 站点及抓取状态 |
+| `jobpush.career_site_selection_candidates` | 每个候选站点的可解释选择分数和决定；人工结论优先 |
+| `jobpush.company_priority_enrichment_workbench` | priority + 历史 Tavily 证据 + 可选公司画像的分析视图 |
 | `jobpush.company_targets` | 每 FEIN 审计表（`priority-v7`），非 crawl 队列 |
 | `jobpush.employer_filing_stats` | 物化层：一次扫 `lca_cases` 得到的 per-FEIN 聚合 |
 | `jobpush.company_consolidation_*` | 保守多 FEIN 合并（Amazon、Apple 等） |
@@ -51,7 +53,7 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 | `jobpush.product_role_title_rules` | Product 类 job title 规则 |
 | `jobpush.target_soc_roles` | 97 个目标 SOC 码 |
 | `jobpush.profile_title_rule_terms` | JobPush title 推荐规则表；`profile-title-rules-v2` 从这里读取 target / avoid 规则 |
-| `jobpush.job_title_ai_classifications` | AI title 判定审计表；只允许高置信度填补 `review`，不能覆盖 manual |
+| `jobpush.job_title_ai_classifications` | 可选实验性 AI 审计表；默认不依赖付费模型且永不覆盖 manual |
 
 行数（约，2026-06-22）：consolidated **68,958**；employer_filing_stats **69,250**。
 

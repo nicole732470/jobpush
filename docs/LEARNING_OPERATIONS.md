@@ -49,7 +49,7 @@ flowchart TB
 
 ## How the system learns
 
-JobPush now has four learning layers, in this order:
+JobPush uses the following learning layers, in this order:
 
 1. **Exact human labels** (`manual-v1`) from Nicole's review workbooks. These
    are immutable audit evidence and always override system rules.
@@ -58,23 +58,27 @@ JobPush now has four learning layers, in this order:
    obvious target/avoid cases such as Product Manager, Software Engineer, HR,
    accounting, warehouse/retail, manufacturing floor, hardware, and non-US
    language signals.
-3. **AI classifier layer** (`ai-title-classifier-v1`). JobPush calls the same
-   OpenAI-compatible setup used by JobLens, classifies ambiguous titles with
-   structured JSON, and records proposed labels plus reasons in
-   `jobpush.job_title_ai_classifications`. High-confidence decisions can be
-   applied only when the title is still `review`; model output must never
-   overwrite `manual-v1`.
-4. **Release gate**. A proposed rule or model prompt becomes active only after
+3. **Local label learning**. Exact reviewed titles are remembered immediately.
+   Repeated word/phrase clusters from manual labels are evaluated on a holdout
+   set and may propose deterministic rules only after the precision gate is
+   met. This requires no paid model API. Ambiguous rows remain `review` rather
+   than being guessed.
+4. **Optional semantic fallback** (`ai-title-classifier-v1`). The audited
+   OpenAI-compatible path exists for experiments, but it is not required and
+   is not part of the normal production pipeline. If disabled, rules + local
+   label learning remain the complete classifier path.
+5. **Release gate**. A proposed rule or model prompt becomes active only after
    a versioned migration/config update, metrics, and rollback plan.
 
 This means YAML is not just documentation. It must be compiled into either a
 deterministic rule snapshot or an AI prompt/config snapshot. Editing YAML alone
 does not change production behavior until that publish step happens.
 
-## AI integration plan and current constraint
+## Optional AI path (disabled by default)
 
-The JobPush title classifier now reuses JobLens' OpenAI-compatible configuration
-and secret instead of creating a separate JobPush key. The classifier should:
+JobPush contains an audited experimental classifier that can reuse JobLens'
+OpenAI-compatible configuration. It is optional; normal crawls do not depend on
+it and no paid key is required. If it is ever enabled, it must:
 
 - read the canonical candidate profile snapshot;
 - accept title, company/source context, location, category, and eventually
@@ -85,10 +89,9 @@ and secret instead of creating a separate JobPush key. The classifier should:
 - write model version, prompt version, profile version, and input hash for audit;
 - sample low-confidence and high-impact decisions back into the review workbook.
 
-Current caveat on 2026-06-24: the `joblens/app` secret points at OpenRouter
-`openai/gpt-oss-20b:free`. A 300-title run hit free-model rate limits and some
-malformed JSON responses. Until the model/key is upgraded, keep AI batches small
-and treat the deterministic rule table as the primary production classifier.
+On 2026-06-24 the free-model experiment hit rate limits and malformed JSON.
+The production decision is therefore to keep this path off and use human-label
+memory, deterministic rules, and locally evaluated generalizations.
 
 AI is for semantic generalization and proposal generation; deterministic rules
 remain cheaper, faster, and safer for obvious strings.
@@ -114,8 +117,8 @@ change.
 | Codex | 2026-06-30 | Build the first holdout report from the 171 HIGH labels; propose rules without activating them | Pending |
 | Nicole | Ongoing | Review `career_site_review_workbench`, starting with P0 then potential-P0 signals | In progress |
 | Codex | 2026-06-30 | Report website precision by source type and candidate rank | Pending |
-| Codex | 2026-06-24 | Add first AI classifier using JobLens OpenAI config for ambiguous titles | Implemented; rate-limited by current free model |
-| Codex | 2026-06-30 | Implement next structured ATS adapters, starting with Lever/Ashby/SmartRecruiters by volume and API stability | Pending |
+| Codex | 2026-06-24 | Add first AI classifier using JobLens OpenAI config for ambiguous titles | Experimental only; disabled by default |
+| Codex | 2026-06-30 | Implement next structured ATS adapters, starting with Lever/Ashby/SmartRecruiters by volume and API stability | Implemented; rollout health monitoring in progress |
 | Codex | After profile approval | Implement immutable snapshot publisher in JobLens and versioned loader in JobPush | Blocked on approval |
 | Nicole + Codex | After successful evaluation | Change profile from draft to active and explicitly decide whether to run owner sync | Blocked on evaluation |
 | Codex | 2026-07-23 | Produce monthly drift, override, unresolved-title, adapter, and country-scope report | Scheduled |

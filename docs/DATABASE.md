@@ -23,6 +23,9 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
 | `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |
+| `jobpush.company_tavily_discovery_features` | JobPush | Zero-credit company features reconstructed from retained Tavily site-search evidence |
+| `jobpush.company_external_enrichment` | JobPush | Source-attributed mutable company profile; unverified web facts never modify LCA facts |
+| `jobpush.company_priority_enrichment_workbench` | JobPush | Analysis view joining priority, retained Tavily evidence, and external enrichment |
 | **`jobpush.career_site_review_workbench`** | **JobPush** | **The only human review queue: one company per row, pending + verified, P0/potential-P0 first** |
 | `jobpush.crawl_batches` / `crawl_runs` | JobPush | Batch and per-site request, parsing, change, latency, and error metrics |
 | `jobpush.job_postings` / `job_postings_us` | JobPush | Career-site posting history and active US surface |
@@ -36,6 +39,23 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 The PostgreSQL schema is a namespace inside the existing database, not a
 separate database. This keeps joins and foreign keys simple while giving each
 repository clear migration ownership.
+
+## Tavily company enrichment boundary
+
+The historical Tavily runs searched for career sites. They retained candidate
+URL, domain, ATS type, title, snippet, rank, and score, but did not archive the
+complete provider response. `company_tavily_discovery_features` recovers all
+usable company-level features from those retained rows without another API
+call.
+
+Industry, employee size, headquarters, ownership, and description are mutable
+web research rather than LCA facts. Store them in
+`company_external_enrichment`, including source URLs, raw response, confidence,
+and review status. Only `review_status = 'verified'` attributes may enter a
+future production priority formula. Use
+`company_priority_enrichment_workbench` for exploration; do not add uncertain
+web attributes directly to `public.companies`, `public.lca_cases`, or the
+refresh-owned consolidated table.
 
 ## Priority scoring
 
