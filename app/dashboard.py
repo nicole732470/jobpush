@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -71,7 +72,8 @@ st.title("JobPush Daily")
 st.markdown('<div class="quiet">US career-site monitoring · America/Chicago</div>', unsafe_allow_html=True)
 
 activity = daily_activity()
-today_row = activity[activity["activity_date"] == date.today()]
+chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
+today_row = activity[activity["activity_date"] == chicago_today]
 today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
 
 metric_columns = st.columns(6)
