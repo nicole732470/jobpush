@@ -22,8 +22,8 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
   mkdir -p "$STAGING/scripts"
   for script in \
     crawl_apple_jobs.py crawl_greenhouse.py crawl_icims.py \
-    crawl_oracle_cloud.py crawl_workday.py crawl_lever.py crawl_ashby.py \
-    crawl_smartrecruiters.py discover_career_sites.py \
+    crawl_oracle_cloud.py crawl_workday.py crawl_lever.py crawl_ashby.py crawl_jobvite.py \
+    crawl_smartrecruiters.py crawl_workable.py discover_career_sites.py \
     resolve_generic_ats_links.py \
     classify_job_titles_ai.py \
     train_local_title_classifier.py market_scope.py; do

@@ -262,6 +262,23 @@ UltiPro, TriNet Hire, and Comeet. Adapter work should start with the platform
 that has the best combination of P1 count, URL consistency, and available
 public API or predictable HTML.
 
+### Platform adapter progress
+
+| Platform | Status | Notes |
+|---|---|---|
+| Workable `apply.workable.com` | Added in migration 075 | Uses Workable's `jobs.md` markdown feed. `jobs.workable.com/company/...` is not auto-enabled yet. |
+| Jobvite `jobs.jobvite.com` | Added in migration 076 | Parses board HTML and per-job schema.org `JobPosting` JSON-LD. |
+| Paylocity | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| Rippling | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| UltiPro | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| TriNet Hire | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| Comeet | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+
+The first Workable validation enabled three P1 `apply.workable.com` sites:
+3/3 crawls succeeded, producing 30 postings from the one company with current
+openings. The first Jobvite validation enabled one P1 `jobs.jobvite.com` site:
+1/1 crawl succeeded, producing 6 postings.
+
 ## Tavily credential storage and rotation
 
 The active Tavily key is stored only in AWS Secrets Manager:

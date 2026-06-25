@@ -13,7 +13,11 @@ WITH eligible AS (
       AND target.priority_tier IN ('P0', 'P1')
       AND site.verification_status = 'unverified'
       AND site.candidate_rank = 1
-      AND site.source_type IN ('greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters')
+      AND (
+          site.source_type IN ('greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters')
+          OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
+          OR (site.source_type = 'jobvite' AND site.normalized_domain = 'jobs.jobvite.com')
+      )
       AND NOT EXISTS (
           SELECT 1
           FROM jobpush.career_sites verified
@@ -65,7 +69,7 @@ WHERE target.consolidation_key = site.consolidation_key
   AND site.scope_method <> 'unknown'
   AND site.source_type IN (
       'apple_jobs', 'greenhouse', 'icims', 'oracle_cloud', 'workday',
-      'lever', 'ashby', 'smartrecruiters'
+      'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite'
   );
 
 COMMIT;
