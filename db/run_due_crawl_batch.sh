@@ -65,4 +65,12 @@ for row in "${DUE_SITES[@]}"; do
 done
 
 echo "Completed ${#DUE_SITES[@]} due sites; failures=$failures"
-[[ "$failures" -eq 0 ]]
+successes=$((${#DUE_SITES[@]} - failures))
+if [[ "$successes" -le 0 ]]; then
+  echo "All due-site crawls failed; check adapter health before continuing." >&2
+  exit 1
+fi
+
+if [[ "$failures" -gt 0 ]]; then
+  echo "Some due-site crawls failed; failures are recorded in crawl_runs and career_sites." >&2
+fi

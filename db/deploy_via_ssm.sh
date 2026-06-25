@@ -24,7 +24,7 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
     crawl_apple_jobs.py crawl_greenhouse.py crawl_icims.py \
     crawl_oracle_cloud.py crawl_workday.py crawl_lever.py crawl_ashby.py \
     crawl_smartrecruiters.py discover_career_sites.py \
-    enrich_companies_tavily.py classify_job_titles_ai.py \
+    classify_job_titles_ai.py \
     train_local_title_classifier.py market_scope.py; do
     [[ -f "$REPO_DIR/scripts/$script" ]] && cp "$REPO_DIR/scripts/$script" "$STAGING/scripts/$script"
   done
@@ -48,6 +48,12 @@ while IFS= read -r referenced; do
   [[ -n "$referenced" && -f "$REPO_DIR/db/$referenced" ]] || continue
   cp "$REPO_DIR/db/$referenced" "$STAGING/db/$referenced"
   chmod +x "$STAGING/db/$referenced"
+  while IFS= read -r nested; do
+    [[ -n "$nested" && -f "$REPO_DIR/db/$nested" ]] || continue
+    mkdir -p "$STAGING/db/$(dirname "$nested")"
+    cp "$REPO_DIR/db/$nested" "$STAGING/db/$nested"
+  done < <(rg -o '(migrations|analysis|refresh|load|repair|ops)/[A-Za-z0-9_./-]+\.(sql|sh|csv)' \
+    "$REPO_DIR/db/$referenced" | sort -u)
 done < <(rg -o 'run_[A-Za-z0-9_.-]+\.sh' "$REPO_DIR/$RUN_SCRIPT" | sort -u)
 
 for extra in "$@"; do

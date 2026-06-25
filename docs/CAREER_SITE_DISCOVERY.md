@@ -202,6 +202,11 @@ supported adapters:
 bash db/deploy_via_ssm.sh db/run_apply_career_site_auto_trust.sh
 ```
 
+2026-06-25 update after key rotation: an additional 950 P0/P1 companies were
+searched, retaining 2,237 candidates with zero provider errors. Auto-trust
+promoted 209 rank-1 structured ATS sites. P1 coverage reached 933 enabled
+sites, with 347 successfully crawled so far.
+
 ## Tavily credential storage and rotation
 
 The active Tavily key is stored only in AWS Secrets Manager:
@@ -246,39 +251,14 @@ Human review calibrates discovery precision; it is not a requirement to review
 every company forever. Structured ATS groups may become auto-verifiable only
 after the sample and precision gates in `LEARNING_OPERATIONS.md` are met.
 
-## Reusing historical Tavily data for company analysis
+## Reusing historical Tavily data
 
 Historical site-discovery calls did not archive Tavily's full JSON response.
 The durable fields are candidate URL/domain, ATS type, evidence title/snippet,
 rank, score, and verification/crawl outcomes. Migration 069 aggregates those
-already-paid-for fields in `jobpush.company_tavily_discovery_features` and
-joins them to the current priority table in
-`jobpush.company_priority_enrichment_workbench`; this costs zero new credits.
+already-paid-for fields in `jobpush.company_tavily_discovery_features`; this
+costs zero new credits and remains useful for website coverage analysis.
 
-Tavily Search is a web-search API, not an authoritative company registry. New
-industry, size, headquarters, founding year, or ownership research must retain
-its source URLs and raw response in `jobpush.company_external_enrichment`.
-Those fields remain exploratory until verified and must not overwrite LCA or
-shared JobLens facts. A basic Tavily Search currently costs one credit; avoid
-re-querying thousands of companies until a small sample proves that a field
-materially improves priority decisions.
-
-The controlled profile pilot is:
-
-```bash
-bash db/deploy_via_ssm.sh db/run_tavily_company_enrichment_pilot.sh
-```
-
-Its default limit is 20 basic searches. It stores the generated summary, source
-URLs, full raw JSON response, query, method, and timestamp, but deliberately
-leaves industry/size/headquarters fields unset until extraction quality is
-reviewed. This prevents fluent but unsupported web text from silently changing
-priority scores.
-
-Migration 071 adds an explicit `enrichment_state` to the combined workbench:
-`not_researched`, `researched_unstructured`, or `structured_unreviewed`.
-Filter on the latter two values before reviewing company profiles; the full
-68k-company surface naturally contains mostly `not_researched` rows. A
-conservative regex pass extracts pilot year/size/industry/headquarters/ownership
-fields while retaining the original text and sources. Parsed values remain
-unreviewed and cannot affect priority.
+The separate Tavily company-profile enrichment pilot was removed in migration
+073 after review. Do not spend Tavily credits on broad industry/size/headquarters
+enrichment unless there is a concrete priority rule that will use the field.

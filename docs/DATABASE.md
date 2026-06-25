@@ -24,8 +24,6 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
 | `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |
 | `jobpush.company_tavily_discovery_features` | JobPush | Zero-credit company features reconstructed from retained Tavily site-search evidence |
-| `jobpush.company_external_enrichment` | JobPush | Source-attributed mutable company profile; unverified web facts never modify LCA facts |
-| `jobpush.company_priority_enrichment_workbench` | JobPush | Analysis view joining priority, retained Tavily evidence, and external enrichment |
 | **`jobpush.career_site_review_workbench`** | **JobPush** | **The only human review queue: one company per row, pending + verified, P0/potential-P0 first** |
 | `jobpush.crawl_batches` / `crawl_runs` | JobPush | Batch and per-site request, parsing, change, latency, and error metrics |
 | `jobpush.job_postings` / `job_postings_us` | JobPush | Career-site posting history and active US surface |
@@ -40,44 +38,18 @@ The PostgreSQL schema is a namespace inside the existing database, not a
 separate database. This keeps joins and foreign keys simple while giving each
 repository clear migration ownership.
 
-## Tavily company enrichment boundary
+## Tavily boundary
 
-The historical Tavily runs searched for career sites. They retained candidate
+Tavily is used for career-site discovery only. Historical runs retained candidate
 URL, domain, ATS type, title, snippet, rank, and score, but did not archive the
 complete provider response. `company_tavily_discovery_features` recovers all
 usable company-level features from those retained rows without another API
 call.
 
-Industry, employee size, headquarters, ownership, and description are mutable
-web research rather than LCA facts. Store them in
-`company_external_enrichment`, including source URLs, raw response, confidence,
-and review status. Only `review_status = 'verified'` attributes may enter a
-future production priority formula. Use
-`company_priority_enrichment_workbench` for exploration; do not add uncertain
-web attributes directly to `public.companies`, `public.lca_cases`, or the
-refresh-owned consolidated table.
-
-To see the company profile enrichment pilot in TablePlus:
-
-```sql
-SELECT canonical_name,
-       crawl_priority_tier,
-       external_industry,
-       external_headquarters_city,
-       employee_count_min,
-       founded_year,
-       official_website_url,
-       company_description,
-       enrichment_source_urls
-FROM jobpush.company_priority_enrichment_workbench
-WHERE enrichment_state <> 'not_researched'
-ORDER BY priority_score DESC NULLS LAST, canonical_name;
-```
-
-Current state: only 20 companies have `structured_unreviewed` profile
-enrichment. The thousands of earlier Tavily calls were career-site discovery
-calls and did not store full company-profile JSON; their zero-credit reusable
-features live in `company_tavily_discovery_features`.
+The separate Tavily company-profile enrichment pilot was removed in migration
+073 after review; industry/size/headquarters snippets were not useful enough to
+keep. Do not reintroduce broad company-profile Tavily calls unless a new field
+has a concrete priority decision attached to it.
 
 ## Priority scoring
 

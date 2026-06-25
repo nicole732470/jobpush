@@ -58,25 +58,10 @@ WHERE target.enabled
 GROUP BY 1
 ORDER BY 1;
 
-\echo '=== Company external enrichment visibility ==='
+\echo '=== Retained Tavily site-discovery features ==='
 SELECT
-    coalesce(enrichment_state, 'view_missing') AS enrichment_state,
-    count(*) AS companies
-FROM jobpush.company_priority_enrichment_workbench
-GROUP BY 1
-ORDER BY 1;
-
-\echo '=== Structured company enrichment examples ==='
-SELECT
-    canonical_name,
-    crawl_priority_tier,
-    external_industry,
-    external_headquarters_city,
-    employee_count_min,
-    founded_year,
-    official_website_url,
-    left(company_description, 180) AS description_preview
-FROM jobpush.company_priority_enrichment_workbench
-WHERE enrichment_state <> 'not_researched'
-ORDER BY priority_score DESC NULLS LAST, canonical_name
-LIMIT 30;
+    count(*) FILTER (WHERE tavily_searched) AS searched_companies,
+    count(*) FILTER (WHERE retained_candidate_count > 0) AS with_retained_candidates,
+    count(*) FILTER (WHERE structured_ats_candidate_count > 0) AS with_structured_ats_candidates,
+    count(*) FILTER (WHERE verified_candidate_count > 0) AS with_verified_candidates
+FROM jobpush.company_tavily_discovery_features;

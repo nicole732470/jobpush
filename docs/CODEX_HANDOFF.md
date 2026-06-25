@@ -2,7 +2,7 @@
 
 最后更新：2026-06-24
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–072**；另外有 repeatable ops scripts for
+生产 RDS 已部署 migration **001–073**；另外有 repeatable ops scripts for
 Tavily quota reset / career-site auto-trust / usage checks。
 
 ---
@@ -46,7 +46,6 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 | **`jobpush.crawl_targets`** | **Crawler 运行队列**；从 consolidated 同步 P0/P1/P2，保留发现状态 |
 | **`jobpush.career_sites`** | 一个公司可对应多个真实 corporate/career/ATS 站点及抓取状态 |
 | `jobpush.career_site_selection_candidates` | 每个候选站点的可解释选择分数和决定；人工结论优先 |
-| `jobpush.company_priority_enrichment_workbench` | priority + 历史 Tavily 证据 + 可选公司画像的分析视图 |
 | `jobpush.company_targets` | 每 FEIN 审计表（`priority-v7`），非 crawl 队列 |
 | `jobpush.employer_filing_stats` | 物化层：一次扫 `lca_cases` 得到的 per-FEIN 聚合 |
 | `jobpush.company_consolidation_*` | 保守多 FEIN 合并（Amazon、Apple 等） |
@@ -65,11 +64,16 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 公司置 0 分并退出 crawl queue。职位泛化优先使用 migration 072 的本地监督学习
 （人工 label + 5-fold holdout + 98% precision gate），不依赖付费 AI API。
 
-2026-06-25 更新：Tavily career-site discovery 已累计成功搜索 2,903 家、
-保留 7,251 个候选 URL；这不是 2,903 家都已可爬。P1 当前 724 家有
-verified/crawl-enabled site，2,105 家有候选待后续规则/人工/泛化处理，
-1,756 家仍 pending discovery。AWS Secret 中当前 Tavily key usage
-为 1000/1000 时会返回 HTTP 432；不要继续跑大批次，先 rotate key。
+2026-06-25 更新：Tavily 只用于 career-site discovery。公司画像 enrichment
+pilot 已由 migration 073 删除，不再维护 `company_external_enrichment` /
+`company_priority_enrichment_workbench`。历史 discovery 的候选 URL/ATS/snippet
+仍保留在 `career_sites` 与 `company_tavily_discovery_features`。
+
+2026-06-25 P0/P1 链路状态：新 key 后追加 950 家 P0/P1 discovery，
+保留 2,237 个候选 URL，并自动启用 209 家 rank-1 structured ATS。P1
+当前 933 家有 enabled site，347 家已成功 crawl。最近 rollout 已写入
+6,482 个 parsed/new jobs，其中 target 1,050、review 3,681。`run_due_crawl_batch`
+已改为单站点失败不中断整批；失败记录留在 `crawl_runs` / `career_sites`。
 
 ---
 
