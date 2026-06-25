@@ -93,6 +93,241 @@ def coverage_by_tier() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def crawl_rollout_by_tier() -> pd.DataFrame:
+    return query(
+        """
+        WITH site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified') AS unverified_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type = 'generic_html') AS generic_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type <> 'generic_html') AS structured_candidates
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), due AS (
+            SELECT consolidation_key,
+                   COUNT(*) FILTER (WHERE is_due) AS due_sites
+            FROM jobpush.crawl_schedule_queue
+            GROUP BY consolidation_key
+        )
+        SELECT target.priority_tier,
+               COUNT(*) AS companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_enabled_site, FALSE)) AS enabled_site_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_attempt, FALSE)) AS attempted_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_success, FALSE)) AS succeeded_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_failed, FALSE)) AS failed_companies,
+               COUNT(*) FILTER (WHERE COALESCE(due.due_sites, 0) > 0) AS due_now_companies,
+               COUNT(*) FILTER (
+                   WHERE COALESCE(site.structured_candidates, 0) > 0
+                     AND NOT COALESCE(site.has_enabled_site, FALSE)
+               ) AS structured_candidate_not_enabled,
+               COUNT(*) FILTER (
+                   WHERE COALESCE(site.generic_candidates, 0) > 0
+                     AND NOT COALESCE(site.has_enabled_site, FALSE)
+               ) AS generic_html_needs_resolution,
+               COUNT(*) FILTER (
+                   WHERE target.discovery_status = 'pending'
+                     AND NOT COALESCE(site.has_enabled_site, FALSE)
+                     AND COALESCE(site.unverified_candidates, 0) = 0
+               ) AS not_searched_yet,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site.has_success, FALSE)) / NULLIF(COUNT(*), 0), 2) AS success_pct,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site.has_attempt, FALSE)) / NULLIF(COUNT(*), 0), 2) AS attempted_pct
+        FROM jobpush.crawl_targets target
+        LEFT JOIN site_rollup site USING (consolidation_key)
+        LEFT JOIN due USING (consolidation_key)
+        WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+        GROUP BY target.priority_tier
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def today_crawl_progress() -> pd.DataFrame:
+    return query(
+        """
+        WITH chicago_day AS (
+            SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        )
+        SELECT target.priority_tier,
+               COUNT(*) AS site_attempts_today,
+               COUNT(DISTINCT target.consolidation_key) AS companies_attempted_today,
+               COUNT(DISTINCT target.consolidation_key) FILTER (WHERE run.status = 'succeeded') AS companies_succeeded_today,
+               COUNT(*) FILTER (WHERE run.status = 'failed') AS failed_site_attempts_today,
+               COALESCE(SUM(run.parsed_job_count), 0) AS parsed_jobs_today,
+               COALESCE(SUM(run.new_job_count), 0) AS new_jobs_today,
+               COALESCE(SUM(run.closed_job_count), 0) AS closed_jobs_today,
+               COALESCE(SUM(run.target_job_count), 0) AS target_jobs_today,
+               COALESCE(SUM(run.review_job_count), 0) AS review_jobs_today
+        FROM jobpush.crawl_runs run
+        JOIN jobpush.career_sites site USING (site_id)
+        JOIN jobpush.crawl_targets target USING (consolidation_key)
+        CROSS JOIN chicago_day
+        WHERE run.started_at >= chicago_day.start_at
+          AND target.priority_tier IN ('P0','P1','P2')
+        GROUP BY target.priority_tier
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def p1_blocker_distribution() -> pd.DataFrame:
+    return query(
+        """
+        WITH site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type = 'generic_html') AS generic_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type <> 'generic_html') AS structured_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified') AS unverified_candidates
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), due AS (
+            SELECT consolidation_key, COUNT(*) FILTER (WHERE is_due) AS due_sites
+            FROM jobpush.crawl_schedule_queue
+            GROUP BY consolidation_key
+        ), classified AS (
+            SELECT target.consolidation_key,
+                   CASE
+                       WHEN COALESCE(site.has_success, FALSE) THEN 'successfully_crawled'
+                       WHEN COALESCE(site.has_failed, FALSE) THEN 'adapter_or_site_failed'
+                       WHEN COALESCE(due.due_sites, 0) > 0 THEN 'enabled_waiting_for_scheduler'
+                       WHEN COALESCE(site.has_enabled_site, FALSE) THEN 'enabled_not_due_yet'
+                       WHEN COALESCE(site.structured_candidates, 0) > 0 THEN 'structured_candidate_not_enabled'
+                       WHEN COALESCE(site.generic_candidates, 0) > 0 THEN 'generic_html_needs_resolution'
+                       WHEN target.discovery_status = 'pending' THEN 'not_searched_yet'
+                       ELSE 'searched_no_usable_candidate'
+                   END AS crawl_state
+            FROM jobpush.crawl_targets target
+            LEFT JOIN site_rollup site USING (consolidation_key)
+            LEFT JOIN due USING (consolidation_key)
+            WHERE target.enabled AND target.priority_tier = 'P1'
+        )
+        SELECT crawl_state,
+               COUNT(*) AS companies,
+               ROUND(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (), 0), 2) AS pct
+        FROM classified
+        GROUP BY crawl_state
+        ORDER BY companies DESC, crawl_state
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def p1_rank_coverage() -> pd.DataFrame:
+    return query(
+        """
+        WITH ranked AS (
+            SELECT target.*,
+                   ROW_NUMBER() OVER (
+                       ORDER BY priority_score DESC NULLS LAST, canonical_name
+                   ) AS priority_rank
+            FROM jobpush.crawl_targets target
+            WHERE target.enabled AND target.priority_tier = 'P1'
+        ), site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), cohorts AS (
+            SELECT 'P1 top 500' AS cohort, * FROM ranked WHERE priority_rank <= 500
+            UNION ALL
+            SELECT 'P1 top 1000' AS cohort, * FROM ranked WHERE priority_rank <= 1000
+            UNION ALL
+            SELECT 'All P1' AS cohort, * FROM ranked
+        )
+        SELECT cohort,
+               COUNT(*) AS companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_enabled_site, FALSE)) AS enabled_site_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_attempt, FALSE)) AS attempted_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_success, FALSE)) AS succeeded_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site.has_failed, FALSE)) AS failed_companies,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site.has_success, FALSE)) / NULLIF(COUNT(*), 0), 2) AS success_pct,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site.has_attempt, FALSE)) / NULLIF(COUNT(*), 0), 2) AS attempted_pct
+        FROM cohorts
+        LEFT JOIN site_rollup site USING (consolidation_key)
+        GROUP BY cohort
+        ORDER BY CASE cohort WHEN 'P1 top 500' THEN 0 WHEN 'P1 top 1000' THEN 1 ELSE 2 END
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def current_failure_reasons() -> pd.DataFrame:
+    return query(
+        """
+        WITH failed AS (
+            SELECT target.priority_tier,
+                   target.canonical_name,
+                   site.source_type,
+                   site.site_url,
+                   site.last_error,
+                   CASE
+                       WHEN site.last_error ILIKE '%404%' THEN 'wrong_or_stale_ats_url'
+                       WHEN site.last_error ILIKE '%422%' OR site.last_error ILIKE '%workday%' THEN 'adapter_payload_or_endpoint'
+                       WHEN site.last_error ILIKE '%empty title%' OR site.last_error ILIKE '%missing title%' THEN 'empty_or_bad_payload'
+                       WHEN site.last_error IS NULL OR site.last_error = '' THEN 'unknown_failed_state'
+                       ELSE 'other_adapter_or_site_error'
+                   END AS failure_reason,
+                   CASE
+                       WHEN site.last_error ILIKE '%404%' THEN 'Rediscover career URL / ATS slug'
+                       WHEN site.last_error ILIKE '%422%' OR site.last_error ILIKE '%workday%' THEN 'Patch adapter request or endpoint handling'
+                       WHEN site.last_error ILIKE '%empty title%' OR site.last_error ILIKE '%missing title%' THEN 'Skip malformed jobs and retry'
+                       ELSE 'Inspect recent run log and group with similar failures'
+                   END AS next_action
+            FROM jobpush.career_sites site
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            WHERE site.verification_status = 'verified'
+              AND site.crawl_enabled
+              AND site.crawl_status = 'failed'
+              AND target.priority_tier IN ('P0','P1','P2')
+        )
+        SELECT failure_reason,
+               next_action,
+               COUNT(*) AS sites,
+               STRING_AGG(canonical_name, ', ' ORDER BY canonical_name) AS example_companies
+        FROM failed
+        GROUP BY failure_reason, next_action
+        ORDER BY sites DESC, failure_reason
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def ml_status() -> tuple[pd.DataFrame, pd.DataFrame]:
+    title_labels = query(
+        """
+        SELECT classification_status, COALESCE(rule_version, 'manual_or_unknown') AS rule_version, COUNT(*) AS titles
+        FROM jobpush.job_title_labels
+        GROUP BY classification_status, COALESCE(rule_version, 'manual_or_unknown')
+        ORDER BY titles DESC
+        """
+    )
+    ml_runs = query(
+        """
+        SELECT model_version, predicted_status, applied,
+               COUNT(*) AS titles,
+               ROUND(AVG(confidence)::numeric, 3) AS avg_confidence
+        FROM jobpush.job_title_ml_classifications
+        GROUP BY model_version, predicted_status, applied
+        ORDER BY model_version DESC, applied DESC, titles DESC
+        LIMIT 20
+        """
+    )
+    return title_labels, ml_runs
+
+
+@st.cache_data(ttl=60)
 def p1_score_distribution() -> pd.DataFrame:
     return query(
         """
@@ -277,15 +512,19 @@ today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
 
 metric_columns = st.columns(6)
 metrics = [
-    ("New today", int(today.get("new_jobs", 0))),
-    ("Target today", int(today.get("new_target_jobs", 0))),
-    ("Needs review", int(today.get("new_review_jobs", 0))),
-    ("Closed today", int(today.get("closed_jobs", 0))),
-    ("Crawl runs", int(today.get("crawl_runs", 0))),
-    ("Failed runs", int(today.get("failed_runs", 0))),
+    ("New jobs today", int(today.get("new_jobs", 0))),
+    ("Target jobs today", int(today.get("new_target_jobs", 0))),
+    ("Review titles today", int(today.get("new_review_jobs", 0))),
+    ("Closed jobs today", int(today.get("closed_jobs", 0))),
+    ("Site crawl attempts", int(today.get("crawl_runs", 0))),
+    ("Failed site attempts", int(today.get("failed_runs", 0))),
 ]
 for column, (label, value) in zip(metric_columns, metrics):
     column.metric(label, f"{value:,}")
+st.caption(
+    "Site crawl attempts = 今天请求过的网站次数；New jobs = 第一次进入数据库的职位数；"
+    "Closed jobs = 之前见过、这次快照里消失的职位。所以这些数字不会一一相等。"
+)
 
 st.sidebar.header("Job filters")
 days = st.sidebar.select_slider("First seen within", options=[1, 3, 7, 14, 30, 90], value=7, format_func=lambda value: f"{value} days")
@@ -300,8 +539,19 @@ if not tiers or not role_statuses or not app_statuses:
     st.stop()
 
 job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
-overview_tab, jobs_tab, review_tab, breakdown_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
-    ["Overview", "New jobs", "Title review", "Breakdowns", "Company view", "Company tiers", "Application queue", "Crawl health", "Coverage"]
+overview_tab, rollout_tab, jobs_tab, review_tab, breakdown_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
+    [
+        "Overview",
+        "Crawl rollout",
+        "New jobs",
+        "Title review",
+        "Breakdowns",
+        "Company view",
+        "Company tiers",
+        "Application queue",
+        "Crawl health",
+        "Coverage",
+    ]
 )
 
 with overview_tab:
@@ -326,6 +576,75 @@ with overview_tab:
             st.success("No active crawler alerts.")
         else:
             st.dataframe(alerts, hide_index=True, use_container_width=True, height=330)
+    st.subheader("Today's crawl progress by tier")
+    progress_today = today_crawl_progress()
+    if progress_today.empty:
+        st.info("No crawl attempts have been recorded today yet.")
+    else:
+        st.dataframe(progress_today, hide_index=True, use_container_width=True)
+
+with rollout_tab:
+    st.subheader("P0 / P1 / P2 company crawl rollout")
+    st.caption(
+        "这个 tab 回答三个问题：总共有多少公司、今天/目前跑了多少、没跑成功主要卡在哪里。"
+    )
+    rollout = crawl_rollout_by_tier()
+    p0p1 = rollout[rollout["priority_tier"].isin(["P0", "P1"])]
+    p0p1_total = int(p0p1["companies"].sum()) if not p0p1.empty else 0
+    p0p1_success = int(p0p1["succeeded_companies"].sum()) if not p0p1.empty else 0
+    p0p1_attempted = int(p0p1["attempted_companies"].sum()) if not p0p1.empty else 0
+    p0p1_waiting = int(p0p1["due_now_companies"].sum()) if not p0p1.empty else 0
+    rollout_cols = st.columns(4)
+    rollout_cols[0].metric("P0+P1 companies", f"{p0p1_total:,}")
+    rollout_cols[1].metric("Successfully crawled", f"{p0p1_success:,}", f"{(100 * p0p1_success / p0p1_total):.1f}%" if p0p1_total else None)
+    rollout_cols[2].metric("Attempted at least once", f"{p0p1_attempted:,}", f"{(100 * p0p1_attempted / p0p1_total):.1f}%" if p0p1_total else None)
+    rollout_cols[3].metric("Due / waiting now", f"{p0p1_waiting:,}")
+
+    st.dataframe(rollout, hide_index=True, use_container_width=True)
+    with st.expander("这些状态是什么意思？"):
+        st.markdown(
+            "- **Successfully crawled**：这个公司至少有一个已启用官网成功抓到过职位。\n"
+            "- **Attempted at least once**：已经请求过网站，可能成功也可能失败。\n"
+            "- **Due / waiting now**：已有可爬网站，也到了应跑时间；主要是调度队列还没消费完。\n"
+            "- **Structured candidate not enabled**：找到了 Workday/Greenhouse/Lever/Ashby/iCIMS 等结构化候选，但还没被自动信任/启用。\n"
+            "- **generic_html_needs_resolution**：只有普通公司招聘页，不是标准 ATS API；需要泛化解析或重新定位到真正 ATS 页面。\n"
+            "- **not_searched_yet**：还没有走官网搜索，通常等 Tavily credits 或分批策略。"
+        )
+
+    left, right = st.columns([1, 1])
+    with left:
+        st.subheader("P1 blockers")
+        blockers = p1_blocker_distribution()
+        if blockers.empty:
+            st.info("No P1 companies found.")
+        else:
+            st.bar_chart(blockers.set_index("crawl_state")["companies"], height=330)
+            st.dataframe(blockers, hide_index=True, use_container_width=True)
+    with right:
+        st.subheader("P1 top-rank coverage")
+        rank_coverage = p1_rank_coverage()
+        st.dataframe(rank_coverage, hide_index=True, use_container_width=True, height=260)
+        st.caption("Top 500 / Top 1000 是按 priority_score 从高到低排序，用来判断最值得先跑的一批推进到哪里了。")
+
+    st.subheader("Current crawl failure reasons")
+    failure_reasons = current_failure_reasons()
+    if failure_reasons.empty:
+        st.success("No currently failed enabled sites.")
+    else:
+        st.dataframe(failure_reasons, hide_index=True, use_container_width=True, height=320)
+
+    st.subheader("Local ML / title-classification status")
+    label_status, classifier_status = ml_status()
+    ml_left, ml_right = st.columns(2)
+    with ml_left:
+        st.caption("Rules + manual labels currently stored")
+        st.dataframe(label_status, hide_index=True, use_container_width=True, height=260)
+    with ml_right:
+        st.caption("Local supervised model predictions and whether they were auto-applied")
+        if classifier_status.empty:
+            st.info("No ML classification records found yet.")
+        else:
+            st.dataframe(classifier_status, hide_index=True, use_container_width=True, height=260)
 
 with jobs_tab:
     st.subheader(f"{len(job_frame):,} active US jobs in this view")

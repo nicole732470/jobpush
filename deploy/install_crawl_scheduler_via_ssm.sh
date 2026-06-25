@@ -22,11 +22,11 @@ UNIT
 
 TIMER=$(base64 <<'UNIT' | tr -d '\n'
 [Unit]
-Description=Run JobPush due crawl check hourly
+Description=Run JobPush due crawl check every 15 minutes during rollout
 
 [Timer]
-OnCalendar=hourly
-RandomizedDelaySec=10m
+OnCalendar=*:0/15
+RandomizedDelaySec=2m
 Persistent=true
 Unit=jobpush-crawl.service
 
