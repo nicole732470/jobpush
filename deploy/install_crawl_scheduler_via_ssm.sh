@@ -15,7 +15,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
-ExecStart=/bin/bash -lc 'git pull --ff-only origin main && bash db/run_due_crawl_batch.sh 10'
+ExecStart=/bin/bash -lc 'git pull --ff-only origin main && bash db/run_due_crawl_batch.sh 50'
 TimeoutStartSec=3600
 UNIT
 )
