@@ -268,7 +268,7 @@ public API or predictable HTML.
 |---|---|---|
 | Workable `apply.workable.com` | Added in migration 075 | Uses Workable's `jobs.md` markdown feed. `jobs.workable.com/company/...` is not auto-enabled yet. |
 | Jobvite `jobs.jobvite.com` | Added in migration 076 | Parses board HTML and per-job schema.org `JobPosting` JSON-LD. |
-| Paylocity | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| Paylocity | Added in migration 077 | Parses `window.pageData.Jobs` on listing pages and schema.org `JobPosting` on detail pages. |
 | Rippling | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | UltiPro | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | TriNet Hire | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
@@ -278,6 +278,9 @@ The first Workable validation enabled three P1 `apply.workable.com` sites:
 3/3 crawls succeeded, producing 30 postings from the one company with current
 openings. The first Jobvite validation enabled one P1 `jobs.jobvite.com` site:
 1/1 crawl succeeded, producing 6 postings.
+
+The first Paylocity validation enabled eight P1 `recruiting.paylocity.com`
+sites: 8/8 crawls succeeded, producing 113 postings.
 
 ## Tavily credential storage and rotation
 

@@ -17,6 +17,7 @@ WITH eligible AS (
           site.source_type IN ('greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters')
           OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
           OR (site.source_type = 'jobvite' AND site.normalized_domain = 'jobs.jobvite.com')
+          OR (site.source_type = 'paylocity' AND site.normalized_domain = 'recruiting.paylocity.com')
       )
       AND NOT EXISTS (
           SELECT 1
@@ -69,7 +70,7 @@ WHERE target.consolidation_key = site.consolidation_key
   AND site.scope_method <> 'unknown'
   AND site.source_type IN (
       'apple_jobs', 'greenhouse', 'icims', 'oracle_cloud', 'workday',
-      'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite'
+      'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite', 'paylocity'
   );
 
 COMMIT;
