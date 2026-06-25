@@ -45,7 +45,8 @@ COMMAND_ID=$(aws ssm send-command \
 \"echo '$SERVICE' | base64 -d > /etc/systemd/system/jobpush-crawl.service\",
 \"echo '$TIMER' | base64 -d > /etc/systemd/system/jobpush-crawl.timer\",
 \"systemctl daemon-reload\",
-\"systemctl enable --now jobpush-crawl.timer\",
+\"systemctl enable jobpush-crawl.timer\",
+\"systemctl restart jobpush-crawl.timer\",
 \"systemctl status jobpush-crawl.timer --no-pager\",
 \"systemctl list-timers jobpush-crawl.timer --no-pager\"
 ]" \
