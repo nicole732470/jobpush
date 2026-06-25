@@ -24,6 +24,24 @@ EXCLUDED_DOMAINS = {
     "remoterocketship.com", "levels.fyi", "dice.com", "latinograduate.com",
     "hirebase.org", "6amcity.com", "insidehighered.com", "nena.org", "acams.org",
     "techfetch.com",
+    "wellfound.com", "bebee.com", "zippia.com", "uplers.com", "builtinsf.com",
+    "builtinboston.com", "builtinla.com", "builtinaustin.com", "builtinseattle.com",
+    "builtincolorado.com", "consider.com", "jobaaj.com", "startup.jobs",
+    "welcometothejungle.com", "app.welcometothejungle.com", "lensa.com",
+    "myvisajobs.com", "iitjobs.com", "iimjobs.com", "eujobs.co", "optnation.com",
+    "glassdoor.co.in", "glassdoor.ie", "mediabistro.com", "remotejobs.org",
+    "terra.do", "sorce.jobs", "ycombinator.com", "clearancejobs.com",
+    "reddit.com", "hirist.tech", "tealhq.com", "jobzmall.com", "showbizjobs.com",
+    "torre.ai", "ambitionbox.com", "snagajob.com", "grad.jobs",
+    "careers.diversityworking.com", "dreamhire.io", "efinancialcareers.com",
+    "myjobsny.usnlx.com", "jobgether.com", "governmentjobs.com",
+    "dynamitejobs.com", "weworkremotely.com", "devitjobs.com",
+    "careersingovernment.com", "himalayas.app", "metaintro.com",
+    "oysterlink.com", "diversityjobs.com",
+    "jobs.a16z.com", "jobs.sequoiacap.com", "careers.capitalg.com",
+    "jobs.gv.com", "jobs.battery.com", "jobs.baincapitalventures.com",
+    "careers.nea.com", "jobs.greylock.com", "jobs.techaviv.com",
+    "jobs.gaingels.com", "jobs.fin.capital", "jobs.bvp.com", "jobs.lsvp.com",
 }
 COMPANY_STOPWORDS = {
     "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation",
@@ -64,6 +82,27 @@ def classify_url(raw_url):
     elif host == "careers.smartrecruiters.com" and path_parts:
         source_type, source_key, site_kind = "smartrecruiters", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"
+    elif host == "jobs.jobvite.com" and len(path_parts) >= 2:
+        source_type, source_key, site_kind = "jobvite", path_parts[1], "ats_feed"
+        canonical_path = f"/careers/{source_key}/jobs"
+    elif host in {"apply.workable.com", "jobs.workable.com"} and path_parts:
+        source_type, source_key, site_kind = "workable", path_parts[0], "ats_feed"
+        canonical_path = f"/{source_key}"
+    elif host == "recruiting.paylocity.com" and len(path_parts) >= 3:
+        source_type, source_key, site_kind = "paylocity", "/".join(path_parts[:3]), "ats_feed"
+        canonical_path = "/" + source_key
+    elif host == "ats.rippling.com" and path_parts:
+        source_type, source_key, site_kind = "rippling", path_parts[0], "ats_feed"
+        canonical_path = f"/{source_key}/jobs"
+    elif host == "recruiting.ultipro.com" and len(path_parts) >= 2:
+        source_type, source_key, site_kind = "ultipro", "/".join(path_parts[:2]), "ats_feed"
+        canonical_path = "/" + source_key
+    elif host == "app.trinethire.com" and path_parts:
+        source_type, source_key, site_kind = "trinethire", path_parts[0], "ats_feed"
+        canonical_path = f"/{source_key}"
+    elif host.endswith("comeet.com") and len(path_parts) >= 2:
+        source_type, source_key, site_kind = "comeet", "/".join(path_parts[:2]), "ats_feed"
+        canonical_path = "/" + source_key
     elif host.endswith("myworkdayjobs.com"):
         source_type, source_key, site_kind = "workday", host, "ats_feed"
     elif host.endswith("icims.com"):

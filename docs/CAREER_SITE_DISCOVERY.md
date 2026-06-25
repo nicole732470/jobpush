@@ -183,13 +183,13 @@ As of the latest audit:
 
 | Metric | Count |
 |---|---:|
-| Successful discovery searches retained in DB | 2,903 |
-| Retained career-site candidates | 7,251 |
-| P1 companies with any retained candidate or verified site | 2,829 |
-| P1 companies with verified / crawl-enabled site | 724 |
-| P1 companies still pending discovery | 1,756 |
-| P1 companies with candidates awaiting review / later decision | 2,105 |
-| P1 companies not found | 55 |
+| Discovery runs | 10 |
+| Companies searched / estimated basic-search credits | 4,453 |
+| Retained career-site candidates | 9,488 |
+| Search errors from one exhausted/bad-key batch | 600 |
+| Companies with retained candidates | 3,770 |
+| Companies with structured ATS candidates | 978 |
+| Companies with verified / crawl-enabled site | 933 |
 
 The important distinction: a Tavily discovery search produces *candidate URLs*.
 It does not automatically mean the company has a safe, adapter-supported,
@@ -206,6 +206,61 @@ bash db/deploy_via_ssm.sh db/run_apply_career_site_auto_trust.sh
 searched, retaining 2,237 candidates with zero provider errors. Auto-trust
 promoted 209 rank-1 structured ATS sites. P1 coverage reached 933 enabled
 sites, with 347 successfully crawled so far.
+
+2026-06-25 later audit: P1 successful crawl coverage reached 913 companies.
+The reason this is far below the 4,453 searched-company ledger is that many
+Tavily results were external job boards or ordinary generic career pages. The
+pipeline now distinguishes these outcomes:
+
+1. **Structured ATS**: Workday, Greenhouse, Lever, Ashby, SmartRecruiters,
+   iCIMS, and other detectable ATS platforms. These can become crawlable after
+   adapter support and trust rules.
+2. **Generic official-looking HTML**: company career pages that may still hide
+   a real ATS link. These go through the zero-credit generic HTML resolver.
+3. **External job boards / aggregators**: Wellfound, Zippia, Built In, Lensa,
+   MyVisaJobs, VC portfolio job boards, and similar domains. These are rejected
+   because they are not employer-owned career sites.
+
+Migration 074 added the first broad cleanup for category 3 and reclassified
+historical candidates on Jobvite, Workable, Paylocity, Rippling, UltiPro, and
+TriNet Hire out of `generic_html` into platform-specific `source_type` values.
+Future Tavily searches also use the expanded deny list in
+`scripts/discover_career_sites.py`, so the same class of bad candidates should
+not keep consuming review time.
+
+## Generic HTML resolution strategy
+
+Generic HTML is handled in three layers, in this order:
+
+1. **Reject known non-employer domains.** External job boards and VC portfolio
+   boards are not official company career sites, even when they contain real
+   jobs.
+2. **Resolve hidden ATS links without Tavily.** Run:
+
+   ```bash
+   bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links.sh
+   ```
+
+   This fetches retained generic pages, scans outbound links, and writes any
+   discovered ATS links back to `career_sites` with
+   `discovery_source='generic_html_link_resolver'` and zero estimated credits.
+3. **Write parsers only for repeatable patterns.** Do not build one-off parsers
+   for every company page. First group remaining generic pages by domain,
+   template, or platform. Then add a parser only when the group is large enough
+   or high-priority enough to justify the maintenance cost.
+
+Use the audit runner to pick the next parser target:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_generic_html_resolution_audit.sh
+```
+
+The preferred next parser targets are platform-like domains that recur across
+companies, not arbitrary single-company custom pages. As of migration 074,
+newly separated examples include Jobvite, Workable, Paylocity, Rippling,
+UltiPro, TriNet Hire, and Comeet. Adapter work should start with the platform
+that has the best combination of P1 count, URL consistency, and available
+public API or predictable HTML.
 
 ## Tavily credential storage and rotation
 
