@@ -139,6 +139,22 @@ not expected to cover all P1 companies manually. Only promote narrow structured
 ATS patterns to auto-verification after the precision gates in
 `LEARNING_OPERATIONS.md` are satisfied.
 
+If Tavily returns quota/authentication failures such as HTTP 432, stop the
+batch immediately. `scripts/discover_career_sites.py` now aborts after three
+consecutive fatal HTTP errors (401/402/403/429/432) instead of marking hundreds
+of companies as failed. If an exhausted key accidentally marks companies
+`retry`, run:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_reset_tavily_quota_failures.sh
+```
+
+Check the active AWS-stored key without printing it:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_tavily_usage_status.sh
+```
+
 ### 2026-06-24 expansion runs
 
 Two score-ordered expansion runs completed against P0/P1 demand before P2:
@@ -160,6 +176,31 @@ after the 980 successful searches. Treat request count as the conservative
 credit ledger until the provider usage endpoint catches up; do not launch
 another large batch merely because that endpoint temporarily shows unused
 credits.
+
+### 2026-06-24 / 2026-06-25 actual ledger
+
+As of the latest audit:
+
+| Metric | Count |
+|---|---:|
+| Successful discovery searches retained in DB | 2,903 |
+| Retained career-site candidates | 7,251 |
+| P1 companies with any retained candidate or verified site | 2,829 |
+| P1 companies with verified / crawl-enabled site | 724 |
+| P1 companies still pending discovery | 1,756 |
+| P1 companies with candidates awaiting review / later decision | 2,105 |
+| P1 companies not found | 55 |
+
+The important distinction: a Tavily discovery search produces *candidate URLs*.
+It does not automatically mean the company has a safe, adapter-supported,
+US-scoped career site. Most retained candidates are `generic_html`; those are
+kept for review or later generic parsing but are not automatically enabled for
+daily crawl. Rank-1 structured ATS candidates are auto-trusted only for
+supported adapters:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_apply_career_site_auto_trust.sh
+```
 
 ## Tavily credential storage and rotation
 
@@ -233,3 +274,11 @@ URLs, full raw JSON response, query, method, and timestamp, but deliberately
 leaves industry/size/headquarters fields unset until extraction quality is
 reviewed. This prevents fluent but unsupported web text from silently changing
 priority scores.
+
+Migration 071 adds an explicit `enrichment_state` to the combined workbench:
+`not_researched`, `researched_unstructured`, or `structured_unreviewed`.
+Filter on the latter two values before reviewing company profiles; the full
+68k-company surface naturally contains mostly `not_researched` rows. A
+conservative regex pass extracts pilot year/size/industry/headquarters/ownership
+fields while retaining the original text and sources. Parsed values remain
+unreviewed and cannot affect priority.

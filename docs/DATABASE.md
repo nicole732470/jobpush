@@ -57,6 +57,28 @@ future production priority formula. Use
 web attributes directly to `public.companies`, `public.lca_cases`, or the
 refresh-owned consolidated table.
 
+To see the company profile enrichment pilot in TablePlus:
+
+```sql
+SELECT canonical_name,
+       crawl_priority_tier,
+       external_industry,
+       external_headquarters_city,
+       employee_count_min,
+       founded_year,
+       official_website_url,
+       company_description,
+       enrichment_source_urls
+FROM jobpush.company_priority_enrichment_workbench
+WHERE enrichment_state <> 'not_researched'
+ORDER BY priority_score DESC NULLS LAST, canonical_name;
+```
+
+Current state: only 20 companies have `structured_unreviewed` profile
+enrichment. The thousands of earlier Tavily calls were career-site discovery
+calls and did not store full company-profile JSON; their zero-credit reusable
+features live in `company_tavily_discovery_features`.
+
 ## Priority scoring
 
 | Component | Column | Points |
@@ -69,6 +91,15 @@ refresh-owned consolidated table.
 | Minimum target-role salary | `salary_score` | +1 when `target_role_score = 1` and minimum valid annualized target-role salary is at least $90,000 |
 | LinkedIn Top Companies 2026 | `linkedin_top_employer_score` | +1 when `target_role_score = 1` and a member FEIN matches `jobpush.linkedin_top_employer_company_matches` |
 | Total | `priority_score` | sum of component scores |
+
+Before those components are totaled, `priority-v9-executive-exclusion` applies
+a hard exclusion: a company with only one or two LCA filings where every title
+is clearly C-suite/executive level receives `priority_score = 0`, no computed
+tier, and is disabled in `crawl_targets`. The conservative title boundary
+includes CxO/chief officer, president/vice president, executive/managing
+director, general manager, owner, and founder; generic manager titles do not
+match. `executive_only_excluded` and `priority_exclusion_reason` retain the
+audit evidence.
 
 `target_role_lca_count`, target salary coverage counts,
 `target_role_min_annual_salary`, `product_role_lca_count`,

@@ -70,6 +70,8 @@ WITH dataset_window AS (
 ), filing_stats AS (
     SELECT
         unit.consolidation_key,
+        SUM(stats.lca_case_count)::INTEGER AS filing_lca_case_count,
+        SUM(stats.executive_level_lca_count)::INTEGER AS executive_level_lca_count,
         SUM(stats.target_role_lca_count)::INTEGER AS target_role_lca_count,
         MIN(stats.target_role_min_annual_salary)::NUMERIC(14, 2)
             AS target_role_min_annual_salary,
@@ -119,6 +121,13 @@ WITH dataset_window AS (
         company_row.certified_count,
         (company_row.lca_count = 1) AS single_lca_company,
         COALESCE(filing_row.target_role_lca_count, 0) AS target_role_lca_count,
+        COALESCE(filing_row.filing_lca_case_count, 0) AS filing_lca_case_count,
+        COALESCE(filing_row.executive_level_lca_count, 0) AS executive_level_lca_count,
+        (
+            COALESCE(filing_row.filing_lca_case_count, 0) BETWEEN 1 AND 2
+            AND COALESCE(filing_row.executive_level_lca_count, 0)
+                = COALESCE(filing_row.filing_lca_case_count, 0)
+        ) AS executive_only_excluded,
         filing_row.target_role_min_annual_salary,
         COALESCE(filing_row.target_role_valid_salary_lca_count, 0)
             AS target_role_valid_salary_lca_count,
@@ -154,24 +163,24 @@ WITH dataset_window AS (
 ), scored AS (
     SELECT
         source_base.*,
-        CASE WHEN target_role_lca_count > 0 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS target_role_score,
-        CASE WHEN target_role_lca_count > 0 AND lca_count > 1 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0 AND lca_count > 1 THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS lca_count_score,
-        CASE WHEN target_role_lca_count > 0 AND has_chicago_member
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0 AND has_chicago_member
             THEN 0.5::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS chicago_score,
-        CASE WHEN target_role_lca_count > 0 AND has_product_role_job
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0 AND has_product_role_job
             THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS product_role_score,
-        CASE WHEN target_role_lca_count > 0 AND has_product_manager_job
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0 AND has_product_manager_job
             THEN 0.25::NUMERIC(4, 2) ELSE 0::NUMERIC(4, 2) END
             AS product_manager_score,
-        CASE WHEN target_role_lca_count > 0
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0
                   AND target_role_min_annual_salary >= 90000
             THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS salary_score,
-        CASE WHEN target_role_lca_count > 0
+        CASE WHEN NOT executive_only_excluded AND target_role_lca_count > 0
                   AND (has_linkedin_member OR linkedin_employer_key IS NOT NULL)
             THEN 1::NUMERIC(3, 1) ELSE 0::NUMERIC(3, 1) END
             AS linkedin_top_employer_score
@@ -189,6 +198,7 @@ WITH dataset_window AS (
     SELECT
         totaled.*,
         CASE
+            WHEN executive_only_excluded THEN NULL
             WHEN priority_score > 3 THEN 'P1'
             WHEN priority_score IN (3.0, 2.5) THEN 'P2'
             ELSE NULL
@@ -197,7 +207,9 @@ WITH dataset_window AS (
 ), effective_tiered AS (
     SELECT
         tiered.*,
-        COALESCE(override.override_tier, tiered.computed_crawl_priority_tier)
+        CASE WHEN tiered.executive_only_excluded THEN NULL
+             ELSE COALESCE(override.override_tier, tiered.computed_crawl_priority_tier)
+        END
             AS crawl_priority_tier
     FROM tiered
     LEFT JOIN jobpush.crawl_priority_overrides override
@@ -208,6 +220,7 @@ INSERT INTO jobpush.company_targets_consolidated (
     consolidation_key, canonical_name, is_merged_group, linkedin_employer_key,
     member_fein_count, member_feins, primary_fein,
     employer_city, employer_state, naics_code, naics_sector,
+    executive_only_excluded, priority_exclusion_reason,
     lca_count, certified_count, single_lca_company, target_role_lca_count,
     target_role_min_annual_salary,
     target_role_valid_salary_lca_count,
@@ -224,6 +237,10 @@ SELECT
     consolidation_key, canonical_name, is_merged_group, linkedin_employer_key,
     member_fein_count, member_feins, primary_fein,
     employer_city, employer_state, naics_code, naics_sector,
+    executive_only_excluded,
+    CASE WHEN executive_only_excluded
+         THEN 'Only 1-2 LCA filings and every filing is C-suite/executive level'
+         ELSE NULL END,
     lca_count, certified_count, single_lca_company, target_role_lca_count,
     target_role_min_annual_salary,
     target_role_valid_salary_lca_count,
@@ -234,7 +251,7 @@ SELECT
     product_role_score, product_manager_score, salary_score,
     linkedin_top_employer_score,
     priority_score, computed_crawl_priority_tier, crawl_priority_tier,
-    'priority-v8-consolidated', now()
+    'priority-v9-executive-exclusion', now()
 FROM effective_tiered
 ON CONFLICT (consolidation_key) DO UPDATE SET
     canonical_name = EXCLUDED.canonical_name,
@@ -247,6 +264,8 @@ ON CONFLICT (consolidation_key) DO UPDATE SET
     employer_state = EXCLUDED.employer_state,
     naics_code = EXCLUDED.naics_code,
     naics_sector = EXCLUDED.naics_sector,
+    executive_only_excluded = EXCLUDED.executive_only_excluded,
+    priority_exclusion_reason = EXCLUDED.priority_exclusion_reason,
     lca_count = EXCLUDED.lca_count,
     certified_count = EXCLUDED.certified_count,
     single_lca_company = EXCLUDED.single_lca_company,

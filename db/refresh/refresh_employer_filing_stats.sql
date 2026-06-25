@@ -12,6 +12,7 @@ WITH dataset_window AS (
     SELECT
         lcase.employer_fein AS fein,
         lcase.decision_date,
+        jobpush.is_executive_level_job_title(lcase.job_title) AS is_executive_level,
         target.normalized_soc_code,
         jobpush.lca_annual_salary(
             lcase.wage_rate_of_pay_from,
@@ -27,6 +28,8 @@ WITH dataset_window AS (
 )
 INSERT INTO jobpush.employer_filing_stats (
     fein,
+    lca_case_count,
+    executive_level_lca_count,
     target_role_lca_count,
     target_role_min_annual_salary,
     target_role_valid_salary_lca_count,
@@ -40,6 +43,9 @@ INSERT INTO jobpush.employer_filing_stats (
 )
 SELECT
     enriched.fein,
+    COUNT(*)::INTEGER AS lca_case_count,
+    COUNT(*) FILTER (WHERE enriched.is_executive_level)::INTEGER
+        AS executive_level_lca_count,
     COUNT(enriched.normalized_soc_code)::INTEGER AS target_role_lca_count,
     MIN(enriched.target_role_annual_salary) FILTER (
         WHERE enriched.normalized_soc_code IS NOT NULL

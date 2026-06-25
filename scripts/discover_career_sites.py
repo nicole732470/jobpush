@@ -136,6 +136,18 @@ def tavily_search(api_key, query, max_results):
         return json.load(response)
 
 
+def http_error_message(exc: HTTPError) -> str:
+    body = ""
+    try:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:  # noqa: BLE001
+        body = ""
+    message = f"HTTPError: HTTP Error {exc.code}"
+    if body:
+        message = f"{message}: {body}"
+    return message[:1000]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("targets_csv")
@@ -145,6 +157,7 @@ def main():
     parser.add_argument("--max-results", type=int, default=6)
     parser.add_argument("--max-candidates", type=int, default=3)
     parser.add_argument("--delay", type=float, default=0.2)
+    parser.add_argument("--fatal-error-threshold", type=int, default=3)
     args = parser.parse_args()
 
     api_key = os.environ.get("TAVILY_API_KEY", "").strip()
@@ -172,6 +185,7 @@ def main():
         result_writer = csv.DictWriter(results_file, fieldnames=result_fields)
         candidate_writer.writeheader()
         result_writer.writeheader()
+        consecutive_fatal_errors = 0
 
         for index, target in enumerate(targets, start=1):
             name = target["canonical_name"].strip()
@@ -191,10 +205,20 @@ def main():
                 found = sorted(
                     deduped.values(), key=lambda item: item["candidate_score"], reverse=True
                 )[: args.max_candidates]
-            except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+            except HTTPError as exc:
+                error_message = http_error_message(exc)
+                if exc.code in {401, 402, 403, 429, 432}:
+                    consecutive_fatal_errors += 1
+                else:
+                    consecutive_fatal_errors = 0
+            except (URLError, TimeoutError, json.JSONDecodeError) as exc:
                 error_message = f"{type(exc).__name__}: {exc}"[:1000]
+                consecutive_fatal_errors = 0
             except Exception as exc:  # noqa: BLE001
                 error_message = f"{type(exc).__name__}: {exc}"[:1000]
+                consecutive_fatal_errors = 0
+            else:
+                consecutive_fatal_errors = 0
 
             for rank, candidate in enumerate(found, start=1):
                 candidate_writer.writerow({
@@ -215,6 +239,13 @@ def main():
                 "error_message": error_message,
             })
             print(f"[{index}/{len(targets)}] {name}: {len(found)} candidates", flush=True)
+            if consecutive_fatal_errors >= args.fatal_error_threshold:
+                raise SystemExit(
+                    "Aborting Tavily discovery after "
+                    f"{consecutive_fatal_errors} consecutive fatal HTTP errors. "
+                    "Check TAVILY_API_KEY quota/status before running another batch. "
+                    f"Last error: {error_message}"
+                )
             if index < len(targets) and args.delay:
                 time.sleep(args.delay)
 

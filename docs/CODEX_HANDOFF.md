@@ -2,7 +2,8 @@
 
 最后更新：2026-06-24
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–066**。
+生产 RDS 已部署 migration **001–072**；另外有 repeatable ops scripts for
+Tavily quota reset / career-site auto-trust / usage checks。
 
 ---
 
@@ -59,6 +60,16 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 
 2026-06-24 更新：dashboard 默认只展示 `target` jobs。`review` 是 classifier
 审计池，不是 Nicole 每天要投递的推荐池。
+
+2026-06-24 后续更新：priority-v9 将仅有 1–2 条 LCA 且全部为明确高管职位的
+公司置 0 分并退出 crawl queue。职位泛化优先使用 migration 072 的本地监督学习
+（人工 label + 5-fold holdout + 98% precision gate），不依赖付费 AI API。
+
+2026-06-25 更新：Tavily career-site discovery 已累计成功搜索 2,903 家、
+保留 7,251 个候选 URL；这不是 2,903 家都已可爬。P1 当前 724 家有
+verified/crawl-enabled site，2,105 家有候选待后续规则/人工/泛化处理，
+1,756 家仍 pending discovery。AWS Secret 中当前 Tavily key usage
+为 1000/1000 时会返回 HTTP 432；不要继续跑大批次，先 rotate key。
 
 ---
 

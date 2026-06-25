@@ -109,6 +109,20 @@ No model output is allowed to promote itself into an active rule. The system
 may generate a proposal and evidence bundle; a human approves the versioned
 change.
 
+### Offline supervised title model
+
+Migration 072 and `scripts/train_local_title_classifier.py` implement a
+dependency-free multinomial Naive Bayes classifier over title word unigrams and
+bigrams. It trains only on audited `manual%` target/non-target labels, evaluates
+deterministic five-fold holdouts, and selects class-specific confidence
+thresholds only when holdout precision is at least 98% with enough examples.
+
+Eligible predictions are written to `job_title_ml_classifications` with model
+version, training size, holdout metrics, confidence, and evidence features.
+They may fill only unresolved `review` titles; manual labels and hard profile
+rules remain authoritative. This path uses no paid API and never sends title or
+profile data outside the database host.
+
 ## Current TODO
 
 | Owner | Due | Task | Status |
