@@ -37,6 +37,24 @@ def post_json(url: str, payload: dict) -> tuple[dict, int]:
         return json.load(response), response.status
 
 
+def workday_site_from_path(path: str) -> str | None:
+    """Return the Workday recruiting site slug from a board or job-detail URL.
+
+    Tavily often returns URLs like
+    /en-US/aig/job/Some-Role/JR123. The CXS API site is "aig", not "en-US".
+    Board URLs may also be just /Chegg. Keep this tolerant because Workday
+    tenants vary heavily.
+    """
+    parts = [part for part in path.split("/") if part]
+    if not parts:
+        return None
+    if re.fullmatch(r"[a-z]{2}(?:-[A-Z]{2})?", parts[0]):
+        parts = parts[1:]
+    if not parts:
+        return None
+    return parts[0]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
@@ -47,7 +65,7 @@ def main() -> int:
 
     started = time.monotonic()
     parsed = urlsplit(args.url)
-    site = next((part for part in parsed.path.split("/") if part), None)
+    site = workday_site_from_path(parsed.path)
     tenant = parsed.hostname.split(".")[0] if parsed.hostname else None
     if not tenant or not site:
         raise ValueError(f"Cannot derive Workday tenant/site from {args.url}")
@@ -68,11 +86,14 @@ def main() -> int:
         for job in postings:
             bullets = job.get("bulletFields") or []
             external_id = clean(bullets[0] if bullets else job.get("externalPath"))
+            title = clean(job.get("title"))
+            if not external_id or not title:
+                continue
             path = clean(job.get("externalPath"))
             rows[external_id] = {
                 "external_job_id": external_id,
-                "title": clean(job.get("title")),
-                "normalized_title": normalize(job.get("title", "")),
+                "title": title,
+                "normalized_title": normalize(title),
                 "location": clean(job.get("locationsText")),
                 "category": "",
                 "job_url": f"{parsed.scheme}://{parsed.netloc}/{site}{path}",

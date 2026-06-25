@@ -17,7 +17,8 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 JOBS_CSV="$(mktemp /tmp/jobpush-adapter-jobs.XXXXXX)"
 METRICS_JSON="$(mktemp /tmp/jobpush-adapter-metrics.XXXXXX)"
-trap 'rm -f "$JOBS_CSV" "$METRICS_JSON"' EXIT
+ADAPTER_STDERR="$(mktemp /tmp/jobpush-adapter-stderr.XXXXXX)"
+trap 'rm -f "$JOBS_CSV" "$METRICS_JSON" "$ADAPTER_STDERR"' EXIT
 
 IFS=$'\t' read -r SITE_ID SITE_URL < <("${PSQL[@]}" -qAtF $'\t' -c \
   "SELECT site_id, site_url FROM jobpush.career_sites
@@ -50,13 +51,18 @@ RUN_ID=$("${PSQL[@]}" -Atc \
 
 fail_run() {
   local code=$?
+  local error_text
+  error_text=$(tail -c 900 "$ADAPTER_STDERR" 2>/dev/null | sed "s/'/''/g" || true)
+  if [[ -z "$error_text" ]]; then
+    error_text="Adapter pilot failed with exit code $code"
+  fi
   "${PSQL[@]}" -q -c \
     "UPDATE jobpush.crawl_runs SET status='failed',error_code='pilot_failure',
-       error_message='Adapter pilot failed with exit code $code',finished_at=now() WHERE run_id=$RUN_ID;
+       error_message='$error_text',finished_at=now() WHERE run_id=$RUN_ID;
      UPDATE jobpush.crawl_batch_targets SET status='failed' WHERE batch_id=$BATCH_ID AND site_id=$SITE_ID;
      UPDATE jobpush.crawl_batches SET status='failed',failed_target_count=1,finished_at=now() WHERE batch_id=$BATCH_ID;
      UPDATE jobpush.career_sites SET crawl_status='failed',consecutive_failures=consecutive_failures+1,
-       last_error='Adapter pilot failed with exit code $code',last_crawled_at=now(),
+       last_error='$error_text',last_crawled_at=now(),
        next_crawl_at=now()+make_interval(hours => LEAST(24, GREATEST(1, power(2, consecutive_failures)::int))),
        updated_at=now()
        WHERE site_id=$SITE_ID;" || true
@@ -65,11 +71,11 @@ fail_run() {
 trap fail_run ERR
 
 if [[ "$SOURCE_TYPE" == "icims" ]]; then
-  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US > "$METRICS_JSON"
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SCOPE_METHOD" == "local_filter" ]]; then
-  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market unknown > "$METRICS_JSON"
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market unknown > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 else
-  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market US > "$METRICS_JSON"
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 fi
 IFS=$'\t' read -r REQUESTS PAGES RAW_COUNT PARSED_COUNT DUPLICATES HTTP_STATUS LATENCY_MS < <(
   python3 - "$METRICS_JSON" <<'PY'

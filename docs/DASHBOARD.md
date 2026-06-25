@@ -61,3 +61,20 @@ bash deploy/install_dashboard_via_ssm.sh
 The service is `jobpush-dashboard.service`. A later public-URL phase may add
 Google OIDC and HTTPS, but must retain an explicit email allowlist before any
 public network exposure.
+## Public dashboard URL
+
+The private Streamlit process runs on EC2 at `127.0.0.1:8501`. For browser
+access without an SSM tunnel, expose it through the host Caddy reverse proxy:
+
+```bash
+bash deploy/expose_dashboard_via_caddy.sh
+```
+
+Current production URL:
+
+```text
+https://jobpush.3-128-164-130.sslip.io
+```
+
+Use basic auth. Do not commit the plaintext password; rotate by rerunning the
+script with `DASHBOARD_PASSWORD=...`.
