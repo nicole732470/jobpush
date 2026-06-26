@@ -565,6 +565,42 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
     )
 
 
+TRACK_LABELS = {
+    "stack_1_business_product_data": "Track 1 · Business / Product / Data",
+    "stack_2_software_systems": "Track 2 · Software / Systems",
+    "stack_3_other_target": "Track 3 · Other target",
+    "review": "Review",
+    "non_target": "Non-target",
+    "unlabeled": "Unlabeled",
+}
+
+ROLE_FAMILY_LABELS = {
+    "internship": "Internship",
+    "forward_deployed_engineer": "Forward Deployed Engineer",
+    "product_manager": "Product Manager",
+    "program_manager": "Program Manager",
+    "project_manager": "Project Manager",
+    "systems_engineering": "Systems Engineering",
+    "software_engineering": "Software Engineering",
+    "data_science_ml": "Data Science / ML",
+    "data_analytics_bi": "Data Analytics / BI",
+    "business_analyst": "Business Analyst",
+    "strategy_operations": "Strategy / Operations",
+    "marketing": "Marketing",
+    "sales": "Sales",
+    "other": "Other",
+}
+
+SEGMENT_DIMENSIONS = {
+    "Track 1/2/3": "track_label",
+    "Role family": "role_family_label",
+    "Employment type": "employment_bucket",
+    "Seniority": "seniority_bucket",
+    "Location": "location_bucket",
+    "Priority tier": "priority_tier",
+}
+
+
 st.markdown(
     """
     <div class="hero">
@@ -737,6 +773,8 @@ with segments_tab:
     else:
         segmented = job_frame.copy()
         segmented["first_seen_date"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
+        segmented["track_label"] = segmented["role_stack"].map(TRACK_LABELS).fillna(segmented["role_stack"].fillna("Unlabeled"))
+        segmented["role_family_label"] = segmented["role_family"].map(ROLE_FAMILY_LABELS).fillna(segmented["role_family"].fillna("Other"))
         today_segment = segmented[segmented["first_seen_date"] == chicago_today]
 
         segment_metrics = st.columns(6)
@@ -747,11 +785,8 @@ with segments_tab:
         segment_metrics[4].metric("Product Manager", f"{int((segmented['role_family'] == 'product_manager').sum()):,}")
         segment_metrics[5].metric("Systems Eng.", f"{int((segmented['role_family'] == 'systems_engineering').sum()):,}")
 
-        segment_dimension = st.selectbox(
-            "Daily chart dimension",
-            ["role_stack", "role_family", "employment_bucket", "seniority_bucket", "location_bucket", "priority_tier"],
-            index=1,
-        )
+        segment_dimension_label = st.selectbox("Daily chart dimension", list(SEGMENT_DIMENSIONS.keys()), index=1)
+        segment_dimension = SEGMENT_DIMENSIONS[segment_dimension_label]
         daily_pivot = (
             segmented.groupby(["first_seen_date", segment_dimension])
             .size()
@@ -766,10 +801,10 @@ with segments_tab:
         with left:
             st.subheader("Today's role families")
             today_roles = (
-                today_segment.groupby(["role_stack", "role_family"], dropna=False)
+                today_segment.groupby(["track_label", "role_family_label"], dropna=False)
                 .size()
                 .reset_index(name="jobs")
-                .sort_values(["jobs", "role_stack", "role_family"], ascending=[False, True, True])
+                .sort_values(["jobs", "track_label", "role_family_label"], ascending=[False, True, True])
             )
             st.dataframe(today_roles, hide_index=True, use_container_width=True, height=330)
         with right:
@@ -782,9 +817,24 @@ with segments_tab:
             )
             st.dataframe(today_market, hide_index=True, use_container_width=True, height=330)
 
+        st.subheader("Today's Track 1/2/3 summary")
+        today_track_summary = (
+            today_segment.groupby("track_label", dropna=False)
+            .agg(
+                jobs=("external_job_id", "count"),
+                companies=("canonical_name", "nunique"),
+                internships=("employment_bucket", lambda values: int((values == "internship").sum())),
+                full_time_or_unknown=("employment_bucket", lambda values: int((values == "full_time_or_unknown").sum())),
+                chicago_or_il=("location_bucket", lambda values: int((values == "chicago_or_illinois").sum())),
+            )
+            .reset_index()
+            .sort_values("jobs", ascending=False)
+        )
+        st.dataframe(today_track_summary, hide_index=True, use_container_width=True, height=220)
+
         st.subheader("Track × role family summary")
         track_summary = (
-            segmented.groupby(["role_stack", "role_family"], dropna=False)
+            segmented.groupby(["track_label", "role_family_label"], dropna=False)
             .agg(
                 jobs=("external_job_id", "count"),
                 companies=("canonical_name", "nunique"),
@@ -793,7 +843,7 @@ with segments_tab:
                 full_time_or_unknown=("employment_bucket", lambda values: int((values == "full_time_or_unknown").sum())),
             )
             .reset_index()
-            .sort_values(["role_stack", "jobs"], ascending=[True, False])
+            .sort_values(["track_label", "jobs"], ascending=[True, False])
         )
         st.dataframe(track_summary, hide_index=True, use_container_width=True, height=420)
         st.download_button(
