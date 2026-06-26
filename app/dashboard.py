@@ -399,7 +399,7 @@ def jobs(
     return query(
         """
         SELECT site_id, external_job_id, canonical_name, priority_tier, title,
-               location, category, role_status, canonical_role,
+               location, category, employment_type, role_status, canonical_role,
                CASE
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%product%%manager%%'
@@ -416,6 +416,76 @@ def jobs(
                    WHEN role_status = 'target' THEN 'stack_3_other_target'
                    ELSE role_status
                END AS role_stack,
+               CASE
+                   WHEN normalized_title LIKE '%%intern%%'
+                        OR normalized_title LIKE '%%internship%%'
+                        OR normalized_title LIKE '%%co op%%'
+                        OR normalized_title LIKE '%%co-op%%' THEN 'internship'
+                   WHEN normalized_title LIKE '%%forward deployed engineer%%'
+                        OR normalized_title LIKE '%%forward-deployed engineer%%' THEN 'forward_deployed_engineer'
+                   WHEN normalized_title LIKE '%%product%%manager%%' THEN 'product_manager'
+                   WHEN normalized_title LIKE '%%program%%manager%%' THEN 'program_manager'
+                   WHEN normalized_title LIKE '%%project%%manager%%' THEN 'project_manager'
+                   WHEN normalized_title LIKE '%%system%%engineer%%'
+                        OR normalized_title LIKE '%%systems%%engineer%%'
+                        OR normalized_title LIKE '%%systems%%analyst%%'
+                        OR normalized_title LIKE '%%information%%system%%' THEN 'systems_engineering'
+                   WHEN normalized_title LIKE '%%software%%engineer%%'
+                        OR normalized_title LIKE '%%software%%developer%%'
+                        OR normalized_title LIKE '%%fullstack%%'
+                        OR normalized_title LIKE '%%full stack%%' THEN 'software_engineering'
+                   WHEN normalized_title LIKE '%%data%%scientist%%'
+                        OR normalized_title LIKE '%%machine%%learning%%'
+                        OR normalized_title LIKE '%%ml engineer%%' THEN 'data_science_ml'
+                   WHEN normalized_title LIKE '%%data%%analyst%%'
+                        OR normalized_title LIKE '%%business intelligence%%'
+                        OR normalized_title LIKE '%%bi analyst%%' THEN 'data_analytics_bi'
+                   WHEN normalized_title LIKE '%%business%%analyst%%' THEN 'business_analyst'
+                   WHEN normalized_title LIKE '%%operations%%analyst%%'
+                        OR normalized_title LIKE '%%strategy%%analyst%%' THEN 'strategy_operations'
+                   WHEN normalized_title LIKE '%%marketing%%' THEN 'marketing'
+                   WHEN normalized_title LIKE '%%sales%%' THEN 'sales'
+                   ELSE COALESCE(NULLIF(canonical_role, ''), 'other')
+               END AS role_family,
+               CASE
+                   WHEN normalized_title LIKE '%%intern%%'
+                        OR normalized_title LIKE '%%internship%%'
+                        OR normalized_title LIKE '%%co op%%'
+                        OR normalized_title LIKE '%%co-op%%' THEN 'internship'
+                   WHEN normalized_title LIKE '%%new grad%%'
+                        OR normalized_title LIKE '%%university grad%%'
+                        OR normalized_title LIKE '%%entry level%%'
+                        OR normalized_title LIKE '%%early career%%' THEN 'entry_level'
+                   WHEN normalized_title LIKE '%%senior%%'
+                        OR normalized_title LIKE '%%sr %%'
+                        OR normalized_title LIKE '%%staff%%'
+                        OR normalized_title LIKE '%%principal%%'
+                        OR normalized_title LIKE '%%lead%%'
+                        OR normalized_title LIKE '%%director%%'
+                        OR normalized_title LIKE '%%vice president%%'
+                        OR normalized_title LIKE '%%vp%%' THEN 'senior_or_leadership'
+                   ELSE 'regular_full_time'
+               END AS seniority_bucket,
+               CASE
+                   WHEN normalized_title LIKE '%%intern%%'
+                        OR normalized_title LIKE '%%internship%%'
+                        OR normalized_title LIKE '%%co op%%'
+                        OR normalized_title LIKE '%%co-op%%' THEN 'internship'
+                   WHEN COALESCE(employment_type, '') ILIKE '%%contract%%'
+                        OR normalized_title LIKE '%%contract%%' THEN 'contract'
+                   WHEN COALESCE(employment_type, '') ILIKE '%%part%%time%%'
+                        OR normalized_title LIKE '%%part time%%' THEN 'part_time'
+                   WHEN COALESCE(employment_type, '') ILIKE '%%full%%time%%' THEN 'full_time'
+                   ELSE 'full_time_or_unknown'
+               END AS employment_bucket,
+               CASE
+                   WHEN COALESCE(location, '') ILIKE '%%chicago%%'
+                        OR COALESCE(location, '') ILIKE '%%illinois%%'
+                        OR COALESCE(location, '') ~* '(^|[,/ -])IL($|[,/ -])' THEN 'chicago_or_illinois'
+                   WHEN COALESCE(location, '') ILIKE '%%remote%%' THEN 'remote'
+                   WHEN COALESCE(location, '') = '' THEN 'location_not_listed'
+                   ELSE 'other_us'
+               END AS location_bucket,
                application_status,
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs
@@ -539,11 +609,12 @@ if not tiers or not role_statuses or not app_statuses:
     st.stop()
 
 job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
-overview_tab, rollout_tab, jobs_tab, review_tab, breakdown_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
+overview_tab, rollout_tab, jobs_tab, segments_tab, review_tab, breakdown_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
     [
         "Overview",
         "Crawl rollout",
         "New jobs",
+        "Daily segments",
         "Title review",
         "Breakdowns",
         "Company view",
@@ -654,6 +725,89 @@ with jobs_tab:
         file_name=f"jobpush_jobs_{chicago_today}.csv", mime="text/csv",
     )
     dataframe(job_frame)
+
+with segments_tab:
+    st.subheader("Daily job segments")
+    st.caption(
+        "Use this tab to avoid reading thousands of jobs one by one. It groups the current filtered view by track, role family, "
+        "location, seniority, and employment type."
+    )
+    if job_frame.empty:
+        st.info("No jobs match the current filters.")
+    else:
+        segmented = job_frame.copy()
+        segmented["first_seen_date"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
+        today_segment = segmented[segmented["first_seen_date"] == chicago_today]
+
+        segment_metrics = st.columns(6)
+        segment_metrics[0].metric("Jobs in view", f"{len(segmented):,}")
+        segment_metrics[1].metric("Today in view", f"{len(today_segment):,}")
+        segment_metrics[2].metric("Internship", f"{int((segmented['employment_bucket'] == 'internship').sum()):,}")
+        segment_metrics[3].metric("Chicago / IL", f"{int((segmented['location_bucket'] == 'chicago_or_illinois').sum()):,}")
+        segment_metrics[4].metric("Product Manager", f"{int((segmented['role_family'] == 'product_manager').sum()):,}")
+        segment_metrics[5].metric("Systems Eng.", f"{int((segmented['role_family'] == 'systems_engineering').sum()):,}")
+
+        segment_dimension = st.selectbox(
+            "Daily chart dimension",
+            ["role_stack", "role_family", "employment_bucket", "seniority_bucket", "location_bucket", "priority_tier"],
+            index=1,
+        )
+        daily_pivot = (
+            segmented.groupby(["first_seen_date", segment_dimension])
+            .size()
+            .reset_index(name="jobs")
+            .pivot(index="first_seen_date", columns=segment_dimension, values="jobs")
+            .fillna(0)
+            .sort_index()
+        )
+        st.bar_chart(daily_pivot, height=360)
+
+        left, right = st.columns(2)
+        with left:
+            st.subheader("Today's role families")
+            today_roles = (
+                today_segment.groupby(["role_stack", "role_family"], dropna=False)
+                .size()
+                .reset_index(name="jobs")
+                .sort_values(["jobs", "role_stack", "role_family"], ascending=[False, True, True])
+            )
+            st.dataframe(today_roles, hide_index=True, use_container_width=True, height=330)
+        with right:
+            st.subheader("Today's location / employment")
+            today_market = (
+                today_segment.groupby(["location_bucket", "employment_bucket", "seniority_bucket"], dropna=False)
+                .size()
+                .reset_index(name="jobs")
+                .sort_values(["jobs", "location_bucket"], ascending=[False, True])
+            )
+            st.dataframe(today_market, hide_index=True, use_container_width=True, height=330)
+
+        st.subheader("Track × role family summary")
+        track_summary = (
+            segmented.groupby(["role_stack", "role_family"], dropna=False)
+            .agg(
+                jobs=("external_job_id", "count"),
+                companies=("canonical_name", "nunique"),
+                chicago_or_il=("location_bucket", lambda values: int((values == "chicago_or_illinois").sum())),
+                internships=("employment_bucket", lambda values: int((values == "internship").sum())),
+                full_time_or_unknown=("employment_bucket", lambda values: int((values == "full_time_or_unknown").sum())),
+            )
+            .reset_index()
+            .sort_values(["role_stack", "jobs"], ascending=[True, False])
+        )
+        st.dataframe(track_summary, hide_index=True, use_container_width=True, height=420)
+        st.download_button(
+            "Download segmented jobs (CSV)",
+            csv_bytes(segmented),
+            file_name=f"jobpush_segmented_jobs_{chicago_today}.csv",
+            mime="text/csv",
+        )
+        st.download_button(
+            "Download track summary (CSV)",
+            csv_bytes(track_summary),
+            file_name=f"jobpush_track_summary_{chicago_today}.csv",
+            mime="text/csv",
+        )
 
 with review_tab:
     st.subheader("Detailed title review queue")

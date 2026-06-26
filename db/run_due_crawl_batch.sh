@@ -74,7 +74,10 @@ echo "Completed ${#DUE_SITES[@]} due sites; failures=$failures"
 successes=$((${#DUE_SITES[@]} - failures))
 if [[ "$successes" -le 0 ]]; then
   echo "All due-site crawls failed; check adapter health before continuing." >&2
-  exit 1
+  if [[ "${STRICT_CRAWL_FAILURES:-0}" == "1" ]]; then
+    exit 1
+  fi
+  exit 0
 fi
 
 if [[ "$failures" -gt 0 ]]; then

@@ -14,6 +14,19 @@ EC2_INSTANCE="${EC2_INSTANCE:-i-0bdee6f611283586f}"
 RUN_SCRIPT="$1"
 shift
 
+DB_REF_PATTERN='(migrations|analysis|refresh|load|repair|ops)/[A-Za-z0-9_./-]+\.(sql|sh|csv)'
+RUN_REF_PATTERN='run_[A-Za-z0-9_.-]+\.sh'
+
+extract_matches() {
+  local pattern="$1"
+  local file="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -o "$pattern" "$file"
+  else
+    grep -Eho "$pattern" "$file" || true
+  fi
+}
+
 STAGING="$(mktemp -d -t jobpush-ssm-deploy.XXXXXX)"
 trap 'rm -rf "$STAGING"' EXIT
 
@@ -40,8 +53,7 @@ while IFS= read -r referenced; do
   [[ -n "$referenced" && -f "$REPO_DIR/db/$referenced" ]] || continue
   mkdir -p "$STAGING/db/$(dirname "$referenced")"
   cp "$REPO_DIR/db/$referenced" "$STAGING/db/$referenced"
-done < <(rg -o '(migrations|analysis|refresh|load|repair|ops)/[A-Za-z0-9_./-]+\.(sql|sh|csv)' \
-  "$REPO_DIR/$RUN_SCRIPT" | sort -u)
+done < <(extract_matches "$DB_REF_PATTERN" "$REPO_DIR/$RUN_SCRIPT" | sort -u)
 
 # Wrapper runners often call another script in db/ through $SCRIPT_DIR. Those
 # references have no directory prefix, so include matching root-level runners.
@@ -53,9 +65,8 @@ while IFS= read -r referenced; do
     [[ -n "$nested" && -f "$REPO_DIR/db/$nested" ]] || continue
     mkdir -p "$STAGING/db/$(dirname "$nested")"
     cp "$REPO_DIR/db/$nested" "$STAGING/db/$nested"
-  done < <(rg -o '(migrations|analysis|refresh|load|repair|ops)/[A-Za-z0-9_./-]+\.(sql|sh|csv)' \
-    "$REPO_DIR/db/$referenced" | sort -u)
-done < <(rg -o 'run_[A-Za-z0-9_.-]+\.sh' "$REPO_DIR/$RUN_SCRIPT" | sort -u)
+  done < <(extract_matches "$DB_REF_PATTERN" "$REPO_DIR/db/$referenced" | sort -u)
+done < <(extract_matches "$RUN_REF_PATTERN" "$REPO_DIR/$RUN_SCRIPT" | sort -u)
 
 for extra in "$@"; do
   dest="$STAGING/$extra"
