@@ -269,7 +269,7 @@ public API or predictable HTML.
 | Workable `apply.workable.com` | Added in migration 075 | Uses Workable's `jobs.md` markdown feed. `jobs.workable.com/company/...` is not auto-enabled yet. |
 | Jobvite `jobs.jobvite.com` | Added in migration 076 | Parses board HTML and per-job schema.org `JobPosting` JSON-LD. |
 | Paylocity | Added in migration 077 | Parses `window.pageData.Jobs` on listing pages and schema.org `JobPosting` on detail pages. |
-| Rippling | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| Rippling `ats.rippling.com` | Added in migration 078 | Parses static Next.js pages: board links plus per-job `__NEXT_DATA__`. |
 | UltiPro | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | TriNet Hire | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | Comeet | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
@@ -281,6 +281,12 @@ openings. The first Jobvite validation enabled one P1 `jobs.jobvite.com` site:
 
 The first Paylocity validation enabled eight P1 `recruiting.paylocity.com`
 sites: 8/8 crawls succeeded, producing 113 postings.
+
+The Rippling adapter was smoke-tested against a public `ats.rippling.com`
+board before migration 078. It uses one request for the board and one request
+per job-detail page; no browser automation or paid API is required.
+The first production validation enabled two P1 Rippling sites: 2/2 crawls
+succeeded, producing 19 postings with 5 already classified as target.
 
 ## Tavily credential storage and rotation
 

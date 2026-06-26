@@ -33,6 +33,10 @@ for row in "${DUE_SITES[@]}"; do
     lever) adapter_name="lever-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_lever.py" ;;
     ashby) adapter_name="ashby-posting-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_ashby.py" ;;
     smartrecruiters) adapter_name="smartrecruiters-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_smartrecruiters.py" ;;
+    workable) adapter_name="workable-markdown"; adapter_version="0.1.0"; adapter_script="scripts/crawl_workable.py" ;;
+    jobvite) adapter_name="jobvite-html-jsonld"; adapter_version="0.1.0"; adapter_script="scripts/crawl_jobvite.py" ;;
+    paylocity) adapter_name="paylocity-html-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_paylocity.py" ;;
+    rippling) adapter_name="rippling-nextjs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_rippling.py" ;;
     icims) adapter_name="icims-html"; adapter_version="0.3.0"; adapter_script="scripts/crawl_icims.py" ;;
     oracle_cloud) adapter_name="oracle-cloud-rest"; adapter_version="0.1.0"; adapter_script="scripts/crawl_oracle_cloud.py" ;;
     workday) adapter_name="workday-cxs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_workday.py" ;;
