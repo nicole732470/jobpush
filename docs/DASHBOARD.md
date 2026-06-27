@@ -16,13 +16,22 @@ Codex token.
 
 ## Current pages
 
+- top-line P0/P1 crawl completion: total companies, companies with enabled
+  sites, ever-succeeded companies, due/unfinished sites, attempted-today count,
+  and latest crawl start time;
 - today's active-US new target/review jobs, US closed jobs, crawl runs, and failures;
-- default P0/P1 active US `target` job list with direct links;
-- CSV download for the current filtered job view and one-company job list;
+- default P0/P1 active US `target` job list with direct links, sorted newest
+  first and defaulted to the last 1 day;
+- combined **New jobs & segments** page with track, role-family,
+  internship/full-time, location, seniority, company, and direct apply-link
+  filters/downloads;
+- SQL expanders on the job and crawl-rollout pages so Nicole can see the core
+  read queries without opening the repo;
+- CSV download for the current filtered job view, segmented job view, track
+  summary, and one-company job list;
 - downloadable 100/250/500/1,000/2,000-title human review batches;
 - filters for company, title/role, location, priority tier, role decision, and
   application status;
-- role-stack, canonical-role, company, and location breakdowns;
 - one-company job list for networking/application planning;
 - personal saved/apply-next/applied/dismissed workflow;
 - adapter health, recent run logs, failed run details, and active alerts;

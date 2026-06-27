@@ -175,6 +175,72 @@ def today_crawl_progress() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def crawl_completion_summary() -> pd.DataFrame:
+    return query(
+        """
+        WITH target AS (
+            SELECT consolidation_key, priority_tier, priority_score
+            FROM jobpush.crawl_targets
+            WHERE enabled AND priority_tier IN ('P0','P1','P2')
+        ), site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+                   COUNT(*) FILTER (WHERE verification_status = 'verified' AND crawl_enabled) AS enabled_sites
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), schedule AS (
+            SELECT consolidation_key,
+                   COUNT(*) AS schedulable_sites,
+                   COUNT(*) FILTER (WHERE is_due) AS due_sites
+            FROM jobpush.crawl_schedule_queue
+            GROUP BY consolidation_key
+        ), chicago_day AS (
+            SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), today_runs AS (
+            SELECT target.priority_tier,
+                   COUNT(*) AS site_attempts_today,
+                   COUNT(DISTINCT target.consolidation_key) AS companies_attempted_today,
+                   COUNT(DISTINCT target.consolidation_key) FILTER (WHERE run.status = 'succeeded') AS companies_succeeded_today,
+                   COUNT(*) FILTER (WHERE run.status = 'failed') AS failed_site_attempts_today,
+                   MAX(run.started_at) AS latest_started_at,
+                   MAX(run.finished_at) AS latest_finished_at
+            FROM jobpush.crawl_runs run
+            JOIN jobpush.career_sites site USING (site_id)
+            JOIN target USING (consolidation_key)
+            CROSS JOIN chicago_day
+            WHERE run.started_at >= chicago_day.start_at
+            GROUP BY target.priority_tier
+        )
+        SELECT target.priority_tier,
+               COUNT(*) AS companies,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_enabled_site, FALSE)) AS companies_with_enabled_site,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_success, FALSE)) AS companies_succeeded_ever,
+               COALESCE(SUM(schedule.schedulable_sites), 0) AS schedulable_sites,
+               COALESCE(SUM(schedule.due_sites), 0) AS due_sites,
+               COALESCE(today_runs.site_attempts_today, 0) AS site_attempts_today,
+               COALESCE(today_runs.companies_attempted_today, 0) AS companies_attempted_today,
+               COALESCE(today_runs.companies_succeeded_today, 0) AS companies_succeeded_today,
+               COALESCE(today_runs.failed_site_attempts_today, 0) AS failed_site_attempts_today,
+               today_runs.latest_started_at,
+               today_runs.latest_finished_at,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_enabled_site, FALSE)) / NULLIF(COUNT(*), 0), 2) AS enabled_company_pct,
+               ROUND(100.0 * COALESCE(today_runs.companies_attempted_today, 0) / NULLIF(COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_enabled_site, FALSE)), 0), 2) AS today_attempted_pct_of_enabled,
+               ROUND(100.0 * COALESCE(today_runs.companies_succeeded_today, 0) / NULLIF(COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_enabled_site, FALSE)), 0), 2) AS today_succeeded_pct_of_enabled
+        FROM target
+        LEFT JOIN site_rollup USING (consolidation_key)
+        LEFT JOIN schedule USING (consolidation_key)
+        LEFT JOIN today_runs USING (priority_tier)
+        GROUP BY target.priority_tier,
+                 today_runs.site_attempts_today, today_runs.companies_attempted_today,
+                 today_runs.companies_succeeded_today, today_runs.failed_site_attempts_today,
+                 today_runs.latest_started_at, today_runs.latest_finished_at
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        """
+    )
+
+
+@st.cache_data(ttl=60)
 def p1_blocker_distribution() -> pd.DataFrame:
     return query(
         """
@@ -612,6 +678,7 @@ st.markdown(
 )
 
 activity = daily_activity()
+completion = crawl_completion_summary()
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
 today_row = activity[activity["activity_date"] == chicago_today]
 today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
@@ -631,9 +698,25 @@ st.caption(
     "Site crawl attempts = 今天请求过的网站次数；New jobs = 第一次进入数据库的职位数；"
     "Closed jobs = 之前见过、这次快照里消失的职位。所以这些数字不会一一相等。"
 )
+if not completion.empty:
+    p0p1_completion = completion[completion["priority_tier"].isin(["P0", "P1"])]
+    p0p1_companies = int(p0p1_completion["companies"].sum())
+    p0p1_enabled = int(p0p1_completion["companies_with_enabled_site"].sum())
+    p0p1_succeeded = int(p0p1_completion["companies_succeeded_ever"].sum())
+    p0p1_due = int(p0p1_completion["due_sites"].sum())
+    p0p1_attempted_today = int(p0p1_completion["companies_attempted_today"].sum())
+    latest_started = p0p1_completion["latest_started_at"].dropna().max()
+    completion_columns = st.columns(5)
+    completion_columns[0].metric("P0+P1 companies", f"{p0p1_companies:,}")
+    completion_columns[1].metric("Can crawl now", f"{p0p1_enabled:,}", f"{(100 * p0p1_enabled / p0p1_companies):.1f}%" if p0p1_companies else None)
+    completion_columns[2].metric("Ever succeeded", f"{p0p1_succeeded:,}", f"{(100 * p0p1_succeeded / p0p1_companies):.1f}%" if p0p1_companies else None)
+    completion_columns[3].metric("Due / unfinished now", f"{p0p1_due:,}")
+    completion_columns[4].metric("Attempted today", f"{p0p1_attempted_today:,}")
+    if pd.notna(latest_started):
+        st.caption(f"Latest P0/P1 crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
 
 st.sidebar.header("Job filters")
-days = st.sidebar.select_slider("First seen within", options=[1, 3, 7, 14, 30, 90], value=7, format_func=lambda value: f"{value} days")
+days = st.sidebar.select_slider("First seen within", options=[1, 3, 7, 14, 30, 90], value=1, format_func=lambda value: f"{value} days")
 company = st.sidebar.text_input("Company contains")
 title = st.sidebar.text_input("Title / role contains")
 location = st.sidebar.text_input("Location contains")
@@ -645,14 +728,12 @@ if not tiers or not role_statuses or not app_statuses:
     st.stop()
 
 job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
-overview_tab, rollout_tab, jobs_tab, segments_tab, review_tab, breakdown_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
+overview_tab, jobs_tab, rollout_tab, review_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
     [
         "Overview",
+        "New jobs & segments",
         "Crawl rollout",
-        "New jobs",
-        "Daily segments",
         "Title review",
-        "Breakdowns",
         "Company view",
         "Company tiers",
         "Application queue",
@@ -717,6 +798,30 @@ with rollout_tab:
             "- **generic_html_needs_resolution**：只有普通公司招聘页，不是标准 ATS API；需要泛化解析或重新定位到真正 ATS 页面。\n"
             "- **not_searched_yet**：还没有走官网搜索，通常等 Tavily credits 或分批策略。"
         )
+    with st.expander("SQL behind crawl completion / rollout"):
+        st.code(
+            """
+WITH site_rollup AS (
+    SELECT consolidation_key,
+           BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+           BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+           BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed
+    FROM jobpush.career_sites
+    GROUP BY consolidation_key
+)
+SELECT target.priority_tier,
+       COUNT(*) AS companies,
+       COUNT(*) FILTER (WHERE site_rollup.has_enabled_site) AS enabled_site_companies,
+       COUNT(*) FILTER (WHERE site_rollup.has_success) AS succeeded_companies,
+       COUNT(*) FILTER (WHERE site_rollup.has_failed) AS failed_companies
+FROM jobpush.crawl_targets target
+LEFT JOIN site_rollup USING (consolidation_key)
+WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+GROUP BY target.priority_tier
+ORDER BY target.priority_tier;
+            """.strip(),
+            language="sql",
+        )
 
     left, right = st.columns([1, 1])
     with left:
@@ -755,24 +860,16 @@ with rollout_tab:
 
 with jobs_tab:
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
-    st.caption("Default view is recommended target jobs only. Add review/non-target in the sidebar when auditing the classifier.")
-    st.download_button(
-        "Download filtered jobs (CSV)", csv_bytes(job_frame),
-        file_name=f"jobpush_jobs_{chicago_today}.csv", mime="text/csv",
-    )
-    dataframe(job_frame)
-
-with segments_tab:
-    st.subheader("Daily job segments")
     st.caption(
-        "Use this tab to avoid reading thousands of jobs one by one. It groups the current filtered view by track, role family, "
-        "location, seniority, and employment type."
+        "This is the daily application view: use sidebar filters first, then narrow by track / role / location below. "
+        "Rows are sorted by newest first."
     )
     if job_frame.empty:
         st.info("No jobs match the current filters.")
     else:
         segmented = job_frame.copy()
         segmented["first_seen_date"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
+        segmented["first_seen_ct"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
         segmented["track_label"] = segmented["role_stack"].map(TRACK_LABELS).fillna(segmented["role_stack"].fillna("Unlabeled"))
         segmented["role_family_label"] = segmented["role_family"].map(ROLE_FAMILY_LABELS).fillna(segmented["role_family"].fillna("Other"))
         today_segment = segmented[segmented["first_seen_date"] == chicago_today]
@@ -785,7 +882,29 @@ with segments_tab:
         segment_metrics[4].metric("Product Manager", f"{int((segmented['role_family'] == 'product_manager').sum()):,}")
         segment_metrics[5].metric("Systems Eng.", f"{int((segmented['role_family'] == 'systems_engineering').sum()):,}")
 
-        segment_dimension_label = st.selectbox("Daily chart dimension", list(SEGMENT_DIMENSIONS.keys()), index=1)
+        filter_left, filter_mid, filter_right = st.columns(3)
+        selected_tracks = filter_left.multiselect(
+            "Track",
+            sorted(segmented["track_label"].dropna().unique()),
+            default=sorted(segmented["track_label"].dropna().unique()),
+        )
+        selected_role_families = filter_mid.multiselect(
+            "Role family",
+            sorted(segmented["role_family_label"].dropna().unique()),
+            default=sorted(segmented["role_family_label"].dropna().unique()),
+        )
+        selected_employment = filter_right.multiselect(
+            "Intern / full-time",
+            sorted(segmented["employment_bucket"].dropna().unique()),
+            default=sorted(segmented["employment_bucket"].dropna().unique()),
+        )
+        filtered_jobs = segmented[
+            segmented["track_label"].isin(selected_tracks)
+            & segmented["role_family_label"].isin(selected_role_families)
+            & segmented["employment_bucket"].isin(selected_employment)
+        ].sort_values("first_seen_at", ascending=False)
+
+        segment_dimension_label = st.selectbox("Trend chart dimension", list(SEGMENT_DIMENSIONS.keys()), index=1)
         segment_dimension = SEGMENT_DIMENSIONS[segment_dimension_label]
         daily_pivot = (
             segmented.groupby(["first_seen_date", segment_dimension])
@@ -799,7 +918,7 @@ with segments_tab:
 
         left, right = st.columns(2)
         with left:
-            st.subheader("Today's role families")
+            st.subheader("Today by track / role")
             today_roles = (
                 today_segment.groupby(["track_label", "role_family_label"], dropna=False)
                 .size()
@@ -808,7 +927,7 @@ with segments_tab:
             )
             st.dataframe(today_roles, hide_index=True, use_container_width=True, height=330)
         with right:
-            st.subheader("Today's location / employment")
+            st.subheader("Today by location / employment")
             today_market = (
                 today_segment.groupby(["location_bucket", "employment_bucket", "seniority_bucket"], dropna=False)
                 .size()
@@ -846,6 +965,41 @@ with segments_tab:
             .sort_values(["track_label", "jobs"], ascending=[True, False])
         )
         st.dataframe(track_summary, hide_index=True, use_container_width=True, height=420)
+
+        st.subheader("Filtered job list · newest first")
+        display_columns = [
+            "first_seen_ct", "canonical_name", "priority_tier", "title", "location",
+            "track_label", "role_family_label", "employment_bucket", "seniority_bucket",
+            "application_status", "job_url",
+        ]
+        st.download_button(
+            "Download filtered jobs (CSV)",
+            csv_bytes(filtered_jobs),
+            file_name=f"jobpush_jobs_filtered_{chicago_today}.csv",
+            mime="text/csv",
+        )
+        st.dataframe(
+            filtered_jobs[display_columns],
+            hide_index=True,
+            use_container_width=True,
+            height=620,
+            column_config={"job_url": st.column_config.LinkColumn("Apply link", display_text="Open ↗")},
+        )
+
+        with st.expander("SQL behind this job view"):
+            st.code(
+                """
+SELECT *
+FROM jobpush.dashboard_jobs
+WHERE first_seen_at >= now() - make_interval(days => :days)
+  AND priority_tier = ANY(:tiers)
+  AND role_status = ANY(:role_statuses)
+  AND application_status = ANY(:app_statuses)
+ORDER BY first_seen_at DESC, canonical_name, title
+LIMIT 5000;
+                """.strip(),
+                language="sql",
+            )
         st.download_button(
             "Download segmented jobs (CSV)",
             csv_bytes(segmented),
@@ -870,39 +1024,6 @@ with review_tab:
     )
     dataframe(review_frame, height=610)
 
-with breakdown_tab:
-    st.subheader("Role, company, and location breakdowns")
-    if job_frame.empty:
-        st.info("No jobs match the current filters.")
-    else:
-        left, right = st.columns(2)
-        with left:
-            st.caption("By role stack")
-            st.bar_chart(job_frame.groupby("role_stack").size().sort_values(ascending=False), height=260)
-            st.caption("By canonical role")
-            role_counts = (
-                job_frame.assign(canonical_role=job_frame["canonical_role"].fillna("Unlabeled"))
-                .groupby("canonical_role")
-                .size()
-                .sort_values(ascending=False)
-                .head(30)
-            )
-            st.dataframe(role_counts.reset_index(name="jobs"), hide_index=True, use_container_width=True, height=360)
-        with right:
-            st.caption("By company")
-            company_counts = job_frame.groupby(["priority_tier", "canonical_name"]).size().reset_index(name="jobs")
-            company_counts = company_counts.sort_values(["jobs", "canonical_name"], ascending=[False, True]).head(50)
-            st.dataframe(company_counts, hide_index=True, use_container_width=True, height=300)
-            st.caption("By location text")
-            location_counts = (
-                job_frame.assign(location=job_frame["location"].fillna("Location not listed"))
-                .groupby("location")
-                .size()
-                .sort_values(ascending=False)
-                .head(50)
-            )
-            st.dataframe(location_counts.reset_index(name="jobs"), hide_index=True, use_container_width=True, height=320)
-
 with company_tab:
     st.subheader("Company job list")
     lookup = st.text_input("Open one company", value=company.strip(), placeholder="e.g. Pfizer, Google, StackAdapt")
@@ -921,7 +1042,7 @@ with company_tab:
 
 with target_tab:
     st.subheader("Company priority tables")
-    st.caption("Select P tiers and download the corresponding company-level scoring table.")
+    st.caption("This is where the 4,649 P0+P1 company universe lives. Select P tiers and download the company-level scoring table.")
     target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2"], default=["P0", "P1"], key="company-target-tiers"))
     if not target_tiers:
         st.info("Select at least one P tier.")

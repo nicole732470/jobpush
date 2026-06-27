@@ -9,8 +9,9 @@ LCA/SOC workbook. JobPush therefore uses two layers:
    `jobpush.job_title_review_queue` for human review.
 3. Explicit personal profile rules are applied before the review queue. The
    `profile-title-rules-v2` trigger classifies obvious target tracks and avoid
-   tracks for both existing and newly crawled titles. Exact manual labels always
-   win.
+   tracks for both existing and newly crawled titles. Exact manual labels
+   usually win, except when a newer hard profile exclusion is intentionally
+   applied to avoid re-promoting a known out-of-scope title family.
 4. Remaining ambiguous titles can be sent to the audited AI classifier. High
    confidence AI decisions are applied only when the title is still `review` and
    is not a manual label.
@@ -39,22 +40,27 @@ SELECT jobpush.apply_manual_job_title_label(
 );
 ```
 
-Manual decisions use `rule_version = 'manual-v1'`, override automatic rules,
-and append an immutable row to `job_title_label_history`.
+Manual decisions use a `manual-*` rule version and append an immutable row to
+`job_title_label_history`. The 2026-06-27 import uses
+`manual-title-review-2026-06-27`; target rows that conflict with hard profile
+exclusions, such as senior SDE-track titles, are kept non-target.
 
-## Current production snapshot (2026-06-24)
+## Current production snapshot
 
 - Active profile-rule version: `profile-title-rules-v2`, backed by
   `jobpush.profile_title_rule_terms` instead of hard-coded SQL-only regexes.
-- Automatically classified target titles: 1,689 via v2 plus 41 exact SOC labels.
-- Automatically classified non-target titles: 6,889 via v2 plus prior/manual/SOC
-  labels.
-- Manual title labels imported: 669 total (`target` 199, `non_target` 470)
-- Active US postings after v2 republish: `target` 1,878, `review` 5,944,
-  `non_target` 7,613.
-- First labeling tranche (`HIGH`): 171 titles
-- Second editable tranche: 500 titles, generated after publishing the hard
-  exclusions and ordered by active posting/company frequency.
+- 2026-06-27 Nicole workbook import: 95 reviewed titles were applied
+  (`target` 7 after hard-rule overrides, `non_target` 88).
+- 2026-06-27 profile expansion added hard non-target families for healthcare /
+  clinical roles, legal roles, teaching / education roles, and skilled-trade
+  roles. This swept 4,139 existing same-family titles out of review.
+- 2026-06-27 local supervised title model retrain used 764 manual labels and
+  applied 455 additional high-confidence non-target decisions. It did not apply
+  target predictions because the current target precision threshold was not met.
+- Active US postings after the 2026-06-27 import and local ML pass:
+  `target` roughly 3.9k, with review volume materially reduced by the new
+  avoid-track rules.
+- The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
 The private dashboard can also export a fresh review batch without Codex.
@@ -79,8 +85,9 @@ all logic in one SQL function:
   and selected marketing analyst/specialist titles -> target;
 - HR/recruiting, accounting/tax/audit, retail/in-store/Xfinity sales,
   warehouse, manufacturing-floor roles, hardware, mechanical/electrical,
-  embedded/firmware/chip/CAD/EDA, ML-model roles, and over-senior titles ->
-  non-target;
+  embedded/firmware/chip/CAD/EDA, ML-model roles, healthcare/clinical roles,
+  legal roles, teaching/education roles, skilled-trade roles, and over-senior
+  titles -> non-target;
 - CJK/Korean language signals are marked non-target and any active postings
   with those title signals are excluded from the US business surface.
 
