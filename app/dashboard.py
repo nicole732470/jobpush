@@ -273,16 +273,16 @@ def current_failure_reasons() -> pd.DataFrame:
                    site.site_url,
                    site.last_error,
                    CASE
-                       WHEN site.last_error ILIKE '%404%' THEN 'wrong_or_stale_ats_url'
-                       WHEN site.last_error ILIKE '%422%' OR site.last_error ILIKE '%workday%' THEN 'adapter_payload_or_endpoint'
-                       WHEN site.last_error ILIKE '%empty title%' OR site.last_error ILIKE '%missing title%' THEN 'empty_or_bad_payload'
+                       WHEN site.last_error ILIKE '%%404%%' THEN 'wrong_or_stale_ats_url'
+                       WHEN site.last_error ILIKE '%%422%%' OR site.last_error ILIKE '%%workday%%' THEN 'adapter_payload_or_endpoint'
+                       WHEN site.last_error ILIKE '%%empty title%%' OR site.last_error ILIKE '%%missing title%%' THEN 'empty_or_bad_payload'
                        WHEN site.last_error IS NULL OR site.last_error = '' THEN 'unknown_failed_state'
                        ELSE 'other_adapter_or_site_error'
                    END AS failure_reason,
                    CASE
-                       WHEN site.last_error ILIKE '%404%' THEN 'Rediscover career URL / ATS slug'
-                       WHEN site.last_error ILIKE '%422%' OR site.last_error ILIKE '%workday%' THEN 'Patch adapter request or endpoint handling'
-                       WHEN site.last_error ILIKE '%empty title%' OR site.last_error ILIKE '%missing title%' THEN 'Skip malformed jobs and retry'
+                       WHEN site.last_error ILIKE '%%404%%' THEN 'Rediscover career URL / ATS slug'
+                       WHEN site.last_error ILIKE '%%422%%' OR site.last_error ILIKE '%%workday%%' THEN 'Patch adapter request or endpoint handling'
+                       WHEN site.last_error ILIKE '%%empty title%%' OR site.last_error ILIKE '%%missing title%%' THEN 'Skip malformed jobs and retry'
                        ELSE 'Inspect recent run log and group with similar failures'
                    END AS next_action
             FROM jobpush.career_sites site
