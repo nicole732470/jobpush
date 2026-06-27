@@ -41,25 +41,30 @@ SELECT jobpush.apply_manual_job_title_label(
 ```
 
 Manual decisions use a `manual-*` rule version and append an immutable row to
-`job_title_label_history`. The 2026-06-27 import uses
-`manual-title-review-2026-06-27`; target rows that conflict with hard profile
-exclusions, such as senior SDE-track titles, are kept non-target.
+`job_title_label_history`. The 2026-06-27 round-1 import uses
+`manual-title-review-2026-06-27`; the round-2 import uses
+`manual-title-review-round2-2026-06-27`. Target rows that conflict with hard
+profile exclusions, such as senior SDE-track titles, are kept non-target.
 
 ## Current production snapshot
 
 - Active profile-rule version: `profile-title-rules-v2`, backed by
   `jobpush.profile_title_rule_terms` instead of hard-coded SQL-only regexes.
-- 2026-06-27 Nicole workbook import: 95 reviewed titles were applied
+- 2026-06-27 Nicole round-1 workbook import: 95 reviewed titles were applied
   (`target` 7 after hard-rule overrides, `non_target` 88).
+- 2026-06-27 Nicole round-2 workbook import:
+  `target` 20 and `non_target` 62 exact normalized-title labels were applied.
 - 2026-06-27 profile expansion added hard non-target families for healthcare /
-  clinical roles, legal roles, teaching / education roles, and skilled-trade
-  roles. This swept 4,139 existing same-family titles out of review.
-- 2026-06-27 local supervised title model retrain used 764 manual labels and
-  applied 455 additional high-confidence non-target decisions. It did not apply
+  clinical roles, legal roles, teaching / education roles, skilled-trade roles,
+  buyer / procurement roles, restaurant / food-service roles, plumbing trades,
+  mental-health / therapy roles, lab / specimen / clinical-support roles,
+  retail stylist / beauty / selling-floor roles, and non-technical sales roles.
+  This removes repeated obvious misses from future review batches.
+- 2026-06-27 local supervised title model retrain used 846 manual labels and
+  applied 156 additional high-confidence non-target decisions. It did not apply
   target predictions because the current target precision threshold was not met.
-- Active US postings after the 2026-06-27 import and local ML pass:
-  `target` roughly 3.9k, with review volume materially reduced by the new
-  avoid-track rules.
+- Active US postings after the 2026-06-27 round-2 import and local ML pass:
+  roughly `target` 4.0k, `review` 15.3k, and `non_target` 20.7k.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
@@ -84,10 +89,12 @@ all logic in one SQL function:
 - applied AI / GenAI / LLM application, customer success / technical account,
   and selected marketing analyst/specialist titles -> target;
 - HR/recruiting, accounting/tax/audit, retail/in-store/Xfinity sales,
-  warehouse, manufacturing-floor roles, hardware, mechanical/electrical,
-  embedded/firmware/chip/CAD/EDA, ML-model roles, healthcare/clinical roles,
-  legal roles, teaching/education roles, skilled-trade roles, and over-senior
-  titles -> non-target;
+  warehouse, manufacturing-floor roles, restaurant / food-service roles,
+  buyer / procurement roles, plumbing trades, therapy / psychiatry /
+  mental-health roles, lab / specimen / clinical-support roles, hardware,
+  mechanical/electrical, embedded/firmware/chip/CAD/EDA, ML-model roles,
+  healthcare/clinical roles, legal roles, teaching/education roles,
+  skilled-trade roles, and over-senior titles -> non-target;
 - CJK/Korean language signals are marked non-target and any active postings
   with those title signals are excluded from the US business surface.
 

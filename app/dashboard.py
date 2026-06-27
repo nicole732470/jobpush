@@ -16,7 +16,7 @@ st.markdown(
       .stApp {background: linear-gradient(180deg,#fbfcff 0%,#f6f8fb 42%,#f7f7f4 100%);}
       .block-container {padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1500px;}
       [data-testid="stMetric"] {background:rgba(255,255,255,.88);border:1px solid #e4e7ec;
-        border-radius:18px;padding:15px 17px;box-shadow:0 8px 24px rgba(16,24,40,.045);}
+        border-radius:18px;padding:15px 17px;box-shadow:0 8px 24px rgba(16,24,40,.045); min-height:116px;}
       h1 {letter-spacing:-0.045em; margin-bottom:.15rem;}
       h2, h3 {letter-spacing:-0.025em;}
       .quiet {color:#667085;font-size:.92rem;}
@@ -480,9 +480,12 @@ def jobs(
                        OR normalized_title LIKE '%%information%%system%%'
                    ) THEN 'stack_2_software_systems'
                    WHEN role_status = 'target' THEN 'stack_3_other_target'
-                   ELSE role_status
+                   WHEN role_status = 'review' THEN 'needs_review'
+                   ELSE 'excluded_non_target'
                END AS role_stack,
                CASE
+                   WHEN role_status = 'non_target' THEN 'excluded_non_target'
+                   WHEN role_status = 'review' THEN 'needs_review'
                    WHEN normalized_title LIKE '%%intern%%'
                         OR normalized_title LIKE '%%internship%%'
                         OR normalized_title LIKE '%%co op%%'
@@ -635,8 +638,10 @@ TRACK_LABELS = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
     "stack_3_other_target": "Track 3 · Other target",
-    "review": "Review",
-    "non_target": "Non-target",
+    "needs_review": "Needs review",
+    "excluded_non_target": "Excluded / non-target",
+    "review": "Needs review",
+    "non_target": "Excluded / non-target",
     "unlabeled": "Unlabeled",
 }
 
@@ -654,23 +659,25 @@ ROLE_FAMILY_LABELS = {
     "strategy_operations": "Strategy / Operations",
     "marketing": "Marketing",
     "sales": "Sales",
+    "needs_review": "Needs review",
+    "excluded_non_target": "Excluded / non-target",
     "other": "Other",
 }
 
 TRACK_OPTIONS = [
-    "Stack 1 · business/product/data",
-    "Stack 2 · software/systems",
-    "Stack 3 · other target",
-    "review",
-    "non_target",
+    "Track 1 · Business / Product / Data",
+    "Track 2 · Software / Systems",
+    "Track 3 · Other target",
+    "Needs review",
+    "Excluded / non-target",
 ]
 
 TRACK_VALUE_TO_LABEL = {
-    "stack_1_business_product_data": "Stack 1 · business/product/data",
-    "stack_2_software_systems": "Stack 2 · software/systems",
-    "stack_3_other_target": "Stack 3 · other target",
-    "review": "review",
-    "non_target": "non_target",
+    "stack_1_business_product_data": "Track 1 · Business / Product / Data",
+    "stack_2_software_systems": "Track 2 · Software / Systems",
+    "stack_3_other_target": "Track 3 · Other target",
+    "needs_review": "Needs review",
+    "excluded_non_target": "Excluded / non-target",
 }
 TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.items()}
 
@@ -688,6 +695,8 @@ ROLE_FAMILY_OPTIONS = [
     "Strategy / Operations",
     "Marketing",
     "Sales",
+    "Needs review",
+    "Excluded / non-target",
     "Other",
 ]
 
@@ -754,6 +763,9 @@ if not completion.empty:
         st.caption(f"Latest P0/P1 crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
 
 st.sidebar.header("Job filters")
+st.sidebar.caption(
+    "只控制“Jobs to apply / Company lookup”。爬虫覆盖率、失败原因、系统日志这些运营 tab 使用自己的统计口径。"
+)
 date_window = st.sidebar.date_input(
     "First seen date range",
     value=(chicago_today - timedelta(days=6), chicago_today),
@@ -774,8 +786,16 @@ company = st.sidebar.text_input("Company contains")
 title = st.sidebar.text_input("Title / role contains")
 location = st.sidebar.text_input("Location contains")
 priority_choice = st.sidebar.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "All P tiers"])
-role_choice = st.sidebar.selectbox("Role decision", ["target only", "target + review", "review only", "all decisions"])
-app_choice = st.sidebar.selectbox("Application status", ["open items", "new only", "saved/apply next", "all statuses"])
+role_choice = st.sidebar.selectbox(
+    "Role decision",
+    ["target only", "target + needs review", "needs review only", "all decisions"],
+    help="target = 推荐申请；needs review = 规则/模型还不够确定，用来抽样优化；excluded/non-target = 不推荐申请。",
+)
+app_choice = st.sidebar.selectbox(
+    "My application status",
+    ["open items", "new only", "saved/apply next", "all statuses"],
+    help="这是你的个人投递状态，不是职位分类。new=还没处理，saved=收藏，apply_next=下一批投，applied=已投，dismissed=不投。",
+)
 tiers = {
     "P0 + P1": ("P0", "P1"),
     "P0 only": ("P0",),
@@ -785,8 +805,8 @@ tiers = {
 }[priority_choice]
 role_statuses = {
     "target only": ("target",),
-    "target + review": ("target", "review"),
-    "review only": ("review",),
+    "target + needs review": ("target", "review"),
+    "needs review only": ("review",),
     "all decisions": ("target", "review", "non_target"),
 }[role_choice]
 app_statuses = {
@@ -805,14 +825,14 @@ if not job_frame.empty:
     job_frame = job_frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
 overview_tab, jobs_tab, rollout_tab, review_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
     [
-        "Overview",
-        "New jobs & segments",
-        "Crawl rollout",
+        "Home",
+        "Jobs to apply",
+        "Crawl monitor",
         "Title review",
-        "Company view",
-        "Company tiers",
-        "Application queue",
-        "Crawl health",
+        "Company lookup",
+        "Company priority",
+        "Application status",
+        "System logs",
         "Coverage",
     ]
 )
@@ -820,7 +840,7 @@ overview_tab, jobs_tab, rollout_tab, review_tab, company_tab, target_tab, apply_
 with overview_tab:
     left, right = st.columns([1.35, 1])
     with left:
-        st.subheader("30-day activity")
+        st.subheader("30-day job discovery")
         chart = activity.sort_values("activity_date").set_index("activity_date")
         st.line_chart(chart[["new_target_jobs", "new_review_jobs", "closed_jobs"]], height=330)
     with right:
@@ -839,7 +859,7 @@ with overview_tab:
             st.success("No active crawler alerts.")
         else:
             st.dataframe(alerts, hide_index=True, use_container_width=True, height=330)
-    st.subheader("Today's crawl progress by tier")
+    st.subheader("Today’s crawl progress by tier")
     progress_today = today_crawl_progress()
     if progress_today.empty:
         st.info("No crawl attempts have been recorded today yet.")
@@ -936,8 +956,8 @@ ORDER BY target.priority_tier;
 with jobs_tab:
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
     st.caption(
-        "This is the daily application view: use sidebar filters first, then narrow by track / role / location below. "
-        "Rows are sorted by newest first."
+        "核心用途：看选定日期范围内新发现/仍 active 的岗位，然后点 apply link。默认只显示 target；"
+        "只有在抽查分类器时才把 Needs review 加进来。"
     )
     if job_frame.empty:
         st.info("No jobs match the current filters.")
@@ -947,11 +967,14 @@ with jobs_tab:
         segmented["first_seen_ct"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
         segmented["track_label"] = segmented["role_stack"].map(TRACK_LABELS).fillna(segmented["role_stack"].fillna("Unlabeled"))
         segmented["role_family_label"] = segmented["role_family"].map(ROLE_FAMILY_LABELS).fillna(segmented["role_family"].fillna("Other"))
-        today_segment = segmented[segmented["first_seen_date"] == chicago_today]
+        selected_period_segment = segmented[
+            (segmented["first_seen_date"] >= start_date) & (segmented["first_seen_date"] <= end_date)
+        ]
+        period_label = f"{start_date:%Y-%m-%d} to {end_date:%Y-%m-%d}" if start_date != end_date else f"{start_date:%Y-%m-%d}"
 
         segment_metrics = st.columns(6)
         segment_metrics[0].metric("Jobs in view", f"{len(segmented):,}")
-        segment_metrics[1].metric("Today in view", f"{len(today_segment):,}")
+        segment_metrics[1].metric("Selected period", f"{len(selected_period_segment):,}")
         segment_metrics[2].metric("Internship", f"{int((segmented['employment_bucket'] == 'internship').sum()):,}")
         segment_metrics[3].metric("Chicago / IL", f"{int((segmented['location_bucket'] == 'chicago_or_illinois').sum()):,}")
         segment_metrics[4].metric("Product Manager", f"{int((segmented['role_family'] == 'product_manager').sum()):,}")
@@ -979,7 +1002,7 @@ with jobs_tab:
             & segmented["employment_bucket"].isin(selected_employment)
         ].sort_values("first_seen_at", ascending=False)
 
-        segment_dimension_label = st.selectbox("Daily summary by", list(SEGMENT_DIMENSIONS.keys()), index=1)
+        segment_dimension_label = st.selectbox("Summary by", list(SEGMENT_DIMENSIONS.keys()), index=1)
         segment_dimension = SEGMENT_DIMENSIONS[segment_dimension_label]
         daily_summary = (
             filtered_jobs.groupby([segment_dimension, "first_seen_date"], dropna=False)
@@ -1003,27 +1026,27 @@ with jobs_tab:
 
         left, right = st.columns(2)
         with left:
-            st.subheader("Today by track / role")
-            today_roles = (
-                today_segment.groupby(["track_label", "role_family_label"], dropna=False)
+            st.subheader(f"{period_label} by track / role")
+            period_roles = (
+                selected_period_segment.groupby(["track_label", "role_family_label"], dropna=False)
                 .size()
                 .reset_index(name="jobs")
                 .sort_values(["jobs", "track_label", "role_family_label"], ascending=[False, True, True])
             )
-            st.dataframe(today_roles, hide_index=True, use_container_width=True, height=330)
+            st.dataframe(period_roles, hide_index=True, use_container_width=True, height=330)
         with right:
-            st.subheader("Today by location / employment")
-            today_market = (
-                today_segment.groupby(["location_bucket", "employment_bucket", "seniority_bucket"], dropna=False)
+            st.subheader(f"{period_label} by location / employment")
+            period_market = (
+                selected_period_segment.groupby(["location_bucket", "employment_bucket", "seniority_bucket"], dropna=False)
                 .size()
                 .reset_index(name="jobs")
                 .sort_values(["jobs", "location_bucket"], ascending=[False, True])
             )
-            st.dataframe(today_market, hide_index=True, use_container_width=True, height=330)
+            st.dataframe(period_market, hide_index=True, use_container_width=True, height=330)
 
-        st.subheader("Today's Track 1/2/3 summary")
-        today_track_summary = (
-            today_segment.groupby("track_label", dropna=False)
+        st.subheader(f"{period_label} Track 1/2/3 summary")
+        period_track_summary = (
+            selected_period_segment.groupby("track_label", dropna=False)
             .agg(
                 jobs=("external_job_id", "count"),
                 companies=("canonical_name", "nunique"),
@@ -1034,9 +1057,9 @@ with jobs_tab:
             .reset_index()
             .sort_values("jobs", ascending=False)
         )
-        st.dataframe(today_track_summary, hide_index=True, use_container_width=True, height=220)
+        st.dataframe(period_track_summary, hide_index=True, use_container_width=True, height=220)
 
-        st.subheader("Track × role family summary")
+        st.subheader("All matching jobs · track × role family summary")
         track_summary = (
             segmented.groupby(["track_label", "role_family_label"], dropna=False)
             .agg(
@@ -1099,8 +1122,11 @@ LIMIT 5000;
         )
 
 with review_tab:
-    st.subheader("Detailed title review queue")
-    st.caption("Only unresolved normalized titles appear here. Exact manual labels and published hard exclusions are already removed.")
+    st.subheader("Title samples for improving the classifier")
+    st.caption(
+        "这里只是抽样训练/修正规则用，不是每天申请流程。已被人工标注、YAML/profile hard rules、"
+        "local ML 高置信度处理过的 title 会从这里移除。"
+    )
     review_limit = st.select_slider("Review batch size", options=[100, 250, 500, 1000, 2000], value=500)
     review_frame = title_review_queue(review_limit)
     st.download_button(
