@@ -111,6 +111,12 @@ Confidence gates:
 - non-target applies at confidence ≥ 0.84;
 - lower-confidence output remains `review`.
 
+2026-06-27 profile update: Senior/Sr SDE-track titles are non-target even when
+the base role family would otherwise be target. Examples include Senior
+Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior Full-Stack
+Developer, and Senior DevOps/Cloud/Security Engineer. The exclusion is
+conditional; Senior Product Manager is not excluded by this SDE-specific rule.
+
 The AI table records model, prompt version, profile version, input hash,
 rationale, and raw JSON response for debugging.
 

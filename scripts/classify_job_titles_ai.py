@@ -21,8 +21,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
-PROMPT_VERSION = "jobpush-title-ai-v1"
-PROFILE_VERSION_DEFAULT = "2026-06-23-draft-1"
+PROMPT_VERSION = "jobpush-title-ai-v2"
+PROFILE_VERSION_DEFAULT = "2026-06-27-draft-2"
 
 SYSTEM_PROMPT = """You classify US career-site job titles for Nicole's job search.
 
@@ -35,11 +35,12 @@ Target tracks:
 - Solutions engineer / solution architect / systems engineer when software/product/customer implementation oriented.
 - Applied AI / LLM application / AI developer / forward deployed engineer / agentic AI builder.
 - Customer success / technical account roles.
-- Software, full-stack, backend, frontend, DevOps, cloud, data engineering, QA/test, cybersecurity.
+- Non-senior software, full-stack, backend, frontend, DevOps, cloud, data engineering, QA/test, cybersecurity.
 - Data analyst, business analyst, BI analyst/engineer, consultant, marketing analyst/specialist.
 
 Avoid / non-target:
 - Too senior: lead, staff, principal, director, executive director, VP, head, chief, distinguished, fellow.
+- Senior/Sr SDE-track roles are non_target: Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior Full-Stack Developer, Senior DevOps/Cloud/Security Engineer, etc.
 - ML model development/research, applied scientist, research scientist/engineer.
 - Mechanical, electrical, CAD/EDA, embedded, firmware, RF, antenna, circuit, ASIC, RTL, semiconductor, chip, CPU/GPU/SoC, hardware roles.
 - HR, recruiter, talent acquisition, people operations.
@@ -49,7 +50,7 @@ Avoid / non-target:
 - Non-English/non-US obvious titles, especially Chinese/Japanese/Korean job titles.
 
 Seniority nuance:
-- Senior is allowed.
+- Senior is allowed outside the SDE/software-engineering track when there is no other hard avoid signal.
 - Manager is not automatically senior if it means Product Manager, Program Manager, Account Manager, Customer Success Manager, etc.
 - If a title has both a target family and a hard avoid/seniority/domain signal, choose non_target.
 

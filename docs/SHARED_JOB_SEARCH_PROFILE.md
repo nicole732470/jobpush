@@ -34,11 +34,16 @@ to all users.
 
 ## Current status
 
-Profile version `2026-06-23-draft-1` adds:
+Profile version `2026-06-27-draft-2` adds:
 
 - Internship/entry/early-career preference with Senior as the maximum level.
 - Lead, Staff, Principal, Director, Executive Director, Vice President, Head,
   Chief, Distinguished, and Fellow as seniority exclusions.
+- Senior/Sr titles inside the SDE/software-engineering track are now excluded:
+  Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior
+  Full-Stack Developer, Senior DevOps/Cloud/Security Engineer, etc. This rule is
+  conditional and does not automatically exclude Senior Product Manager or other
+  non-SDE senior titles.
 - Machine-learning model work, Mechanical, Electrical, CAD/EDA, Embedded,
   firmware, RF, circuit, RTL, physical-design, and hardware domains as explicit
   exclusions.
