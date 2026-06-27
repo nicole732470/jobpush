@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -657,6 +657,44 @@ ROLE_FAMILY_LABELS = {
     "other": "Other",
 }
 
+TRACK_OPTIONS = [
+    "Stack 1 · business/product/data",
+    "Stack 2 · software/systems",
+    "Stack 3 · other target",
+    "review",
+    "non_target",
+]
+
+TRACK_VALUE_TO_LABEL = {
+    "stack_1_business_product_data": "Stack 1 · business/product/data",
+    "stack_2_software_systems": "Stack 2 · software/systems",
+    "stack_3_other_target": "Stack 3 · other target",
+    "review": "review",
+    "non_target": "non_target",
+}
+TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.items()}
+
+ROLE_FAMILY_OPTIONS = [
+    "Internship",
+    "Forward Deployed Engineer",
+    "Product Manager",
+    "Program Manager",
+    "Project Manager",
+    "Systems Engineering",
+    "Software Engineering",
+    "Data Science / ML",
+    "Data Analytics / BI",
+    "Business Analyst",
+    "Strategy / Operations",
+    "Marketing",
+    "Sales",
+    "Other",
+]
+
+EMPLOYMENT_BUCKET_OPTIONS = ["internship", "entry_level", "full_time_or_unknown", "full_time", "part_time", "contract"]
+LOCATION_BUCKET_OPTIONS = ["chicago_or_illinois", "remote", "other_us", "location_not_listed"]
+SENIORITY_BUCKET_OPTIONS = ["internship", "entry_level", "regular_full_time", "senior_or_leadership"]
+
 SEGMENT_DIMENSIONS = {
     "Track 1/2/3": "track_label",
     "Role family": "role_family_label",
@@ -716,18 +754,55 @@ if not completion.empty:
         st.caption(f"Latest P0/P1 crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
 
 st.sidebar.header("Job filters")
-days = st.sidebar.select_slider("First seen within", options=[1, 3, 7, 14, 30, 90], value=1, format_func=lambda value: f"{value} days")
+date_window = st.sidebar.date_input(
+    "First seen date range",
+    value=(chicago_today - timedelta(days=6), chicago_today),
+    min_value=chicago_today - timedelta(days=90),
+    max_value=chicago_today,
+)
+if isinstance(date_window, tuple):
+    start_date = date_window[0]
+    end_date = date_window[1] if len(date_window) > 1 else date_window[0]
+else:
+    start_date = date_window
+    end_date = date_window
+if start_date > end_date:
+    st.sidebar.error("Start date must be before end date.")
+    st.stop()
+days = max(1, min(90, (chicago_today - start_date).days + 1))
 company = st.sidebar.text_input("Company contains")
 title = st.sidebar.text_input("Title / role contains")
 location = st.sidebar.text_input("Location contains")
-tiers = tuple(st.sidebar.multiselect("Priority tier", ["P0", "P1", "P2"], default=["P0", "P1"]))
-role_statuses = tuple(st.sidebar.multiselect("Role decision", ["target", "review", "non_target"], default=["target"]))
-app_statuses = tuple(st.sidebar.multiselect("Application status", ["new", "saved", "apply_next", "applied", "dismissed"], default=["new", "saved", "apply_next"]))
+priority_choice = st.sidebar.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "All P tiers"])
+role_choice = st.sidebar.selectbox("Role decision", ["target only", "target + review", "review only", "all decisions"])
+app_choice = st.sidebar.selectbox("Application status", ["open items", "new only", "saved/apply next", "all statuses"])
+tiers = {
+    "P0 + P1": ("P0", "P1"),
+    "P0 only": ("P0",),
+    "P1 only": ("P1",),
+    "P2 only": ("P2",),
+    "All P tiers": ("P0", "P1", "P2"),
+}[priority_choice]
+role_statuses = {
+    "target only": ("target",),
+    "target + review": ("target", "review"),
+    "review only": ("review",),
+    "all decisions": ("target", "review", "non_target"),
+}[role_choice]
+app_statuses = {
+    "open items": ("new", "saved", "apply_next"),
+    "new only": ("new",),
+    "saved/apply next": ("saved", "apply_next"),
+    "all statuses": ("new", "saved", "apply_next", "applied", "dismissed"),
+}[app_choice]
 if not tiers or not role_statuses or not app_statuses:
     st.warning("Select at least one priority tier, role decision, and application status.")
     st.stop()
 
 job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
+if not job_frame.empty:
+    first_seen_dates = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
+    job_frame = job_frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
 overview_tab, jobs_tab, rollout_tab, review_tab, company_tab, target_tab, apply_tab, health_tab, coverage_tab = st.tabs(
     [
         "Overview",
@@ -883,38 +958,48 @@ with jobs_tab:
         segment_metrics[5].metric("Systems Eng.", f"{int((segmented['role_family'] == 'systems_engineering').sum()):,}")
 
         filter_left, filter_mid, filter_right = st.columns(3)
-        selected_tracks = filter_left.multiselect(
+        track_choice = filter_left.selectbox(
             "Track",
-            sorted(segmented["track_label"].dropna().unique()),
-            default=sorted(segmented["track_label"].dropna().unique()),
+            ["All tracks"] + TRACK_OPTIONS,
         )
-        selected_role_families = filter_mid.multiselect(
+        role_family_choice = filter_mid.selectbox(
             "Role family",
-            sorted(segmented["role_family_label"].dropna().unique()),
-            default=sorted(segmented["role_family_label"].dropna().unique()),
+            ["All role families"] + ROLE_FAMILY_OPTIONS,
         )
-        selected_employment = filter_right.multiselect(
+        employment_choice = filter_right.selectbox(
             "Intern / full-time",
-            sorted(segmented["employment_bucket"].dropna().unique()),
-            default=sorted(segmented["employment_bucket"].dropna().unique()),
+            ["All employment types"] + EMPLOYMENT_BUCKET_OPTIONS,
         )
+        selected_tracks = TRACK_OPTIONS if track_choice == "All tracks" else [track_choice]
+        selected_role_families = ROLE_FAMILY_OPTIONS if role_family_choice == "All role families" else [role_family_choice]
+        selected_employment = EMPLOYMENT_BUCKET_OPTIONS if employment_choice == "All employment types" else [employment_choice]
         filtered_jobs = segmented[
             segmented["track_label"].isin(selected_tracks)
             & segmented["role_family_label"].isin(selected_role_families)
             & segmented["employment_bucket"].isin(selected_employment)
         ].sort_values("first_seen_at", ascending=False)
 
-        segment_dimension_label = st.selectbox("Trend chart dimension", list(SEGMENT_DIMENSIONS.keys()), index=1)
+        segment_dimension_label = st.selectbox("Daily summary by", list(SEGMENT_DIMENSIONS.keys()), index=1)
         segment_dimension = SEGMENT_DIMENSIONS[segment_dimension_label]
-        daily_pivot = (
-            segmented.groupby(["first_seen_date", segment_dimension])
+        daily_summary = (
+            filtered_jobs.groupby([segment_dimension, "first_seen_date"], dropna=False)
             .size()
             .reset_index(name="jobs")
-            .pivot(index="first_seen_date", columns=segment_dimension, values="jobs")
+            .pivot(index=segment_dimension, columns="first_seen_date", values="jobs")
             .fillna(0)
-            .sort_index()
         )
-        st.bar_chart(daily_pivot, height=360)
+        if daily_summary.empty:
+            st.info("No jobs match the track / role / employment filters.")
+        else:
+            daily_summary["Total"] = daily_summary.sum(axis=1)
+            daily_summary = daily_summary.sort_values("Total", ascending=False)
+            ordered_columns = ["Total"] + [column for column in daily_summary.columns if column != "Total"]
+            st.dataframe(
+                daily_summary[ordered_columns].reset_index(),
+                hide_index=True,
+                use_container_width=True,
+                height=min(520, 72 + 36 * len(daily_summary)),
+            )
 
         left, right = st.columns(2)
         with left:
