@@ -32,8 +32,65 @@ st.markdown(
 
 
 @st.cache_data(ttl=60)
-def daily_activity() -> pd.DataFrame:
-    return query("SELECT * FROM jobpush.dashboard_daily_activity ORDER BY activity_date DESC")
+def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH days AS (
+            SELECT generate_series(
+                ((NOW() AT TIME ZONE 'America/Chicago')::date - 29)::timestamp,
+                (NOW() AT TIME ZONE 'America/Chicago')::date::timestamp,
+                interval '1 day'
+            )::date AS activity_date
+        ), jobs AS (
+            SELECT
+                (job.first_seen_at AT TIME ZONE 'America/Chicago')::date AS activity_date,
+                count(*) AS new_jobs,
+                count(*) FILTER (WHERE job.role_status = 'target') AS new_target_jobs,
+                count(*) FILTER (WHERE job.role_status = 'review') AS new_review_jobs
+            FROM jobpush.dashboard_jobs job
+            WHERE job.priority_tier = ANY(%s)
+            GROUP BY 1
+        ), closed AS (
+            SELECT
+                (posting.closed_at AT TIME ZONE 'America/Chicago')::date AS activity_date,
+                count(*) AS closed_jobs
+            FROM jobpush.job_postings posting
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            WHERE posting.closed_at IS NOT NULL
+              AND target.priority_tier = ANY(%s)
+            GROUP BY 1
+        ), runs AS (
+            SELECT
+                (run.started_at AT TIME ZONE 'America/Chicago')::date AS activity_date,
+                count(*) AS crawl_runs,
+                count(*) FILTER (WHERE run.status = 'succeeded') AS successful_runs,
+                count(*) FILTER (WHERE run.status = 'failed') AS failed_runs,
+                COALESCE(sum(run.requests_count), 0) AS requests,
+                COALESCE(sum(run.new_job_count), 0) AS run_reported_new_jobs
+            FROM jobpush.crawl_runs run
+            JOIN jobpush.career_sites site USING (site_id)
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            WHERE target.priority_tier = ANY(%s)
+            GROUP BY 1
+        )
+        SELECT days.activity_date,
+               COALESCE(jobs.new_jobs, 0) AS new_jobs,
+               COALESCE(jobs.new_target_jobs, 0) AS new_target_jobs,
+               COALESCE(jobs.new_review_jobs, 0) AS new_review_jobs,
+               COALESCE(closed.closed_jobs, 0) AS closed_jobs,
+               COALESCE(runs.crawl_runs, 0) AS crawl_runs,
+               COALESCE(runs.successful_runs, 0) AS successful_runs,
+               COALESCE(runs.failed_runs, 0) AS failed_runs,
+               COALESCE(runs.requests, 0) AS requests,
+               COALESCE(runs.run_reported_new_jobs, 0) AS run_reported_new_jobs
+        FROM days
+        LEFT JOIN jobs USING (activity_date)
+        LEFT JOIN closed USING (activity_date)
+        LEFT JOIN runs USING (activity_date)
+        ORDER BY days.activity_date DESC
+        """,
+        (list(tiers), list(tiers), list(tiers)),
+    )
 
 
 @st.cache_data(ttl=60)
@@ -146,7 +203,7 @@ def crawl_rollout_by_tier() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
-def today_crawl_progress() -> pd.DataFrame:
+def today_crawl_progress(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
         WITH chicago_day AS (
@@ -167,21 +224,22 @@ def today_crawl_progress() -> pd.DataFrame:
         JOIN jobpush.crawl_targets target USING (consolidation_key)
         CROSS JOIN chicago_day
         WHERE run.started_at >= chicago_day.start_at
-          AND target.priority_tier IN ('P0','P1','P2')
+          AND target.priority_tier = ANY(%s)
         GROUP BY target.priority_tier
         ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
-        """
+        """,
+        (list(tiers),),
     )
 
 
 @st.cache_data(ttl=60)
-def crawl_completion_summary() -> pd.DataFrame:
+def crawl_completion_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
         WITH target AS (
             SELECT consolidation_key, priority_tier, priority_score
             FROM jobpush.crawl_targets
-            WHERE enabled AND priority_tier IN ('P0','P1','P2')
+            WHERE enabled AND priority_tier = ANY(%s)
         ), site_rollup AS (
             SELECT consolidation_key,
                    BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
@@ -236,7 +294,8 @@ def crawl_completion_summary() -> pd.DataFrame:
                  today_runs.companies_succeeded_today, today_runs.failed_site_attempts_today,
                  today_runs.latest_started_at, today_runs.latest_finished_at
         ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
-        """
+        """,
+        (list(tiers),),
     )
 
 
@@ -410,8 +469,18 @@ def p1_score_distribution() -> pd.DataFrame:
 def company_targets(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
+        WITH ranked_targets AS (
+            SELECT target.*,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY target.priority_tier
+                       ORDER BY target.priority_score DESC NULLS LAST, target.canonical_name
+                   ) AS priority_rank_in_tier
+            FROM jobpush.crawl_targets target
+            WHERE target.enabled
+        )
         SELECT target.consolidation_key, target.canonical_name,
                target.priority_tier, target.priority_score,
+               target.priority_rank_in_tier,
                target.priority_source, target.discovery_status,
                consolidated.lca_count, consolidated.target_role_lca_count,
                consolidated.target_role_score, consolidated.lca_count_score,
@@ -419,13 +488,42 @@ def company_targets(tiers: tuple[str, ...]) -> pd.DataFrame:
                consolidated.product_manager_score, consolidated.salary_score,
                consolidated.linkedin_top_employer_score,
                consolidated.employer_city, consolidated.employer_state
-        FROM jobpush.crawl_targets target
+        FROM ranked_targets target
         JOIN jobpush.company_targets_consolidated consolidated USING (consolidation_key)
-        WHERE target.enabled AND target.priority_tier = ANY(%s)
+        WHERE target.priority_tier = ANY(%s)
         ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
-                 target.priority_score DESC, target.canonical_name
+                 target.priority_rank_in_tier
         """,
         (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
+def site_review_queue(limit: int = 500, tiers: tuple[str, ...] = ("P0", "P1")) -> pd.DataFrame:
+    return query(
+        """
+        SELECT review_rank, priority_tier, priority_score,
+               row_number() OVER (
+                   PARTITION BY priority_tier
+                   ORDER BY priority_score DESC NULLS LAST, canonical_name
+               ) AS priority_rank_in_tier,
+               canonical_name, action_status, potential_p0_signal,
+               candidate_count,
+               candidate_1_site_id, candidate_1_source, candidate_1_url,
+               candidate_2_site_id, candidate_2_source, candidate_2_url,
+               candidate_3_site_id, candidate_3_source, candidate_3_url,
+               verified_source, verified_url,
+               discovery_status, employer_city, employer_state,
+               lca_count, target_role_lca_count
+        FROM jobpush.career_site_review_workbench
+        WHERE priority_tier = ANY(%s)
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                 CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
+                 priority_score DESC NULLS LAST,
+                 review_rank
+        LIMIT %s
+        """,
+        (list(tiers), limit),
     )
 
 
@@ -464,7 +562,17 @@ def jobs(
 ) -> pd.DataFrame:
     return query(
         """
-        SELECT site_id, external_job_id, canonical_name, priority_tier, title,
+        WITH ranked_targets AS (
+            SELECT consolidation_key, priority_score,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY priority_tier
+                       ORDER BY priority_score DESC NULLS LAST, canonical_name
+                   ) AS priority_rank_in_tier
+            FROM jobpush.crawl_targets
+            WHERE enabled
+        )
+        SELECT job.site_id, job.external_job_id, job.canonical_name, job.priority_tier,
+               ranked.priority_score, ranked.priority_rank_in_tier, job.title,
                location, category, employment_type, role_status, canonical_role,
                CASE
                    WHEN role_status = 'target' AND (
@@ -479,7 +587,7 @@ def jobs(
                        OR normalized_title LIKE '%%systems%%analyst%%'
                        OR normalized_title LIKE '%%information%%system%%'
                    ) THEN 'stack_2_software_systems'
-                   WHEN role_status = 'target' THEN 'stack_3_other_target'
+                   WHEN role_status = 'target' THEN 'stack_3_target_roles'
                    WHEN role_status = 'review' THEN 'needs_review'
                    ELSE 'excluded_non_target'
                END AS role_stack,
@@ -506,6 +614,11 @@ def jobs(
                    WHEN normalized_title LIKE '%%data%%scientist%%'
                         OR normalized_title LIKE '%%machine%%learning%%'
                         OR normalized_title LIKE '%%ml engineer%%' THEN 'data_science_ml'
+                   WHEN normalized_title LIKE '%%data%%engineer%%'
+                        OR normalized_title LIKE '%%analytics%%engineer%%'
+                        OR normalized_title LIKE '%%data%%architect%%'
+                        OR normalized_title LIKE '%%database%%administrator%%'
+                        OR normalized_title LIKE '%%database%%admin%%' THEN 'data_engineering'
                    WHEN normalized_title LIKE '%%data%%analyst%%'
                         OR normalized_title LIKE '%%business intelligence%%'
                         OR normalized_title LIKE '%%bi analyst%%' THEN 'data_analytics_bi'
@@ -557,15 +670,16 @@ def jobs(
                END AS location_bucket,
                application_status,
                first_seen_at, last_seen_at, job_url
-        FROM jobpush.dashboard_jobs
-        WHERE first_seen_at >= now() - make_interval(days => %s)
-          AND (%s = '' OR canonical_name ILIKE '%%' || %s || '%%')
-          AND (%s = '' OR title ILIKE '%%' || %s || '%%' OR canonical_role ILIKE '%%' || %s || '%%')
-          AND (%s = '' OR location ILIKE '%%' || %s || '%%')
-          AND priority_tier = ANY(%s)
-          AND role_status = ANY(%s)
-          AND application_status = ANY(%s)
-        ORDER BY first_seen_at DESC, canonical_name, title
+        FROM jobpush.dashboard_jobs job
+        LEFT JOIN ranked_targets ranked USING (consolidation_key)
+        WHERE job.first_seen_at >= now() - make_interval(days => %s)
+          AND (%s = '' OR job.canonical_name ILIKE '%%' || %s || '%%')
+          AND (%s = '' OR job.title ILIKE '%%' || %s || '%%' OR job.canonical_role ILIKE '%%' || %s || '%%')
+          AND (%s = '' OR job.location ILIKE '%%' || %s || '%%')
+          AND job.priority_tier = ANY(%s)
+          AND job.role_status = ANY(%s)
+          AND job.application_status = ANY(%s)
+        ORDER BY job.first_seen_at DESC, job.canonical_name, job.title
         LIMIT 5000
         """,
         (
@@ -588,11 +702,23 @@ def jobs(
 def company_jobs(company: str) -> pd.DataFrame:
     return query(
         """
-        SELECT canonical_name, priority_tier, title, location,
-               role_status, canonical_role, application_status,
-               first_seen_at, last_seen_at, job_url
-        FROM jobpush.dashboard_jobs
-        WHERE %s <> '' AND canonical_name ILIKE '%%' || %s || '%%'
+        WITH ranked_targets AS (
+            SELECT consolidation_key, priority_score,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY priority_tier
+                       ORDER BY priority_score DESC NULLS LAST, canonical_name
+                   ) AS priority_rank_in_tier
+            FROM jobpush.crawl_targets
+            WHERE enabled
+        )
+        SELECT job.canonical_name, job.priority_tier,
+               ranked.priority_score, ranked.priority_rank_in_tier,
+               job.title, job.location,
+               job.role_status, job.canonical_role, job.application_status,
+               job.first_seen_at, job.last_seen_at, job.job_url
+        FROM jobpush.dashboard_jobs job
+        LEFT JOIN ranked_targets ranked USING (consolidation_key)
+        WHERE %s <> '' AND job.canonical_name ILIKE '%%' || %s || '%%'
         ORDER BY CASE role_status WHEN 'target' THEN 0 WHEN 'review' THEN 1 ELSE 2 END,
                  first_seen_at DESC, title
         LIMIT 1000
@@ -637,7 +763,7 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
 TRACK_LABELS = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
-    "stack_3_other_target": "Track 3 · Other target",
+    "stack_3_target_roles": "Track 3 · Target roles",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "review": "Needs review",
@@ -654,6 +780,7 @@ ROLE_FAMILY_LABELS = {
     "systems_engineering": "Systems Engineering",
     "software_engineering": "Software Engineering",
     "data_science_ml": "Data Science / ML",
+    "data_engineering": "Data Engineering / Architecture",
     "data_analytics_bi": "Data Analytics / BI",
     "business_analyst": "Business Analyst",
     "strategy_operations": "Strategy / Operations",
@@ -667,7 +794,7 @@ ROLE_FAMILY_LABELS = {
 TRACK_OPTIONS = [
     "Track 1 · Business / Product / Data",
     "Track 2 · Software / Systems",
-    "Track 3 · Other target",
+    "Track 3 · Target roles",
     "Needs review",
     "Excluded / non-target",
 ]
@@ -675,7 +802,7 @@ TRACK_OPTIONS = [
 TRACK_VALUE_TO_LABEL = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
-    "stack_3_other_target": "Track 3 · Other target",
+    "stack_3_target_roles": "Track 3 · Target roles",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
 }
@@ -690,6 +817,7 @@ ROLE_FAMILY_OPTIONS = [
     "Systems Engineering",
     "Software Engineering",
     "Data Science / ML",
+    "Data Engineering / Architecture",
     "Data Analytics / BI",
     "Business Analyst",
     "Strategy / Operations",
@@ -724,43 +852,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-activity = daily_activity()
-completion = crawl_completion_summary()
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
-today_row = activity[activity["activity_date"] == chicago_today]
-today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
-
-metric_columns = st.columns(6)
-metrics = [
-    ("New jobs today", int(today.get("new_jobs", 0))),
-    ("Target jobs today", int(today.get("new_target_jobs", 0))),
-    ("Review titles today", int(today.get("new_review_jobs", 0))),
-    ("Closed jobs today", int(today.get("closed_jobs", 0))),
-    ("Site crawl attempts", int(today.get("crawl_runs", 0))),
-    ("Failed site attempts", int(today.get("failed_runs", 0))),
-]
-for column, (label, value) in zip(metric_columns, metrics):
-    column.metric(label, f"{value:,}")
-st.caption(
-    "Site crawl attempts = 今天请求过的网站次数；New jobs = 第一次进入数据库的职位数；"
-    "Closed jobs = 之前见过、这次快照里消失的职位。所以这些数字不会一一相等。"
-)
-if not completion.empty:
-    p0p1_completion = completion[completion["priority_tier"].isin(["P0", "P1"])]
-    p0p1_companies = int(p0p1_completion["companies"].sum())
-    p0p1_enabled = int(p0p1_completion["companies_with_enabled_site"].sum())
-    p0p1_succeeded = int(p0p1_completion["companies_succeeded_ever"].sum())
-    p0p1_due = int(p0p1_completion["due_sites"].sum())
-    p0p1_attempted_today = int(p0p1_completion["companies_attempted_today"].sum())
-    latest_started = p0p1_completion["latest_started_at"].dropna().max()
-    completion_columns = st.columns(5)
-    completion_columns[0].metric("P0+P1 companies", f"{p0p1_companies:,}")
-    completion_columns[1].metric("Can crawl now", f"{p0p1_enabled:,}", f"{(100 * p0p1_enabled / p0p1_companies):.1f}%" if p0p1_companies else None)
-    completion_columns[2].metric("Ever succeeded", f"{p0p1_succeeded:,}", f"{(100 * p0p1_succeeded / p0p1_companies):.1f}%" if p0p1_companies else None)
-    completion_columns[3].metric("Due / unfinished now", f"{p0p1_due:,}")
-    completion_columns[4].metric("Attempted today", f"{p0p1_attempted_today:,}")
-    if pd.notna(latest_started):
-        st.caption(f"Latest P0/P1 crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
 
 st.sidebar.header("Job filters")
 st.sidebar.caption(
@@ -819,6 +911,44 @@ if not tiers or not role_statuses or not app_statuses:
     st.warning("Select at least one priority tier, role decision, and application status.")
     st.stop()
 
+selected_tier_label = priority_choice.replace(" only", "").replace("All P tiers", "P0+P1+P2")
+activity = daily_activity(tiers)
+completion = crawl_completion_summary(tiers)
+today_row = activity[activity["activity_date"] == chicago_today]
+today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
+
+metric_columns = st.columns(6)
+metrics = [
+    (f"New jobs today · {selected_tier_label}", int(today.get("new_jobs", 0))),
+    ("Target jobs today", int(today.get("new_target_jobs", 0))),
+    ("Needs-review today", int(today.get("new_review_jobs", 0))),
+    ("Closed jobs today", int(today.get("closed_jobs", 0))),
+    ("Site crawl attempts", int(today.get("crawl_runs", 0))),
+    ("Failed site attempts", int(today.get("failed_runs", 0))),
+]
+for column, (label, value) in zip(metric_columns, metrics):
+    column.metric(label, f"{value:,}")
+st.caption(
+    f"Current tier filter: {selected_tier_label}. Site crawl attempts = 今天请求过的网站次数；"
+    "New jobs = 第一次进入数据库的职位数；Closed jobs = 之前见过、这次快照里消失的职位。"
+)
+if not completion.empty:
+    selected_completion = completion[completion["priority_tier"].isin(tiers)]
+    selected_companies = int(selected_completion["companies"].sum())
+    selected_enabled = int(selected_completion["companies_with_enabled_site"].sum())
+    selected_succeeded = int(selected_completion["companies_succeeded_ever"].sum())
+    selected_due = int(selected_completion["due_sites"].sum())
+    selected_attempted_today = int(selected_completion["companies_attempted_today"].sum())
+    latest_started = selected_completion["latest_started_at"].dropna().max()
+    completion_columns = st.columns(5)
+    completion_columns[0].metric(f"{selected_tier_label} companies", f"{selected_companies:,}")
+    completion_columns[1].metric("Can crawl now", f"{selected_enabled:,}", f"{(100 * selected_enabled / selected_companies):.1f}%" if selected_companies else None)
+    completion_columns[2].metric("Ever succeeded", f"{selected_succeeded:,}", f"{(100 * selected_succeeded / selected_companies):.1f}%" if selected_companies else None)
+    completion_columns[3].metric("Due / unfinished now", f"{selected_due:,}")
+    completion_columns[4].metric("Attempted today", f"{selected_attempted_today:,}")
+    if pd.notna(latest_started):
+        st.caption(f"Latest {selected_tier_label} crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
+
 job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
 if not job_frame.empty:
     first_seen_dates = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
@@ -860,7 +990,7 @@ with overview_tab:
         else:
             st.dataframe(alerts, hide_index=True, use_container_width=True, height=330)
     st.subheader("Today’s crawl progress by tier")
-    progress_today = today_crawl_progress()
+    progress_today = today_crawl_progress(tiers)
     if progress_today.empty:
         st.info("No crawl attempts have been recorded today yet.")
     else:
@@ -978,7 +1108,7 @@ with jobs_tab:
         segment_metrics[2].metric("Internship", f"{int((segmented['employment_bucket'] == 'internship').sum()):,}")
         segment_metrics[3].metric("Chicago / IL", f"{int((segmented['location_bucket'] == 'chicago_or_illinois').sum()):,}")
         segment_metrics[4].metric("Product Manager", f"{int((segmented['role_family'] == 'product_manager').sum()):,}")
-        segment_metrics[5].metric("Systems Eng.", f"{int((segmented['role_family'] == 'systems_engineering').sum()):,}")
+        segment_metrics[5].metric("Data Eng.", f"{int((segmented['role_family'] == 'data_engineering').sum()):,}")
 
         filter_left, filter_mid, filter_right = st.columns(3)
         track_choice = filter_left.selectbox(
@@ -1044,7 +1174,7 @@ with jobs_tab:
             )
             st.dataframe(period_market, hide_index=True, use_container_width=True, height=330)
 
-        st.subheader(f"{period_label} Track 1/2/3 summary")
+        st.subheader(f"{period_label} target track summary")
         period_track_summary = (
             selected_period_segment.groupby("track_label", dropna=False)
             .agg(
@@ -1076,7 +1206,8 @@ with jobs_tab:
 
         st.subheader("Filtered job list · newest first")
         display_columns = [
-            "first_seen_ct", "canonical_name", "priority_tier", "title", "location",
+            "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
+            "priority_rank_in_tier", "title", "location",
             "track_label", "role_family_label", "employment_bucket", "seniority_bucket",
             "application_status", "job_url",
         ]
@@ -1135,6 +1266,37 @@ with review_tab:
     )
     dataframe(review_frame, height=610)
 
+    st.divider()
+    st.subheader("Career-site samples for improving website selection")
+    st.caption(
+        "和 title review 一样，这是用来抽样校准官网候选选择规则的，不是要求你审核全部公司。"
+        "一行是一家公司，最多展示 Tavily/规则保留下来的前三个候选。"
+    )
+    site_col1, site_col2 = st.columns([1, 1])
+    site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)
+    site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2"], default=["P0", "P1"]))
+    if site_tiers:
+        site_frame = site_review_queue(site_limit, site_tiers)
+        st.download_button(
+            "Download site review batch (CSV)", csv_bytes(site_frame),
+            file_name=f"jobpush_site_review_{'_'.join(site_tiers)}_{chicago_today}_{site_limit}.csv",
+            mime="text/csv",
+        )
+        st.dataframe(
+            site_frame,
+            hide_index=True,
+            use_container_width=True,
+            height=440,
+            column_config={
+                "candidate_1_url": st.column_config.LinkColumn("Candidate 1", display_text="Open ↗"),
+                "candidate_2_url": st.column_config.LinkColumn("Candidate 2", display_text="Open ↗"),
+                "candidate_3_url": st.column_config.LinkColumn("Candidate 3", display_text="Open ↗"),
+                "verified_url": st.column_config.LinkColumn("Verified", display_text="Open ↗"),
+            },
+        )
+    else:
+        st.info("Select at least one tier for site review export.")
+
 with company_tab:
     st.subheader("Company job list")
     lookup = st.text_input("Open one company", value=company.strip(), placeholder="e.g. Pfizer, Google, StackAdapt")
@@ -1153,8 +1315,8 @@ with company_tab:
 
 with target_tab:
     st.subheader("Company priority tables")
-    st.caption("This is where the 4,649 P0+P1 company universe lives. Select P tiers and download the company-level scoring table.")
-    target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2"], default=["P0", "P1"], key="company-target-tiers"))
+    st.caption("Company-level scoring table with tier rank. Default includes P0/P1/P2; use tiers to narrow.")
+    target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2"], default=["P0", "P1", "P2"], key="company-target-tiers"))
     if not target_tiers:
         st.info("Select at least one P tier.")
     else:

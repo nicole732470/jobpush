@@ -202,6 +202,21 @@ supported adapters:
 bash db/deploy_via_ssm.sh db/run_apply_career_site_auto_trust.sh
 ```
 
+Tavily cost model: JobPush sends one basic Tavily search per company. That one
+search can return multiple results; JobPush keeps up to three candidates after
+dedupe and scoring. Therefore three candidates do **not** mean three Tavily
+credits. The waste mode is not candidate count; it is spending one company
+search and receiving only generic pages, external job boards, wrong-company
+pages, or unsupported ATS pages.
+
+Candidate ranking rule: `scripts/discover_career_sites.py` queries
+`"<company>" official careers jobs`, scores each returned URL with
+`candidate_score`, removes duplicate URLs, then stores the top candidates by
+score. The score favors employer-owned career/careers/jobs pages and known ATS
+platforms; it penalizes external aggregators and weak company-name matches.
+The operational review surface is `jobpush.career_site_review_workbench`, and
+the dashboard can export a site-review batch with candidate 1/2/3 for sampling.
+
 2026-06-25 update after key rotation: an additional 950 P0/P1 companies were
 searched, retaining 2,237 candidates with zero provider errors. Auto-trust
 promoted 209 rank-1 structured ATS sites. P1 coverage reached 933 enabled
@@ -261,6 +276,22 @@ newly separated examples include Jobvite, Workable, Paylocity, Rippling,
 UltiPro, TriNet Hire, and Comeet. Adapter work should start with the platform
 that has the best combination of P1 count, URL consistency, and available
 public API or predictable HTML.
+
+2026-06-27 P1 top-1000 blocker audit:
+
+| State | Companies | Share |
+|---|---:|---:|
+| Successfully crawled | 332 | 33.20% |
+| Generic HTML needs resolution | 607 | 60.70% |
+| Searched, no usable candidate | 26 | 2.60% |
+| Adapter or site failed | 19 | 1.90% |
+| Enabled but not due yet | 13 | 1.30% |
+| Structured candidate not enabled | 3 | 0.30% |
+
+This means high-score P1 expansion is primarily a generic-HTML resolution
+problem, not a database-capacity problem. The next high-leverage work is to
+turn generic official career pages into ATS links where possible, then build
+repeatable generic parsers only for recurring templates.
 
 ### Platform adapter progress
 
