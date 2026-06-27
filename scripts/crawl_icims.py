@@ -15,6 +15,8 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
+from market_scope import classify_market_scope
+
 
 USER_AGENT = "JobPush/0.1 (+public-career-site-monitor; contact=repository-owner)"
 
@@ -143,15 +145,17 @@ class ICIMSParser(HTMLParser):
         self._card_depth -= 1
         if self._card_depth == 0 and tag == "li":
             if self._current.get("external_job_id") and self._current.get("title"):
+                location = self._current.get("location", "")
                 self.jobs.append(
                     Job(
                         external_job_id=self._current["external_job_id"],
                         title=self._current["title"],
                         normalized_title=normalize_title(self._current["title"]),
-                        location=self._current.get("location", ""),
+                        location=location,
                         category=self._current.get("category", ""),
                         job_url=self._current.get("job_url", ""),
                         description_snippet=self._current.get("description_snippet", ""),
+                        market_scope=classify_market_scope(location, "unknown"),
                     )
                 )
 
@@ -199,13 +203,12 @@ def main() -> int:
     if args.country == "US":
         scope_query = [("searchLocation", value) for value, label in first.location_options
                        if label.casefold().startswith("united states-")]
-        if not scope_query:
-            raise RuntimeError("iCIMS page did not expose a United States location option")
-        first_html, status = fetch(page_url(args.url, 0, scope_query), args.timeout)
-        requests_count += 1
-        statuses.append(status)
-        first = ICIMSParser()
-        first.feed(first_html)
+        if scope_query:
+            first_html, status = fetch(page_url(args.url, 0, scope_query), args.timeout)
+            requests_count += 1
+            statuses.append(status)
+            first = ICIMSParser()
+            first.feed(first_html)
     raw_job_count += len(first.jobs)
     for job in first.jobs:
         all_jobs[job.external_job_id] = job

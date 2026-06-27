@@ -20,10 +20,15 @@ METRICS_JSON="$(mktemp /tmp/jobpush-adapter-metrics.XXXXXX)"
 ADAPTER_STDERR="$(mktemp /tmp/jobpush-adapter-stderr.XXXXXX)"
 trap 'rm -f "$JOBS_CSV" "$METRICS_JSON" "$ADAPTER_STDERR"' EXIT
 
+SITE_FILTER=""
+if [[ -n "${SITE_ID:-}" ]]; then
+  SITE_FILTER="AND site_id=$SITE_ID"
+fi
 IFS=$'\t' read -r SITE_ID SITE_URL < <("${PSQL[@]}" -qAtF $'\t' -c \
   "SELECT site_id, site_url FROM jobpush.career_sites
    WHERE consolidation_key='$CONSOLIDATION_KEY' AND source_type='$SOURCE_TYPE'
      AND verification_status='verified' AND crawl_enabled
+     $SITE_FILTER
    ORDER BY site_id LIMIT 1;")
 [[ -n "${SITE_ID:-}" && -n "${SITE_URL:-}" ]] || { echo "No verified $SOURCE_TYPE site" >&2; exit 1; }
 

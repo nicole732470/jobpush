@@ -74,23 +74,33 @@ Every batch records targets, requests, pages, latency, parsed jobs, duplicates,
 new/updated/closed jobs, target/review counts, and errors. Expand an adapter to
 more companies only after a representative site passes a second idempotent run.
 
-### Current auto-trust boundary (2026-06-24)
+### Current auto-trust boundary (updated 2026-06-27)
 
-- Candidate rank must be 1 and the company must be P0/P1.
+- Candidate rank should generally be 1. A controlled rank-2 rollout is allowed
+  only for supported structured ATS domains when the company has no verified
+  site and the adapter has a safe US-scoping strategy.
 - Greenhouse and Workday may be auto-trusted with conservative local US
   classification.
 - Lever, Ashby, and SmartRecruiters now have public-API adapters. Rank-1 P0/P1
   candidates can enter a controlled auto-trust rollout when no verified site
   already exists; crawl health and entity mismatch remain rollback gates.
+- Workable, Jobvite, Paylocity, and Rippling have low-cost static/API-style
+  parsers and can be promoted in small structured batches.
 - Generic HTML remains outside automatic promotion.
-- iCIMS auto-trust was rolled back after its initial sample produced 0/3 safe
-  US-scope runs. Human-confirmed iCIMS remains supported.
+- iCIMS remains conservative: if a United States location option exists, the
+  adapter uses it; otherwise it crawls the public search page and classifies
+  each posting's location locally. This prevents a whole site from failing just
+  because it does not expose a standardized country dropdown.
 - The first Greenhouse/Workday expansion sample produced 43 successes and four
   Workday failures among 47 attempted sites; failures stay visible in
   `crawl_runs` and receive backoff.
 - `career_site_selection_candidates` is the explainable selection surface; it
   records selected/review/rejected reasoning instead of hiding site choice in
   scheduler code.
+- Scheduled crawls must pass `site_id` through to the adapter runner. The
+  execution unit is `(site_id, external_job_id)`, not just
+  `(company, source_type)`, because one company can have multiple candidate
+  sites on the same ATS.
 
 ## 5. Job relevance
 

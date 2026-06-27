@@ -12,7 +12,7 @@ DUE_SITES=()
 while IFS= read -r row; do
   DUE_SITES+=("$row")
 done < <("${PSQL[@]}" -qAtF $'\t' -c \
-  "SELECT consolidation_key, source_type, priority_tier, scope_method
+  "SELECT consolidation_key, source_type, priority_tier, scope_method, site_id
    FROM jobpush.crawl_schedule_queue
    WHERE is_due
    ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
@@ -26,7 +26,7 @@ fi
 
 failures=0
 for row in "${DUE_SITES[@]}"; do
-  IFS=$'\t' read -r consolidation_key source_type priority_tier scope_method <<< "$row"
+  IFS=$'\t' read -r consolidation_key source_type priority_tier scope_method site_id <<< "$row"
   case "$source_type" in
     apple_jobs)
       adapter_name="apple-jobs-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_apple_jobs.py" ;;
@@ -60,6 +60,7 @@ for row in "${DUE_SITES[@]}"; do
   echo "==> $priority_tier $consolidation_key ($source_type)"
   if (
     export CONSOLIDATION_KEY="$consolidation_key" SOURCE_TYPE="$source_type"
+    export SITE_ID="$site_id"
     export ADAPTER_NAME="$adapter_name" ADAPTER_VERSION="$adapter_version"
     export ADAPTER_SCRIPT="$adapter_script"
     export COHORT="scheduled-$source_type" PRIORITY_TIER="$priority_tier"

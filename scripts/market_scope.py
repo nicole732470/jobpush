@@ -39,6 +39,8 @@ def classify_market_scope(location: str | None, fallback: str = "unknown") -> st
 
     if re.search(r"\b(united states|u\.s\.|u\.s\.a\.|usa)\b", lowered):
         return "US"
+    if re.search(r"\bUS-[A-Z]{2}\b", value):
+        return "US"
     if any(re.search(rf"\b{re.escape(state)}\b", lowered) for state in US_STATES):
         return "US"
     if any(re.search(rf"(?:,|/| -)\s*{code}(?:\b|$)", value, re.IGNORECASE) for code in STATE_CODES):
