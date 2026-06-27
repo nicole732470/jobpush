@@ -112,10 +112,15 @@ change.
 ### Offline supervised title model
 
 Migration 072 and `scripts/train_local_title_classifier.py` implement a
-dependency-free multinomial Naive Bayes classifier over title word unigrams and
-bigrams. It trains only on audited `manual%` target/non-target labels, evaluates
-deterministic five-fold holdouts, and selects class-specific confidence
-thresholds only when holdout precision is at least 98% with enough examples.
+dependency-free multinomial Naive Bayes classifier over normalized title word
+unigrams and bigrams. Titles are case-folded, so `Engineer`, `engineer`, and
+`ENGINEER` are equivalent. It trains only on audited `manual%`
+target/non-target labels, evaluates deterministic five-fold holdouts, and
+selects class-specific confidence thresholds only when holdout precision is at
+least 98% with enough examples. On 2026-06-27, quick experiments with simple
+suffix stems and character n-grams did not pass the 98% holdout gate, so they
+were not kept as production features. Future tuning should compare feature
+sets and model families in a report before changing production behavior.
 
 Eligible predictions are written to `job_title_ml_classifications` with model
 version, training size, holdout metrics, confidence, and evidence features.

@@ -517,8 +517,8 @@ def site_review_queue(limit: int = 500, tiers: tuple[str, ...] = ("P0", "P1")) -
                lca_count, target_role_lca_count
         FROM jobpush.career_site_review_workbench
         WHERE priority_tier = ANY(%s)
+          AND action_status = 'REVIEW_CANDIDATES'
         ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
-                 CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
                  priority_score DESC NULLS LAST,
                  review_rank
         LIMIT %s
@@ -763,7 +763,7 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
 TRACK_LABELS = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
-    "stack_3_target_roles": "Track 3 · Target roles",
+    "stack_3_target_roles": "Track 3 · Additional target track",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "review": "Needs review",
@@ -794,7 +794,7 @@ ROLE_FAMILY_LABELS = {
 TRACK_OPTIONS = [
     "Track 1 · Business / Product / Data",
     "Track 2 · Software / Systems",
-    "Track 3 · Target roles",
+    "Track 3 · Additional target track",
     "Needs review",
     "Excluded / non-target",
 ]
@@ -802,7 +802,7 @@ TRACK_OPTIONS = [
 TRACK_VALUE_TO_LABEL = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
-    "stack_3_target_roles": "Track 3 · Target roles",
+    "stack_3_target_roles": "Track 3 · Additional target track",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
 }
@@ -1208,7 +1208,7 @@ with jobs_tab:
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
             "priority_rank_in_tier", "title", "location",
-            "track_label", "role_family_label", "employment_bucket", "seniority_bucket",
+            "role_family_label", "track_label", "employment_bucket", "seniority_bucket",
             "application_status", "job_url",
         ]
         st.download_button(
@@ -1269,7 +1269,7 @@ with review_tab:
     st.divider()
     st.subheader("Career-site samples for improving website selection")
     st.caption(
-        "和 title review 一样，这是用来抽样校准官网候选选择规则的，不是要求你审核全部公司。"
+        "这里只导出还没有 verified 的公司候选；Google 这类已经人工确认的网站不会进入这个 review batch。"
         "一行是一家公司，最多展示 Tavily/规则保留下来的前三个候选。"
     )
     site_col1, site_col2 = st.columns([1, 1])

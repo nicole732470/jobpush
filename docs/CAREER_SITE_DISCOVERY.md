@@ -37,12 +37,15 @@ Candidate source distribution:
 
 ## TablePlus review workflow
 
-Open schema `jobpush`, then use only **`career_site_review_workbench`** for
-human work. It is the canonical one-company-per-row surface and contains up to
-three candidates plus the verified URL. It sorts:
+Open schema `jobpush`, then use **`career_site_review_workbench`** for the
+full company/site audit surface. It is the canonical one-company-per-row view
+and contains up to three candidates plus the verified URL. For actual human
+review export, filter `action_status = 'REVIEW_CANDIDATES'`; verified companies
+such as Google are already confirmed and should not be mixed into Nicole's
+downloadable review batch. The full workbench sorts:
 
 1. manual P0 needing review;
-2. verified manual P0 (kept visible, including Google);
+2. verified manual P0 in the audit surface only, including Google;
 3. Chicago + LinkedIn, Chicago, LinkedIn, large sponsors;
 4. remaining score/diverse samples.
 
