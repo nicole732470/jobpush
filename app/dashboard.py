@@ -315,11 +315,11 @@ def ml_status() -> tuple[pd.DataFrame, pd.DataFrame]:
     )
     ml_runs = query(
         """
-        SELECT model_version, predicted_status, applied,
+        SELECT model_version, classification_status AS predicted_status, applied,
                COUNT(*) AS titles,
                ROUND(AVG(confidence)::numeric, 3) AS avg_confidence
         FROM jobpush.job_title_ml_classifications
-        GROUP BY model_version, predicted_status, applied
+        GROUP BY model_version, classification_status, applied
         ORDER BY model_version DESC, applied DESC, titles DESC
         LIMIT 20
         """
