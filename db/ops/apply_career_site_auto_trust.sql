@@ -14,7 +14,7 @@ WITH eligible AS (
       AND site.verification_status = 'unverified'
       AND site.candidate_rank = 1
       AND (
-          site.source_type IN ('greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters', 'oracle_cloud')
+          site.source_type IN ('amazon_jobs', 'greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters', 'oracle_cloud')
           OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
           OR (site.source_type = 'jobvite' AND site.normalized_domain = 'jobs.jobvite.com')
           OR (site.source_type = 'paylocity' AND site.normalized_domain = 'recruiting.paylocity.com')
@@ -69,7 +69,7 @@ WHERE target.consolidation_key = site.consolidation_key
   AND site.target_country_code = 'US'
   AND site.scope_method <> 'unknown'
   AND site.source_type IN (
-      'apple_jobs', 'greenhouse', 'icims', 'oracle_cloud', 'workday',
+      'amazon_jobs', 'apple_jobs', 'greenhouse', 'icims', 'oracle_cloud', 'workday',
       'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite', 'paylocity'
   );
 

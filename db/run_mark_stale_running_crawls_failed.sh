@@ -3,19 +3,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
+STALE_MINUTES="${STALE_MINUTES:-60}"
 
 "${PSQL[@]}" -P pager=off -c "
 WITH stale_runs AS (
     SELECT run_id, batch_id, site_id
     FROM jobpush.crawl_runs
     WHERE status = 'running'
-      AND started_at < now() - interval '60 minutes'
+      AND started_at < now() - make_interval(mins => $STALE_MINUTES)
 ),
 updated_runs AS (
     UPDATE jobpush.crawl_runs run
     SET status = 'failed',
         error_code = 'stale_timeout',
-        error_message = 'Marked failed because crawl run was still running after 60 minutes; likely interrupted scheduler/adapter process.',
+        error_message = 'Marked failed because crawl run was still running past the stale threshold; likely interrupted scheduler/adapter process.',
         finished_at = COALESCE(finished_at, now())
     FROM stale_runs stale
     WHERE run.run_id = stale.run_id
