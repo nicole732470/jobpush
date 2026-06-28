@@ -243,6 +243,17 @@ Historical runs before migration 091 have only run-level totals in
 `career_site_discovery_runs`; their exact per-company attempt lists were not
 archived.
 
+To use residual credits from multiple Tavily keys safely, run:
+
+```bash
+bash db/deplete_tavily_keys.sh
+```
+
+Paste one key per line, then press Ctrl-D. The script checks each key's usage,
+keeps a small reserve by default, rotates only the active AWS secret, and runs
+never-searched P-tier discovery in 150/30/10-company chunks. It does not print
+or commit keys.
+
 Candidate ranking rule: `scripts/discover_career_sites.py` queries
 `"<company>" official careers jobs`, scores each returned URL with
 `candidate_score`, removes duplicate URLs, then stores the top candidates by

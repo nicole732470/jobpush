@@ -34,8 +34,6 @@ RESULTS="$WORK_DIR/results.csv"
     JOIN jobpush.company_targets_consolidated consolidated USING(consolidation_key)
     WHERE target.enabled
       AND target.priority_tier IN ('P1','P2')
-      -- Sampling should not burn credits on historical retry/not_found rows.
-      -- Re-searching is handled only by explicit recovery scripts.
       AND target.last_discovery_at IS NULL
       AND target.discovery_status = 'pending'
       AND NOT EXISTS (
