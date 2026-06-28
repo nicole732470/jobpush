@@ -23,6 +23,7 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
 | `jobpush.career_site_discovery_runs` | JobPush | Search batch counts, errors, and estimated credits |
+| `jobpush.career_site_discovery_attempts` | JobPush | Per-company Tavily search audit for credit usage, success/failure, candidate count |
 | `jobpush.company_tavily_discovery_features` | JobPush | Zero-credit company features reconstructed from retained Tavily site-search evidence |
 | **`jobpush.career_site_review_workbench`** | **JobPush** | **The only human review queue: one company per row, pending + verified, P0/potential-P0 first** |
 | `jobpush.crawl_batches` / `crawl_runs` | JobPush | Batch and per-site request, parsing, change, latency, and error metrics |

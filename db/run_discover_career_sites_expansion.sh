@@ -22,8 +22,12 @@ RESULTS="$WORK_DIR/results.csv"
   FROM jobpush.crawl_targets target
   WHERE target.enabled
     AND target.priority_tier IN ('P0','P1','P2')
+    -- Normal Tavily expansion is credit-conservative:
+    -- spend one basic-search credit only on companies that have never been
+    -- searched. Historical retry/not_found rows require a dedicated recovery
+    -- reset after confirming the failure was provider/network-wide.
     AND target.last_discovery_at IS NULL
-    AND target.discovery_status IN ('pending','retry','not_found')
+    AND target.discovery_status = 'pending'
     AND NOT EXISTS (
       SELECT 1 FROM jobpush.career_sites site
       WHERE site.consolidation_key=target.consolidation_key

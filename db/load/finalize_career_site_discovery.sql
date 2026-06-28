@@ -13,6 +13,37 @@ FROM jobpush.career_site_discovery_result_stage
 WHERE run_id = :'run_id'
 ON CONFLICT (run_id) DO NOTHING;
 
+INSERT INTO jobpush.career_site_discovery_attempts (
+    run_id, cohort, consolidation_key, canonical_name,
+    priority_tier, priority_score, search_query,
+    search_succeeded, candidate_count, error_message, attempted_at
+)
+SELECT
+    result.run_id,
+    :'cohort',
+    result.consolidation_key,
+    result.canonical_name,
+    target.priority_tier,
+    target.priority_score,
+    result.search_query,
+    result.search_succeeded,
+    result.candidate_count,
+    NULLIF(result.error_message, ''),
+    now()
+FROM jobpush.career_site_discovery_result_stage result
+LEFT JOIN jobpush.crawl_targets target USING (consolidation_key)
+WHERE result.run_id = :'run_id'
+ON CONFLICT (run_id, consolidation_key) DO UPDATE SET
+    cohort = EXCLUDED.cohort,
+    canonical_name = EXCLUDED.canonical_name,
+    priority_tier = EXCLUDED.priority_tier,
+    priority_score = EXCLUDED.priority_score,
+    search_query = EXCLUDED.search_query,
+    search_succeeded = EXCLUDED.search_succeeded,
+    candidate_count = EXCLUDED.candidate_count,
+    error_message = EXCLUDED.error_message,
+    attempted_at = EXCLUDED.attempted_at;
+
 INSERT INTO jobpush.career_sites (
     consolidation_key, site_url, normalized_domain, site_kind,
     source_type, source_key, discovery_source, verification_status,

@@ -212,6 +212,37 @@ credits. The waste mode is not candidate count; it is spending one company
 search and receiving only generic pages, external job boards, wrong-company
 pages, or unsupported ATS pages.
 
+Normal expansion policy, updated 2026-06-28:
+
+- Search only companies that are `discovery_status='pending'` and
+  `last_discovery_at IS NULL`.
+- Exclude companies that already have verified or unverified retained
+  candidates in `career_sites`.
+- Do not include historical `retry` or `not_found` rows in normal expansion.
+  Those rows have already spent at least one company-level search credit.
+- Retry historical failures only through an explicit recovery/reset step after
+  checking whether the failure was provider/key/network-wide. A single-company
+  failure is expected to fail again and should not consume fresh credits during
+  expansion.
+- `searched_no_candidate` means Tavily ran successfully but returned no retained
+  usable career candidate. It is not the same as a network failure; do not reset
+  it casually.
+
+From migration 091 onward, every finalized Tavily search is also written to
+`career_site_discovery_attempts`, so credit usage can be audited by company,
+run, tier, success/failure, and candidate count. Use:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_tavily_discovery_credit_policy_audit.sh
+```
+
+to see the current never-searched eligible pool, excluded historical rows, and
+recent run quality.
+
+Historical runs before migration 091 have only run-level totals in
+`career_site_discovery_runs`; their exact per-company attempt lists were not
+archived.
+
 Candidate ranking rule: `scripts/discover_career_sites.py` queries
 `"<company>" official careers jobs`, scores each returned URL with
 `candidate_score`, removes duplicate URLs, then stores the top candidates by

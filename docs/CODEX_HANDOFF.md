@@ -5,6 +5,11 @@
 生产 RDS 已部署 migration **001–073**；另外有 repeatable ops scripts for
 Tavily quota reset / career-site auto-trust / usage checks。
 
+Tavily discovery expansion must be credit-conservative: normal runs search only
+never-searched `pending` companies. Do not include historical `retry` or
+`not_found` rows unless a separate recovery audit confirms a provider/network
+batch failure.
+
 ---
 
 ## 1. 项目是做什么的
