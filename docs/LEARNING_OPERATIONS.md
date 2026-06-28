@@ -122,6 +122,15 @@ suffix stems and character n-grams did not pass the 98% holdout gate, so they
 were not kept as production features. Future tuning should compare feature
 sets and model families in a report before changing production behavior.
 
+`scripts/evaluate_title_classifier_variants.py` and
+`db/run_title_model_tuning_report.sh` produce that report. After Nicole's
+round-3 500-title review, the baseline model trained on 1,346 manual labels.
+It achieved 98.39% precision for high-confidence `non_target` predictions at
+threshold 0.995, but target precision was only 80% even at threshold 0.995.
+Therefore production still auto-applies only high-confidence non-target
+predictions; target recommendations should continue to come from exact manual
+labels and deterministic profile rules until a stronger model passes the gate.
+
 Eligible predictions are written to `job_title_ml_classifications` with model
 version, training size, holdout metrics, confidence, and evidence features.
 They may fill only unresolved `review` titles; manual labels and hard profile

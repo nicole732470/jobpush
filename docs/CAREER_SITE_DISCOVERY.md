@@ -296,6 +296,19 @@ problem, not a database-capacity problem. The next high-leverage work is to
 turn generic official career pages into ATS links where possible, then build
 repeatable generic parsers only for recurring templates.
 
+2026-06-27 cleanup/update:
+
+- A 50-company zero-credit generic resolver pilot found no new ATS links,
+  confirming that blindly fetching generic pages is low yield without more
+  cleanup and better page-pattern handling.
+- Migration 086 rejected 219 obvious external / portfolio / aggregator generic
+  candidates and reclassified 37 `jobs.jobvite.com` candidates from
+  `generic_html` to `jobvite`.
+- Auto-trust promoted 20 newly usable structured ATS candidates, primarily
+  Jobvite.
+- Two scheduled crawl batches then validated the path: Jobvite grew from 1 to
+  9 successful sites and parsed 141 jobs, including 19 target jobs.
+
 ### Platform adapter progress
 
 | Platform | Status | Notes |

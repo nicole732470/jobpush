@@ -42,6 +42,20 @@ EXCLUDED_DOMAINS = {
     "jobs.gv.com", "jobs.battery.com", "jobs.baincapitalventures.com",
     "careers.nea.com", "jobs.greylock.com", "jobs.techaviv.com",
     "jobs.gaingels.com", "jobs.fin.capital", "jobs.bvp.com", "jobs.lsvp.com",
+    "themuse.com", "whatjobs.com", "bandana.com", "powderkeg.com",
+    "frontendnode-production.up.railway.app", "web3.career", "jobleads.com",
+    "4dayweek.io", "simplify.jobs", "ehscareers.com", "glassdoor.sg",
+    "linemancentral.com", "career.io", "healthecareers.com", "careers.usnews.com",
+    "salesjobs.com", "remote.com", "wallstreetcareers.com", "energyjobshop.com",
+    "scoutify.com", "talent.com", "dailyremote.com", "foundit.in",
+    "unstop.com", "trueup.io", "app.careerpuck.com", "careers-page.com",
+    "jobs.gem.com", "ev.careers", "careerhub.biocom.org", "jobs.paypal.vc",
+    "careers.ivp.com", "jobs.abstractvc.com", "jobs.insightpartners.com",
+    "jobs.linkventures.com", "jobs.startx.com", "careers.playground.global",
+    "jobs.nextview.vc", "jobs.foothill.ventures", "careers.celesta.vc",
+    "careers.innospark.vc", "jobs.kleinerperkins.com", "careers.peakxv.com",
+    "jobs.forerunnerventures.com", "careers.sorensoncap.com",
+    "careers.aixventures.com", "careers.nvp.com",
 }
 COMPANY_STOPWORDS = {
     "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation",
@@ -82,9 +96,9 @@ def classify_url(raw_url):
     elif host == "careers.smartrecruiters.com" and path_parts:
         source_type, source_key, site_kind = "smartrecruiters", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"
-    elif host == "jobs.jobvite.com" and len(path_parts) >= 2:
-        source_type, source_key, site_kind = "jobvite", path_parts[1], "ats_feed"
-        canonical_path = f"/careers/{source_key}/jobs"
+    elif host == "jobs.jobvite.com" and path_parts:
+        source_type, source_key, site_kind = "jobvite", path_parts[1] if path_parts[0] == "careers" and len(path_parts) >= 2 else path_parts[0], "ats_feed"
+        canonical_path = f"/{source_key}/jobs"
     elif host in {"apply.workable.com", "jobs.workable.com"} and path_parts:
         source_type, source_key, site_kind = "workable", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"

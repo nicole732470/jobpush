@@ -54,17 +54,22 @@ profile exclusions, such as senior SDE-track titles, are kept non-target.
   (`target` 7 after hard-rule overrides, `non_target` 88).
 - 2026-06-27 Nicole round-2 workbook import:
   `target` 20 and `non_target` 62 exact normalized-title labels were applied.
+- 2026-06-27 Nicole round-3 dashboard CSV import:
+  `target` 117 and `non_target` 383 exact normalized-title labels were applied.
 - 2026-06-27 profile expansion added hard non-target families for healthcare /
   clinical roles, legal roles, teaching / education roles, skilled-trade roles,
   buyer / procurement roles, restaurant / food-service roles, plumbing trades,
   mental-health / therapy roles, lab / specimen / clinical-support roles,
   retail stylist / beauty / selling-floor roles, and non-technical sales roles.
   This removes repeated obvious misses from future review batches.
-- 2026-06-27 local supervised title model retrain used 846 manual labels and
-  applied 156 additional high-confidence non-target decisions. It did not apply
-  target predictions because the current target precision threshold was not met.
-- Active US postings after the 2026-06-27 round-2 import and local ML pass:
-  roughly `target` 4.0k, `review` 15.3k, and `non_target` 20.7k.
+- 2026-06-27 local supervised title model retrain after round 3 used 1,346
+  manual labels. Baseline Naive Bayes met the 98% precision gate only for
+  `non_target` at threshold 0.995 and applied 457 additional high-confidence
+  non-target decisions. It did not apply target predictions because target
+  holdout precision remained too low.
+- Active US postings after the 2026-06-27 round-3 import and local ML pass:
+  roughly `target` 4.3k, `review` 14.2k before ML / 13.7k after ML, and
+  `non_target` 21.6k+.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
