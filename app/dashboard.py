@@ -1007,7 +1007,9 @@ def company_lca_roles(company: str) -> pd.DataFrame:
             FROM matched_companies matched
         ), lca AS (
             SELECT member.consolidation_key, member.canonical_name,
-                   case_row.soc_code, case_row.soc_title, case_row.job_title,
+                   jobpush.normalize_soc_code(case_row.soc_code) AS normalized_soc_code,
+                   COALESCE(NULLIF(case_row.soc_title, ''), '(missing SOC title)') AS soc_title,
+                   COALESCE(NULLIF(case_row.job_title, ''), '(missing raw title)') AS raw_job_title,
                    case_row.case_status, case_row.decision_date,
                    case_row.wage_rate_of_pay_from, case_row.wage_unit_of_pay
             FROM member_feins member
@@ -1015,9 +1017,9 @@ def company_lca_roles(company: str) -> pd.DataFrame:
               ON case_row.employer_fein = member.employer_fein
         )
         SELECT lca.canonical_name,
-               jobpush.normalize_soc_code(lca.soc_code) AS normalized_soc_code,
-               COALESCE(NULLIF(lca.soc_title, ''), '(missing SOC title)') AS soc_title,
-               COALESCE(NULLIF(lca.job_title, ''), '(missing raw title)') AS raw_job_title,
+               lca.normalized_soc_code,
+               lca.soc_title,
+               lca.raw_job_title,
                CASE WHEN target.normalized_soc_code IS NOT NULL THEN TRUE ELSE FALSE END AS current_target_soc,
                COUNT(*) AS lca_count,
                COUNT(*) FILTER (WHERE lca.case_status = 'Certified') AS certified_count,
@@ -1027,9 +1029,10 @@ def company_lca_roles(company: str) -> pd.DataFrame:
                MAX(lca.wage_rate_of_pay_from) FILTER (WHERE lca.wage_unit_of_pay = 'Year') AS max_yearly_wage_from
         FROM lca
         LEFT JOIN jobpush.target_soc_roles target
-          ON target.normalized_soc_code = jobpush.normalize_soc_code(lca.soc_code)
+          ON target.normalized_soc_code = lca.normalized_soc_code
          AND target.active
-        GROUP BY lca.canonical_name, normalized_soc_code, soc_title, raw_job_title, current_target_soc
+        GROUP BY lca.canonical_name, lca.normalized_soc_code, lca.soc_title,
+                 lca.raw_job_title, target.normalized_soc_code
         ORDER BY current_target_soc DESC, lca_count DESC, lca.canonical_name, raw_job_title
         LIMIT 1000
         """,
