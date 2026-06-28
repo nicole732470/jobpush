@@ -30,6 +30,9 @@ for row in "${DUE_SITES[@]}"; do
   case "$source_type" in
     apple_jobs) adapter_name="apple-jobs-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_apple_jobs.py" ;;
     amazon_jobs) adapter_name="amazon-jobs-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_amazon_jobs.py" ;;
+    google_jobs) adapter_name="google-careers-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_google_jobs.py" ;;
+    cognizant_jobs) adapter_name="cognizant-careers-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_cognizant_jobs.py" ;;
+    eightfold) adapter_name="eightfold-embedded"; adapter_version="0.1.0"; adapter_script="scripts/crawl_eightfold_jobs.py" ;;
     greenhouse) adapter_name="greenhouse-api"; adapter_version="0.2.0"; adapter_script="scripts/crawl_greenhouse.py" ;;
     lever) adapter_name="lever-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_lever.py" ;;
     ashby) adapter_name="ashby-posting-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_ashby.py" ;;

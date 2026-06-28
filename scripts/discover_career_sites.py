@@ -127,6 +127,12 @@ def classify_url(raw_url):
         source_type, source_key, site_kind = "oracle_cloud", host, "ats_feed"
     elif host == "amazon.jobs" and any(term in parsed.path.casefold() for term in CAREER_TERMS):
         source_type, source_key, site_kind = "amazon_jobs", host, "ats_feed"
+    elif host == "www.google.com" and "/about/careers/applications/jobs/results" in parsed.path:
+        source_type, source_key, site_kind = "google_jobs", host, "ats_feed"
+    elif host == "careers.cognizant.com" and "/jobs" in parsed.path:
+        source_type, source_key, site_kind = "cognizant_jobs", host, "ats_feed"
+    elif host.endswith("eightfold.ai") or host == "portal.careers.hsbc.com":
+        source_type, source_key, site_kind = "eightfold", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
 

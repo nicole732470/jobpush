@@ -16,6 +16,9 @@ CAREER_TERMS = ("career", "careers", "jobs", "job", "join", "opportunities", "op
 SUPPORTED_SOURCE_TYPES = {
     "amazon_jobs",
     "apple_jobs",
+    "cognizant_jobs",
+    "eightfold",
+    "google_jobs",
     "greenhouse",
     "icims",
     "oracle_cloud",
@@ -875,12 +878,18 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         source_type, source_key, site_kind = "oracle_cloud", host, "ats_feed"
     elif host == "amazon.jobs" and any(term in parsed.path.casefold() for term in CAREER_TERMS):
         source_type, source_key, site_kind = "amazon_jobs", host, "ats_feed"
+    elif host == "www.google.com" and "/about/careers/applications/jobs/results" in parsed.path:
+        source_type, source_key, site_kind = "google_jobs", host, "ats_feed"
+    elif host == "careers.cognizant.com" and "/jobs" in parsed.path:
+        source_type, source_key, site_kind = "cognizant_jobs", host, "ats_feed"
+    elif host.endswith("eightfold.ai") or "portal.careers.hsbc.com" == host:
+        source_type, source_key, site_kind = "eightfold", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
 
     canonical_url = urlunparse((parsed.scheme or "https", parsed.netloc, canonical_path, "", parsed.query, ""))
     scope_method = "local_filter" if source_type in LOCAL_FILTER_SOURCE_TYPES else "unknown"
-    if source_type in {"amazon_jobs", "apple_jobs", "oracle_cloud"}:
+    if source_type in {"amazon_jobs", "apple_jobs", "cognizant_jobs", "eightfold", "google_jobs", "oracle_cloud"}:
         scope_method = "server_filter"
     return {
         "site_url": canonical_url,
@@ -943,7 +952,7 @@ def set_manual_crawl_priority(consolidation_key: str, tier: str, reason: str) ->
 
 def update_site_scope_and_due(site_id: int, source_type: str, notes: str | None = None) -> None:
     scope_method = "local_filter" if source_type in LOCAL_FILTER_SOURCE_TYPES else "unknown"
-    if source_type in {"amazon_jobs", "apple_jobs", "oracle_cloud"}:
+    if source_type in {"amazon_jobs", "apple_jobs", "cognizant_jobs", "eightfold", "google_jobs", "oracle_cloud"}:
         scope_method = "server_filter"
     execute(
         """
