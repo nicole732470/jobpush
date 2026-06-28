@@ -34,16 +34,15 @@ to all users.
 
 ## Current status
 
-Profile version `2026-06-27-draft-2` adds:
+Profile version `2026-06-27-draft-5` adds:
 
-- Internship/entry/early-career preference with Senior as the maximum level.
+- Internship/entry/early-career preference; Senior/Sr is now a hard exclusion
+  across all role families for JobPush recommendations.
 - Lead, Staff, Principal, Director, Executive Director, Vice President, Head,
   Chief, Distinguished, and Fellow as seniority exclusions.
-- Senior/Sr titles inside the SDE/software-engineering track are now excluded:
-  Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior
-  Full-Stack Developer, Senior DevOps/Cloud/Security Engineer, etc. This rule is
-  conditional and does not automatically exclude Senior Product Manager or other
-  non-SDE senior titles.
+- Senior/Sr titles are excluded globally: Senior Software Engineer, Sr Backend
+  Engineer, Senior Data Engineer, Senior Product Manager, Senior Business
+  Analyst, Sr Customer Success Manager, etc.
 - Machine-learning model work, Mechanical, Electrical, CAD/EDA, Embedded,
   firmware, RF, circuit, RTL, physical-design, and hardware domains as explicit
   exclusions.

@@ -22,7 +22,7 @@ from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 PROMPT_VERSION = "jobpush-title-ai-v2"
-PROFILE_VERSION_DEFAULT = "2026-06-27-draft-2"
+PROFILE_VERSION_DEFAULT = "2026-06-27-draft-5"
 
 SYSTEM_PROMPT = """You classify US career-site job titles for Nicole's job search.
 
@@ -39,8 +39,8 @@ Target tracks:
 - Data analyst, business analyst, BI analyst/engineer, consultant, marketing analyst/specialist.
 
 Avoid / non-target:
-- Too senior: lead, staff, principal, director, executive director, VP, head, chief, distinguished, fellow.
-- Senior/Sr SDE-track roles are non_target: Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior Full-Stack Developer, Senior DevOps/Cloud/Security Engineer, etc.
+- Too senior: senior, sr, lead, staff, principal, director, executive director, VP, head, chief, distinguished, fellow.
+- All Senior/Sr roles are non_target, even if the base role family is otherwise target: Senior Product Manager, Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Sr Customer Success Manager, etc.
 - ML model development/research, applied scientist, research scientist/engineer.
 - Mechanical, electrical, CAD/EDA, embedded, firmware, RF, antenna, circuit, ASIC, RTL, semiconductor, chip, CPU/GPU/SoC, hardware roles.
 - HR, recruiter, talent acquisition, people operations.
@@ -50,7 +50,7 @@ Avoid / non-target:
 - Non-English/non-US obvious titles, especially Chinese/Japanese/Korean job titles.
 
 Seniority nuance:
-- Senior is allowed outside the SDE/software-engineering track when there is no other hard avoid signal.
+- Senior/Sr is always a hard avoid signal for the current search.
 - Manager is not automatically senior if it means Product Manager, Program Manager, Account Manager, Customer Success Manager, etc.
 - If a title has both a target family and a hard avoid/seniority/domain signal, choose non_target.
 

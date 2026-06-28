@@ -44,7 +44,7 @@ Manual decisions use a `manual-*` rule version and append an immutable row to
 `job_title_label_history`. The 2026-06-27 round-1 import uses
 `manual-title-review-2026-06-27`; the round-2 import uses
 `manual-title-review-round2-2026-06-27`. Target rows that conflict with hard
-profile exclusions, such as senior SDE-track titles, are kept non-target.
+profile exclusions, such as any Senior/Sr title, are kept non-target.
 
 ## Current production snapshot
 
@@ -62,6 +62,10 @@ profile exclusions, such as senior SDE-track titles, are kept non-target.
   mental-health / therapy roles, lab / specimen / clinical-support roles,
   retail stylist / beauty / selling-floor roles, and non-technical sales roles.
   This removes repeated obvious misses from future review batches.
+- 2026-06-27 profile update `profile-title-rules-v2`: all Senior/Sr titles are
+  a hard `non_target` exclusion across every track. This supersedes the earlier
+  narrower senior-SDE-only rule and intentionally overrides older manual target
+  labels if the normalized title contains `senior`, `sr`, or `sr.`.
 - 2026-06-27 local supervised title model retrain after round 3 used 1,346
   manual labels. Baseline Naive Bayes met the 98% precision gate only for
   `non_target` at threshold 0.995 and applied 457 additional high-confidence
@@ -99,7 +103,7 @@ all logic in one SQL function:
   mental-health roles, lab / specimen / clinical-support roles, hardware,
   mechanical/electrical, embedded/firmware/chip/CAD/EDA, ML-model roles,
   healthcare/clinical roles, legal roles, teaching/education roles,
-  skilled-trade roles, and over-senior titles -> non-target;
+  skilled-trade roles, any Senior/Sr title, and over-senior titles -> non-target;
 - CJK/Korean language signals are marked non-target and any active postings
   with those title signals are excluded from the US business surface.
 
@@ -130,11 +134,10 @@ Confidence gates:
 - non-target applies at confidence ≥ 0.84;
 - lower-confidence output remains `review`.
 
-2026-06-27 profile update: Senior/Sr SDE-track titles are non-target even when
-the base role family would otherwise be target. Examples include Senior
-Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior Full-Stack
-Developer, and Senior DevOps/Cloud/Security Engineer. The exclusion is
-conditional; Senior Product Manager is not excluded by this SDE-specific rule.
+2026-06-27 profile update: Senior/Sr titles are non-target across all tracks
+even when the base role family would otherwise be target. Examples include
+Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior
+Product Manager, Senior Business Analyst, and Sr Customer Success Manager.
 
 The AI table records model, prompt version, profile version, input hash,
 rationale, and raw JSON response for debugging.
