@@ -37,7 +37,7 @@ IFS=$'\t' read -r SITE_ID SITE_URL < <("${PSQL[@]}" -qAtF $'\t' -c \
       failed_target_count=GREATEST(failed_target_count,1), finished_at=COALESCE(finished_at,now())
    WHERE cohort='$COHORT' AND status='running';"
 
-BATCH_NAME="$COHORT-$(date -u +%Y%m%dT%H%M%SZ)"
+BATCH_NAME="$COHORT-site${SITE_ID}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 BATCH_ID=$("${PSQL[@]}" -Atc \
   "INSERT INTO jobpush.crawl_batches
       (batch_name,cohort,priority_tier,selection_rule,status,
