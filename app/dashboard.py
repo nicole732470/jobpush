@@ -503,6 +503,110 @@ def p1_blocker_distribution() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def crawl_state_by_tier(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type = 'generic_html') AS generic_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type <> 'generic_html') AS structured_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified') AS unverified_candidates
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), due AS (
+            SELECT consolidation_key, COUNT(*) FILTER (WHERE is_due) AS due_sites
+            FROM jobpush.crawl_schedule_queue
+            GROUP BY consolidation_key
+        ), classified AS (
+            SELECT target.priority_tier,
+                   CASE
+                       WHEN COALESCE(site.has_success, FALSE) THEN '01 successfully crawled'
+                       WHEN COALESCE(site.has_failed, FALSE) THEN '02 adapter/site failed'
+                       WHEN COALESCE(due.due_sites, 0) > 0 THEN '03 enabled and due'
+                       WHEN COALESCE(site.has_enabled_site, FALSE) THEN '04 enabled not due'
+                       WHEN COALESCE(site.structured_candidates, 0) > 0 THEN '05 structured candidate not enabled'
+                       WHEN COALESCE(site.generic_candidates, 0) > 0 THEN '06 generic HTML needs resolution'
+                       WHEN target.discovery_status = 'pending' THEN '07 not searched yet'
+                       ELSE '08 searched no usable candidate'
+                   END AS crawl_state
+            FROM jobpush.crawl_targets target
+            LEFT JOIN site_rollup site USING (consolidation_key)
+            LEFT JOIN due USING (consolidation_key)
+            WHERE target.enabled AND target.priority_tier = ANY(%s)
+        )
+        SELECT priority_tier,
+               crawl_state,
+               COUNT(*) AS companies,
+               ROUND(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (PARTITION BY priority_tier), 0), 2) AS pct_within_tier
+        FROM classified
+        GROUP BY priority_tier, crawl_state
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                 crawl_state
+        """,
+        (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
+def generic_blocker_template_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), generic_sites AS (
+            SELECT target.priority_tier,
+                   target.consolidation_key,
+                   lower(regexp_replace(coalesce(site.normalized_domain, split_part(regexp_replace(site.site_url, '^https?://', ''), '/', 1)), '^www\\.', '')) AS host,
+                   lower(regexp_replace(regexp_replace(site.site_url, '^https?://[^/]+', ''), '[?#].*$', '')) AS path
+            FROM jobpush.career_sites site
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            LEFT JOIN site_rollup rollup USING (consolidation_key)
+            WHERE target.enabled
+              AND target.priority_tier = ANY(%s)
+              AND site.source_type = 'generic_html'
+              AND site.verification_status = 'unverified'
+              AND site.crawl_enabled = FALSE
+              AND NOT COALESCE(rollup.has_enabled_site, FALSE)
+              AND NOT COALESCE(rollup.has_success, FALSE)
+        ), classified AS (
+            SELECT *,
+                   CASE
+                       WHEN host LIKE '%%myworkdayjobs.com' THEN 'workday domain missed'
+                       WHEN host LIKE '%%greenhouse.io' THEN 'greenhouse domain missed'
+                       WHEN host LIKE '%%lever.co' THEN 'lever domain missed'
+                       WHEN host LIKE '%%ashbyhq.com' THEN 'ashby domain missed'
+                       WHEN host LIKE '%%smartrecruiters.com' THEN 'smartrecruiters domain missed'
+                       WHEN host LIKE '%%icims.com' THEN 'icims domain missed'
+                       WHEN host LIKE '%%successfactors.%%' OR host LIKE '%%successfactors.com' THEN 'successfactors domain missed'
+                       WHEN host LIKE '%%oraclecloud.com' THEN 'oracle cloud domain missed'
+                       WHEN path ~ '(career|careers|job|jobs|openings|opportunities)' THEN 'corporate careers page'
+                       ELSE 'generic/corporate page'
+                   END AS template_family
+            FROM generic_sites
+        )
+        SELECT priority_tier,
+               template_family,
+               COUNT(DISTINCT consolidation_key) AS companies,
+               COUNT(*) AS site_rows,
+               ROUND(100.0 * COUNT(DISTINCT consolidation_key) / NULLIF(SUM(COUNT(DISTINCT consolidation_key)) OVER (PARTITION BY priority_tier), 0), 2) AS pct_within_tier
+        FROM classified
+        GROUP BY priority_tier, template_family
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                 companies DESC, template_family
+        """,
+        (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
 def p1_rank_coverage() -> pd.DataFrame:
     return query(
         """
@@ -575,12 +679,14 @@ def current_failure_reasons() -> pd.DataFrame:
               AND target.priority_tier IN ('P0','P1','P2')
         )
         SELECT failure_reason,
+               priority_tier,
+               source_type,
                next_action,
                COUNT(*) AS sites,
                STRING_AGG(canonical_name, ', ' ORDER BY canonical_name) AS example_companies
         FROM failed
-        GROUP BY failure_reason, next_action
-        ORDER BY sites DESC, failure_reason
+        GROUP BY failure_reason, priority_tier, source_type, next_action
+        ORDER BY sites DESC, priority_tier, source_type, failure_reason
         """
     )
 
@@ -764,6 +870,8 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         source_type, source_key, site_kind = "icims", host, "ats_feed"
     elif host.endswith("successfactors.com"):
         source_type, source_key, site_kind = "successfactors", host, "ats_feed"
+    elif host.endswith("oraclecloud.com") and "CandidateExperience" in parsed.path and "/sites/" in parsed.path:
+        source_type, source_key, site_kind = "oracle_cloud", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
 
@@ -1693,6 +1801,23 @@ ORDER BY target.priority_tier;
             """.strip(),
             language="sql",
         )
+
+    st.subheader("Crawlable vs blocked distribution")
+    state_frame = crawl_state_by_tier(tiers)
+    if state_frame.empty:
+        st.info("No companies found for the selected priority tiers.")
+    else:
+        chart_frame = state_frame.pivot(index="crawl_state", columns="priority_tier", values="companies").fillna(0)
+        st.bar_chart(chart_frame, height=330)
+        st.dataframe(state_frame, hide_index=True, use_container_width=True, height=300)
+
+    st.subheader("Generic HTML blocker template families")
+    template_frame = generic_blocker_template_summary(tiers)
+    if template_frame.empty:
+        st.success("No unresolved generic HTML blockers in the selected tiers.")
+    else:
+        st.caption("This separates true corporate careers pages from missed structured ATS domains. Missed structured domains are the cheapest parser/classifier wins.")
+        st.dataframe(template_frame, hide_index=True, use_container_width=True, height=260)
 
     left, right = st.columns([1, 1])
     with left:

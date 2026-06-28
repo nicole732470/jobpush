@@ -90,7 +90,7 @@ def score_candidate(company_name: str, source_url: str, href: str, anchor_text: 
         score += 15
     if tokens and any(token in text for token in tokens[:4]):
         score += 10
-    if source_type in {"greenhouse", "workday", "lever", "ashby", "smartrecruiters", "icims"}:
+    if source_type in {"greenhouse", "workday", "lever", "ashby", "smartrecruiters", "icims", "oracle_cloud"}:
         score += 10
 
     return {

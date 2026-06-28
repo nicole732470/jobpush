@@ -14,7 +14,7 @@ WITH eligible AS (
       AND site.verification_status = 'unverified'
       AND site.candidate_rank = 1
       AND (
-          site.source_type IN ('greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters')
+          site.source_type IN ('greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters', 'oracle_cloud')
           OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
           OR (site.source_type = 'jobvite' AND site.normalized_domain = 'jobs.jobvite.com')
           OR (site.source_type = 'paylocity' AND site.normalized_domain = 'recruiting.paylocity.com')

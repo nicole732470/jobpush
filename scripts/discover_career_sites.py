@@ -123,6 +123,8 @@ def classify_url(raw_url):
         source_type, source_key, site_kind = "icims", host, "ats_feed"
     elif host.endswith("successfactors.com"):
         source_type, source_key, site_kind = "successfactors", host, "ats_feed"
+    elif host.endswith("oraclecloud.com") and "CandidateExperience" in parsed.path and "/sites/" in parsed.path:
+        source_type, source_key, site_kind = "oracle_cloud", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
 
