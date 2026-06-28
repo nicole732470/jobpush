@@ -6,7 +6,9 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${GENERIC_RESOLVE_LIMIT:-50}"
+RETRY_ATTEMPTED="${GENERIC_RESOLVE_RETRY:-0}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "GENERIC_RESOLVE_LIMIT must be a positive integer" >&2; exit 2; }
+[[ "$RETRY_ATTEMPTED" =~ ^[01]$ ]] || { echo "GENERIC_RESOLVE_RETRY must be 0 or 1" >&2; exit 2; }
 
 RUN_ID="generic-ats-resolver-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 WORK_DIR="$(mktemp -d -t jobpush-generic-ats.XXXXXX)"
@@ -31,7 +33,10 @@ RESULTS="$WORK_DIR/results.csv"
     AND site.source_type = 'generic_html'
     AND site.verification_status = 'unverified'
     AND site.crawl_enabled = FALSE
-    AND COALESCE(site.last_error, '') NOT LIKE 'generic_ats_resolution_attempted%'
+    AND (
+        '$RETRY_ATTEMPTED' = '1'
+        OR COALESCE(site.last_error, '') NOT LIKE 'generic_ats_resolution_attempted%'
+    )
     AND NOT EXISTS (
         SELECT 1
         FROM jobpush.career_sites structured

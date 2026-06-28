@@ -36,8 +36,9 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
   for script in \
     crawl_amazon_jobs.py crawl_apple_jobs.py crawl_cognizant_jobs.py crawl_eightfold_jobs.py crawl_google_jobs.py crawl_greenhouse.py crawl_icims.py \
     crawl_oracle_cloud.py crawl_workday.py crawl_lever.py crawl_ashby.py crawl_jobvite.py crawl_paylocity.py crawl_rippling.py \
-    crawl_smartrecruiters.py crawl_workable.py discover_career_sites.py \
+    crawl_smartrecruiters.py crawl_workable.py crawl_generic_jsonld.py discover_career_sites.py \
     resolve_generic_ats_links.py \
+    find_generic_jsonld_sites.py \
     guess_ats_sites.py \
     evaluate_title_classifier_variants.py \
     classify_job_titles_ai.py \

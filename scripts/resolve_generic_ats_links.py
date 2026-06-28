@@ -28,6 +28,7 @@ CAREER_HINTS = re.compile(
     r"(job|jobs|career|careers|opening|openings|position|positions|opportunit|workday|greenhouse|lever|ashby|icims|jobvite|workable|paylocity|rippling|ultipro)",
     re.I,
 )
+URL_RE = re.compile(r"https?://[^\\\"'<> )]+")
 SUPPORTED_ATS_LINKS = {
     "greenhouse",
     "workday",
@@ -167,6 +168,13 @@ def main() -> None:
                     deduped: dict[str, dict] = {}
                     for href, anchor_text in parser_obj.links:
                         candidate = score_candidate(name, source_url, href, anchor_text)
+                        if not candidate:
+                            continue
+                        current = deduped.get(candidate["site_url"])
+                        if current is None or candidate["candidate_score"] > current["candidate_score"]:
+                            deduped[candidate["site_url"]] = candidate
+                    for raw_url in URL_RE.findall(page_html):
+                        candidate = score_candidate(name, source_url, html.unescape(raw_url), "embedded URL")
                         if not candidate:
                             continue
                         current = deduped.get(candidate["site_url"])

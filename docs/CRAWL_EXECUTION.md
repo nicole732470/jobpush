@@ -99,6 +99,18 @@ Additional zero/low-credit discovery fallbacks, mainly for later P2 expansion:
   but LinkedIn is anti-scraping sensitive. Use only for tiny/manual batches with
   browser-like headers and never as the default high-volume path.
 
+For stubborn `generic_html` P1 blockers, use the cheap steps before writing
+company-specific parsers:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links_1000.sh
+bash db/deploy_via_ssm.sh db/run_promote_generic_jsonld_sites_1000.sh
+```
+
+The resolver checks both anchor tags and embedded HTML/JS URLs. The JSON-LD
+probe promotes only pages that expose standard `JobPosting` data. Both use zero
+Tavily credits.
+
 Migration 068 adds `career_site_selection_candidates`, which exposes every
 site-selection score and decision. Rank-1 P0/P1 Lever, Ashby, and
 SmartRecruiters candidates may be auto-trusted only when no verified site
