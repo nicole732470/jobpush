@@ -11,7 +11,9 @@ trap 'rm -rf "$TMP_DIR"' EXIT
   FROM jobpush.job_title_labels
   WHERE rule_version LIKE 'manual%'
     AND classification_status IN ('target','non_target')
-) TO STDOUT WITH (FORMAT CSV, HEADER TRUE)" > "$TMP_DIR/labels.csv"
+) TO STDOUT WITH (FORMAT CSV, HEADER TRUE)" > "$TMP_DIR/manual_holdout_labels.csv"
+
+cp "$TMP_DIR/manual_holdout_labels.csv" "$TMP_DIR/train_labels.csv"
 
 "${PSQL[@]}" -qAt -c "COPY (
   SELECT normalized_title
@@ -21,8 +23,13 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 ) TO STDOUT WITH (FORMAT CSV, HEADER TRUE)" > "$TMP_DIR/review.csv"
 
 python3 "$REPO_DIR/scripts/train_local_title_classifier.py" \
-  "$TMP_DIR/labels.csv" "$TMP_DIR/review.csv" \
-  "$TMP_DIR/predictions.sql" "$TMP_DIR/metrics.json"
+  "$TMP_DIR/train_labels.csv" "$TMP_DIR/review.csv" \
+  "$TMP_DIR/predictions.sql" "$TMP_DIR/metrics.json" \
+  --holdout-labels-csv "$TMP_DIR/manual_holdout_labels.csv" \
+  --model-version local-title-ml-v1 \
+  --variant baseline \
+  --class-prior observed \
+  --auto-label non_target
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -f "$TMP_DIR/predictions.sql"
 "${PSQL[@]}" -P pager=off -c \
   "SELECT * FROM jobpush.apply_local_job_title_ml('local-title-ml-v1', 10000);"

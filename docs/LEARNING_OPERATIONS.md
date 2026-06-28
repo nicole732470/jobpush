@@ -137,6 +137,16 @@ They may fill only unresolved `review` titles; manual labels and hard profile
 rules remain authoritative. This path uses no paid API and never sends title or
 profile data outside the database host.
 
+2026-06-28 update: production remains the manual-label-only
+`local-title-ml-v1` baseline because it is the only local model that currently
+passes the 98% holdout precision gate for high-confidence `non_target`
+predictions. A weak-supervision challenger (`local-title-ml-v2`) was tested
+with manual labels plus capped trusted hard-rule labels, including cleaning,
+warehouse, seniority, and other avoid clusters. It did **not** pass the manual
+holdout gate, even with a minimum holdout count of one, so it is kept as a probe
+only and must not auto-apply labels until later manual review data improves its
+holdout precision. Do not lower the gate just to reduce review volume.
+
 ## Current TODO
 
 | Owner | Due | Task | Status |

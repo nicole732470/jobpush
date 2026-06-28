@@ -94,6 +94,11 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
 - 2026-06-28 migration 093 closes the remaining residual cleaning strings
   (`clean/processor`, `nettoyage`) without blocking unrelated phrases such as
   `clean energy` or `custody`.
+- 2026-06-28 ML update: production remains `local-title-ml-v1`, trained only on
+  manual labels and allowed to auto-apply only high-confidence `non_target`
+  predictions. A weak-supervision v2 challenger using trusted hard-rule labels
+  was tested but did not pass the manual holdout gate, so it is documented as a
+  probe rather than a production classifier.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
