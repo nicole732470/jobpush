@@ -1588,7 +1588,6 @@ with title_review_tab:
             "example_title",
             "active_posting_count",
             "company_count",
-            "example_companies",
             "suggestion_reason",
             "matched_soc_codes",
             "matched_soc_titles",
