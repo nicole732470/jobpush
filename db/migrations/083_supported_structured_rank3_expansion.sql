@@ -32,7 +32,7 @@ SET verification_status = 'verified',
     crawl_status = 'pending',
     target_country_code = 'US',
     scope_method = CASE
-        WHEN site.source_type IN ('apple_jobs', 'oracle_cloud') THEN 'source_us_filter'
+        WHEN site.source_type IN ('apple_jobs', 'oracle_cloud') THEN 'server_filter'
         ELSE 'local_filter'
     END,
     next_crawl_at = now(),
