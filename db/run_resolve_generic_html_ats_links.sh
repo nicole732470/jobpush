@@ -31,6 +31,7 @@ RESULTS="$WORK_DIR/results.csv"
     AND site.source_type = 'generic_html'
     AND site.verification_status = 'unverified'
     AND site.crawl_enabled = FALSE
+    AND COALESCE(site.last_error, '') NOT LIKE 'generic_ats_resolution_attempted%'
     AND NOT EXISTS (
         SELECT 1
         FROM jobpush.career_sites structured
@@ -131,6 +132,17 @@ WHERE EXISTS (
     WHERE stage.run_id = :'run_id'
       AND stage.consolidation_key = target.consolidation_key
 );
+
+UPDATE jobpush.career_sites site
+SET
+    last_error = 'generic_ats_resolution_attempted: checked retained generic page for structured ATS links',
+    updated_at = now()
+FROM jobpush.career_site_discovery_result_stage result
+WHERE result.run_id = :'run_id'
+  AND result.consolidation_key = site.consolidation_key
+  AND site.source_type = 'generic_html'
+  AND site.verification_status = 'unverified'
+  AND site.crawl_enabled = FALSE;
 
 UPDATE jobpush.career_site_discovery_runs
 SET status = 'completed', finished_at = now()

@@ -304,6 +304,19 @@ Generic HTML is handled in three layers, in this order:
    This fetches retained generic pages, scans outbound links, and writes any
    discovered ATS links back to `career_sites` with
    `discovery_source='generic_html_link_resolver'` and zero estimated credits.
+   Larger zero-credit batches are available when the queue is clearly dominated
+   by generic pages:
+
+   ```bash
+   bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links_500.sh
+   bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links_1000.sh
+   ```
+
+   Every processed generic page is marked with
+   `last_error='generic_ats_resolution_attempted...'` so later batches do not
+   repeatedly request pages that already produced no structured ATS link.
+   This marker is operational only; it does not reject the site or delete the
+   candidate.
 3. **Write parsers only for repeatable patterns.** Do not build one-off parsers
    for every company page. First group remaining generic pages by domain,
    template, or platform. Then add a parser only when the group is large enough
