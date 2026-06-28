@@ -10,6 +10,7 @@ import re
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from market_scope import classify_market_scope
@@ -29,12 +30,23 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def post_json(url: str, payload: dict) -> tuple[dict, int]:
+def post_json(url: str, payload: dict, retries: int = 2) -> tuple[dict, int]:
     request = Request(url, data=json.dumps(payload).encode(), method="POST",
                       headers={"User-Agent": "JobPush/0.1", "Accept": "application/json",
                                "Content-Type": "application/json"})
-    with urlopen(request, timeout=30) as response:
-        return json.load(response), response.status
+    last_error: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            with urlopen(request, timeout=30) as response:
+                return json.load(response), response.status
+        except (TimeoutError, URLError) as exc:
+            last_error = exc
+            if attempt >= retries:
+                break
+            time.sleep(1 + attempt)
+        except HTTPError:
+            raise
+    raise RuntimeError(f"Workday POST failed after retries: {last_error}")
 
 
 def workday_site_from_path(path: str) -> str | None:
