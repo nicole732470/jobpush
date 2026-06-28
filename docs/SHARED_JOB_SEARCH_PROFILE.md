@@ -51,6 +51,9 @@ Profile version `2026-06-27-draft-5` adds:
   medical/therapy/lab support, buyer/procurement, non-technical sales,
   producer/media, teacher/education, aerospace/aviation, and
   actor/dancer/performance roles.
+- Frontline/service roles are hard exclusions: driver/delivery, front desk,
+  receptionist, concierge, hospitality, restaurant/food service, security
+  guard, healthcare support, and manual trade technician roles.
 - Applied AI/LLM application work as distinct from ML model development.
 - Conditional handling for software tools/automation inside hardware teams,
   systems integration, and performance-modeling software.
