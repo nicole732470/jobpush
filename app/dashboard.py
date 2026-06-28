@@ -48,7 +48,8 @@ st.markdown(
       .stApp {background: linear-gradient(180deg,#fbfcff 0%,#f6f8fb 42%,#f7f7f4 100%);}
       .block-container {padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1500px;}
       [data-testid="stMetric"] {background:rgba(255,255,255,.88);border:1px solid #e4e7ec;
-        border-radius:18px;padding:15px 17px;box-shadow:0 8px 24px rgba(16,24,40,.045); min-height:116px;}
+        border-radius:18px;padding:15px 17px;box-shadow:0 8px 24px rgba(16,24,40,.045); min-height:132px;}
+      [data-testid="stMetric"] [data-testid="stMetricDelta"] {min-height:22px;}
       h1 {letter-spacing:-0.045em; margin-bottom:.15rem;}
       h2, h3 {letter-spacing:-0.025em;}
       .quiet {color:#667085;font-size:.92rem;}
@@ -65,6 +66,12 @@ st.markdown(
       div[role="radiogroup"] label:has(input:checked) {
         background:#111827;color:#fff;border-color:#111827;
       }
+      div[role="radiogroup"] label:has(input:checked) * {color:#fff !important;}
+      div[role="radiogroup"] label:has(input:checked) svg {fill:#fff !important;}
+      div[role="radiogroup"] label:hover {border-color:#98a2b3;}
+      div[data-baseweb="tag"] {background:#111827 !important;color:#fff !important;border-color:#111827 !important;}
+      div[data-baseweb="tag"] * {color:#fff !important;fill:#fff !important;}
+      [aria-selected="true"] {color:#fff !important;}
       [data-testid="stSidebar"] {background:#f8fafc;}
     </style>
     """,
@@ -355,6 +362,66 @@ def today_crawl_progress(tiers: tuple[str, ...]) -> pd.DataFrame:
         """,
         (list(tiers),),
     )
+
+
+@st.cache_data(ttl=60)
+def home_metric_detail(metric_key: str, tiers: tuple[str, ...], activity_date: str) -> pd.DataFrame:
+    if metric_key in {"new_jobs", "new_target_jobs", "new_review_jobs"}:
+        role_filter = {
+            "new_target_jobs": "AND job.role_status = 'target'",
+            "new_review_jobs": "AND job.role_status = 'review'",
+        }.get(metric_key, "")
+        return query(
+            f"""
+            SELECT job.first_seen_at, job.priority_tier, job.canonical_name,
+                   job.title, job.location, job.role_status, job.canonical_role,
+                   job.application_status, job.job_url
+            FROM jobpush.dashboard_jobs job
+            WHERE job.priority_tier = ANY(%s)
+              AND (job.first_seen_at AT TIME ZONE 'America/Chicago')::date = %s::date
+              {role_filter}
+            ORDER BY job.first_seen_at DESC, job.priority_tier, job.canonical_name, job.title
+            LIMIT 1000
+            """,
+            (list(tiers), activity_date),
+        )
+    if metric_key == "closed_jobs":
+        return query(
+            """
+            SELECT posting.closed_at, target.priority_tier, target.canonical_name,
+                   posting.title, posting.location, posting.classification_status AS role_status,
+                   posting.job_url
+            FROM jobpush.job_postings posting
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            WHERE target.priority_tier = ANY(%s)
+              AND posting.closed_at IS NOT NULL
+              AND (posting.closed_at AT TIME ZONE 'America/Chicago')::date = %s::date
+            ORDER BY posting.closed_at DESC, target.priority_tier, target.canonical_name, posting.title
+            LIMIT 1000
+            """,
+            (list(tiers), activity_date),
+        )
+    if metric_key in {"crawl_runs", "failed_runs"}:
+        status_filter = "AND run.status = 'failed'" if metric_key == "failed_runs" else ""
+        return query(
+            f"""
+            SELECT run.started_at, run.finished_at, target.priority_tier,
+                   target.canonical_name, site.source_type, run.status,
+                   run.requests_count, run.pages_fetched, run.parsed_job_count,
+                   run.new_job_count, run.closed_job_count, run.target_job_count,
+                   run.review_job_count, run.error_code, run.error_message, site.site_url
+            FROM jobpush.crawl_runs run
+            JOIN jobpush.career_sites site USING (site_id)
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            WHERE target.priority_tier = ANY(%s)
+              AND (run.started_at AT TIME ZONE 'America/Chicago')::date = %s::date
+              {status_filter}
+            ORDER BY run.started_at DESC, target.priority_tier, target.canonical_name
+            LIMIT 1000
+            """,
+            (list(tiers), activity_date),
+        )
+    return pd.DataFrame()
 
 
 @st.cache_data(ttl=60)
@@ -754,6 +821,7 @@ def clear_dashboard_caches() -> None:
         crawl_rank_coverage,
         crawl_rollout_by_tier,
         today_crawl_progress,
+        home_metric_detail,
         crawl_completion_summary,
         p1_blocker_distribution,
         p1_rank_coverage,
@@ -1447,15 +1515,17 @@ today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
 
 metric_columns = st.columns(6)
 metrics = [
-    (f"New jobs today · {selected_tier_label}", int(today.get("new_jobs", 0))),
-    ("Target jobs today", int(today.get("new_target_jobs", 0))),
-    ("Needs-review today", int(today.get("new_review_jobs", 0))),
-    ("Closed jobs today", int(today.get("closed_jobs", 0))),
-    ("Site crawl attempts", int(today.get("crawl_runs", 0))),
-    ("Failed site attempts", int(today.get("failed_runs", 0))),
+    ("new_jobs", f"New jobs today · {selected_tier_label}", int(today.get("new_jobs", 0))),
+    ("new_target_jobs", "Target jobs today", int(today.get("new_target_jobs", 0))),
+    ("new_review_jobs", "Needs-review today", int(today.get("new_review_jobs", 0))),
+    ("closed_jobs", "Closed jobs today", int(today.get("closed_jobs", 0))),
+    ("crawl_runs", "Site crawl attempts", int(today.get("crawl_runs", 0))),
+    ("failed_runs", "Failed site attempts", int(today.get("failed_runs", 0))),
 ]
-for column, (label, value) in zip(metric_columns, metrics):
+for column, (metric_key, label, value) in zip(metric_columns, metrics):
     column.metric(label, f"{value:,}")
+    if column.button("View details", key=f"home-detail-{metric_key}", use_container_width=True):
+        st.session_state["home_metric_detail"] = metric_key
 st.caption(
     f"Current tier filter: {selected_tier_label}. Site crawl attempts = 今天请求过的网站次数；"
     "New jobs = 第一次进入数据库的职位数；Closed jobs = 之前见过、这次快照里消失的职位。"
@@ -1502,6 +1572,30 @@ selected_page = st.radio(
 )
 
 if selected_page == "Home":
+    active_detail = st.session_state.get("home_metric_detail")
+    if active_detail:
+        detail_label = next((label for key, label, _ in metrics if key == active_detail), active_detail)
+        with st.expander(f"Details · {detail_label}", expanded=True):
+            detail_frame = home_metric_detail(active_detail, tiers, str(chicago_today))
+            if detail_frame.empty:
+                st.info("No rows for this metric under the current global tier/date filter.")
+            else:
+                st.download_button(
+                    "Download detail rows (CSV)",
+                    csv_bytes(detail_frame),
+                    file_name=f"jobpush_home_detail_{active_detail}_{chicago_today}.csv",
+                    mime="text/csv",
+                )
+                st.dataframe(
+                    detail_frame,
+                    hide_index=True,
+                    use_container_width=True,
+                    height=360,
+                    column_config={
+                        "job_url": st.column_config.LinkColumn("Job", display_text="Open ↗"),
+                        "site_url": st.column_config.LinkColumn("Site", display_text="Open ↗"),
+                    },
+                )
     left, right = st.columns([1.35, 1])
     with left:
         st.subheader("30-day job discovery")
@@ -1833,16 +1927,20 @@ if selected_page == "Title review":
             use_container_width=True,
             height=420,
             on_select="rerun",
-            selection_mode="single-row",
+            selection_mode="multi-row",
             key="title_review_table",
         )
         selected_title_rows = getattr(getattr(title_selection, "selection", None), "rows", []) or []
-        selected_title_index = selected_title_rows[0] if selected_title_rows else 0
-        selected_title_row = review_frame.iloc[int(selected_title_index)]
+        selected_title_indices = [int(index) for index in selected_title_rows] if selected_title_rows else [0]
+        selected_title_rows_frame = review_frame.iloc[selected_title_indices]
+        selected_title_row = selected_title_rows_frame.iloc[0]
+        if len(selected_title_rows) > 1:
+            st.info(f"{len(selected_title_rows):,} titles selected. The form below will apply the same decision to all selected titles.")
         st.subheader("Submit selected title label")
         with st.form("single_title_review_form", clear_on_submit=True):
             st.caption(
                 f"Selected: **{selected_title_row['normalized_title']}** · "
+                f"{len(selected_title_rows_frame):,} selected · "
                 f"{int(selected_title_row['active_posting_count']):,} active postings · "
                 f"{int(selected_title_row['company_count']):,} companies"
             )
@@ -1861,14 +1959,15 @@ if selected_page == "Title review":
             )
             single_submit = st.form_submit_button("Submit this title label", use_container_width=True)
         if single_submit:
-            apply_title_review(
-                str(selected_title_row["normalized_title"]),
-                single_status,
-                single_canonical_role,
-                single_reason,
-            )
+            for _, title_row in selected_title_rows_frame.iterrows():
+                apply_title_review(
+                    str(title_row["normalized_title"]),
+                    single_status,
+                    single_canonical_role if len(selected_title_rows_frame) == 1 else "",
+                    single_reason,
+                )
             clear_dashboard_caches()
-            st.success(f"Submitted title label: {selected_title_row['normalized_title']} → {single_status}.")
+            st.success(f"Submitted {len(selected_title_rows_frame):,} title label(s) → {single_status}.")
 
     st.divider()
     with st.expander("Optional batch editor"):
@@ -1956,7 +2055,7 @@ if selected_page == "Site review":
             use_container_width=True,
             height=440,
             on_select="rerun",
-            selection_mode="single-row",
+            selection_mode="multi-row",
             key="site_review_table",
             column_config={
                 "candidate_1_url": st.column_config.LinkColumn("Candidate 1", display_text="Open ↗"),
@@ -1969,6 +2068,8 @@ if selected_page == "Site review":
             selected_site_rows = getattr(getattr(site_selection, "selection", None), "rows", []) or []
             selected_site_index = selected_site_rows[0] if selected_site_rows else 0
             selected_row = site_frame.iloc[int(selected_site_index)]
+            if len(selected_site_rows) > 1:
+                st.info(f"{len(selected_site_rows):,} companies selected. The action panels below use the first selected company; batch site actions can be added next.")
             st.subheader("Review selected company")
             st.caption("在上面的表格点一行；下面所有候选判断、P 档调整、手动官网导入都会默认作用于这家公司。")
             st.markdown("#### Selected company context")
@@ -2259,7 +2360,25 @@ priority_score =
             file_name=f"jobpush_lca_soc_review_current_{chicago_today}.csv",
             mime="text/csv",
         )
-        st.dataframe(soc_review, hide_index=True, use_container_width=True, height=520)
+        soc_selection = st.dataframe(
+            soc_review,
+            hide_index=True,
+            use_container_width=True,
+            height=520,
+            on_select="rerun",
+            selection_mode="multi-row",
+            key="soc_review_table",
+        )
+        selected_soc_rows = getattr(getattr(soc_selection, "selection", None), "rows", []) or []
+        if selected_soc_rows:
+            selected_soc = soc_review.iloc[[int(index) for index in selected_soc_rows]]
+            st.caption(f"{len(selected_soc):,} SOC role row(s) selected.")
+            st.download_button(
+                "Download selected SOC rows (CSV)",
+                csv_bytes(selected_soc),
+                file_name=f"jobpush_lca_soc_review_selected_{chicago_today}.csv",
+                mime="text/csv",
+            )
     else:
         st.info("Select at least one SOC review status.")
 
@@ -2285,7 +2404,25 @@ priority_score =
             file_name=f"jobpush_lca_raw_job_review_sample_{chicago_today}.csv",
             mime="text/csv",
         )
-        st.dataframe(raw_review, hide_index=True, use_container_width=True, height=520)
+        raw_selection = st.dataframe(
+            raw_review,
+            hide_index=True,
+            use_container_width=True,
+            height=520,
+            on_select="rerun",
+            selection_mode="multi-row",
+            key="raw_lca_title_review_table",
+        )
+        selected_raw_rows = getattr(getattr(raw_selection, "selection", None), "rows", []) or []
+        if selected_raw_rows:
+            selected_raw = raw_review.iloc[[int(index) for index in selected_raw_rows]]
+            st.caption(f"{len(selected_raw):,} raw role row(s) selected.")
+            st.download_button(
+                "Download selected raw role rows (CSV)",
+                csv_bytes(selected_raw),
+                file_name=f"jobpush_lca_raw_role_selected_{chicago_today}.csv",
+                mime="text/csv",
+            )
     elif not raw_search.strip():
         st.info("Enter a keyword before searching raw LCA titles. This avoids scanning the full LCA table from the dashboard.")
     else:
