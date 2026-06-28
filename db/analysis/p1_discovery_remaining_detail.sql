@@ -160,6 +160,21 @@ WHERE target.enabled
   AND COALESCE(site.last_error, '') NOT LIKE 'ats_url_guess_attempted%'
   AND NOT EXISTS (
       SELECT 1
+      FROM jobpush.career_sites enabled
+      WHERE enabled.consolidation_key = site.consolidation_key
+        AND enabled.verification_status = 'verified'
+        AND enabled.crawl_enabled
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM jobpush.career_sites succeeded
+      WHERE succeeded.consolidation_key = site.consolidation_key
+        AND succeeded.verification_status = 'verified'
+        AND succeeded.crawl_enabled
+        AND succeeded.last_success_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+      SELECT 1
       FROM jobpush.career_sites structured
       WHERE structured.consolidation_key = site.consolidation_key
         AND structured.source_type IN ('greenhouse','lever','ashby','smartrecruiters')
