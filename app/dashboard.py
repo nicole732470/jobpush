@@ -811,7 +811,8 @@ def title_review_queue(limit: int = 2000) -> pd.DataFrame:
             FROM jobpush.job_title_ml_classifications
             ORDER BY normalized_title, created_at DESC, ml_classification_id DESC
         )
-        SELECT queue.normalized_title, queue.example_title, queue.active_posting_count,
+        SELECT queue.normalized_title, queue.example_title, example_posting.job_url AS example_job_url,
+               queue.active_posting_count,
                queue.company_count, queue.suggestion_reason, queue.matched_soc_codes,
                queue.matched_soc_titles,
                latest_ml.ml_suggestion,
@@ -826,6 +827,15 @@ def title_review_queue(limit: int = 2000) -> pd.DataFrame:
                ) AS learning_priority_score
         FROM jobpush.job_title_review_queue queue
         LEFT JOIN latest_ml USING (normalized_title)
+        LEFT JOIN LATERAL (
+            SELECT posting.job_url
+            FROM jobpush.job_postings posting
+            WHERE posting.normalized_title = queue.normalized_title
+              AND posting.active
+              AND posting.job_url IS NOT NULL
+            ORDER BY posting.last_seen_at DESC, posting.first_seen_at DESC
+            LIMIT 1
+        ) example_posting ON TRUE
         ORDER BY learning_priority_score DESC,
                  queue.active_posting_count DESC,
                  queue.company_count DESC,
@@ -2094,6 +2104,9 @@ if selected_page == "Title review":
             hide_index=True,
             use_container_width=True,
             height=420,
+            column_config={
+                "example_job_url": st.column_config.LinkColumn("Example job", display_text="Open ↗"),
+            },
             on_select="rerun",
             selection_mode="multi-row",
             key="title_review_table",
@@ -2120,6 +2133,9 @@ if selected_page == "Title review":
                 f"Example: {selected_title_row['example_title']} | "
                 f"Suggested by: {selected_title_row['suggestion_reason']}"
             )
+            example_url = str(selected_title_row.get("example_job_url") or "")
+            if example_url and example_url.lower() != "nan":
+                st.caption(f"[Open example job posting]({example_url})")
             title_status = st.selectbox("Decision for all selected titles", ["target", "non_target", "review"])
             default_role = str(selected_title_row.get("matched_soc_titles") or "")[:180] if selected_count == 1 else ""
             canonical_role_override = st.text_input(
