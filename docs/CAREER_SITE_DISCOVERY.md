@@ -39,17 +39,21 @@ Candidate source distribution:
 
 Open schema `jobpush`, then use **`career_site_review_workbench`** for the
 full company/site audit surface. It is the canonical one-company-per-row view
-and contains up to three candidates plus the verified URL. For actual human
-review export, filter `action_status = 'REVIEW_CANDIDATES'`; verified companies
-such as Google are already confirmed and should not be mixed into Nicole's
-downloadable review batch. The full workbench sorts:
+and contains the verified URL plus review candidates. Tavily/manual discovery
+can expose up to three candidates; direct ATS URL guessing
+(`discovery_source='ats_url_guess'`) exposes only the strongest single
+candidate per company. For actual human review export, filter
+`action_status = 'REVIEW_CANDIDATES'`; verified companies such as Google are
+already confirmed and should not be mixed into Nicole's downloadable review
+batch. The full workbench sorts:
 
 1. manual P0 needing review;
 2. verified manual P0 in the audit surface only, including Google;
 3. Chicago + LinkedIn, Chicago, LinkedIn, large sponsors;
 4. remaining score/diverse samples.
 
-Review candidate 1 first. If it is wrong, inspect candidate 2 and candidate 3.
+Review candidate 1 first. If it is wrong, inspect candidate 2 and candidate 3
+when they are present.
 Migration 057 removed those redundant human-facing views. Candidate URLs are
 already exposed as columns in `career_site_review_workbench`; use
 `career_sites` only when a detailed one-row-per-URL audit is needed.
@@ -260,7 +264,9 @@ Candidate ranking rule: `scripts/discover_career_sites.py` queries
 score. The score favors employer-owned career/careers/jobs pages and known ATS
 platforms; it penalizes external aggregators and weak company-name matches.
 The operational review surface is `jobpush.career_site_review_workbench`, and
-the dashboard can export a site-review batch with candidate 1/2/3 for sampling.
+the dashboard can export a site-review batch. Tavily/manual rows may include
+candidate 1/2/3 for sampling; `ats_url_guess` rows intentionally show only one
+candidate.
 
 2026-06-25 update after key rotation: an additional 950 P0/P1 companies were
 searched, retaining 2,237 candidates with zero provider errors. Auto-trust
@@ -403,9 +409,9 @@ repeatable generic parsers only for recurring templates.
 - The useful hit rate dropped as the easier structured ATS companies were
   exhausted: early batches produced dozens of candidates, while a later
   500-company batch produced 33 candidates and 24 newly enabled sites.
-- P1 crawl coverage improved to 1,520 successfully crawled companies out of
-  4,634 P1 companies; 1,549 now have an enabled site.
-- The remaining P1 blocker is still mostly generic HTML: 2,797 companies
+- P1 crawl coverage improved to 1,619 successfully crawled companies out of
+  4,634 P1 companies; 1,648 now have an enabled site.
+- The remaining P1 blocker is still mostly generic HTML: 2,700 companies
   require site resolution or a repeatable generic parser.
 
 Interpretation: direct ATS guessing is worth continuing in controlled batches

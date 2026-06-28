@@ -2041,7 +2041,8 @@ if selected_page == "Site review":
     st.subheader("Career-site samples for improving website selection")
     st.caption(
         "这里只导出还没有 verified 的公司候选；Google 这类已经人工确认的网站不会进入这个 review batch。"
-        "一行是一家公司，最多展示 Tavily/规则保留下来的前三个候选；你也可以直接输入真实官网 URL。"
+        "一行是一家公司；Tavily/规则候选最多展示前三个，direct ATS guessing 只展示最强的一个候选；"
+        "你也可以直接输入真实官网 URL。"
     )
     site_col1, site_col2 = st.columns([1, 1])
     site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)

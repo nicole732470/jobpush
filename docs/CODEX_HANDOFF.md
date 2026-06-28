@@ -81,8 +81,8 @@ pilot 已由 migration 073 删除，不再维护 `company_external_enrichment` /
 
 2026-06-28 P0/P1 链路状态：Tavily discovery 后追加了零成本 direct ATS
 URL guessing（Greenhouse / Lever / Ashby / SmartRecruiters public APIs），并
-严格清理 zero-job / generic slug 候选。P1 当前 1,549 家有 enabled site，
-1,520 家已成功 crawl，15 家当前失败，主要剩余 blocker 是 2,797 家 generic
+严格清理 zero-job / generic slug 候选。P1 当前 1,648 家有 enabled site，
+1,619 家已成功 crawl，15 家当前失败，主要剩余 blocker 是 2,700 家 generic
 HTML candidate needs site resolution。`run_due_crawl_batch` 已改为单站点失败
 不中断整批；失败记录留在 `crawl_runs` / `career_sites`。
 
@@ -248,7 +248,9 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
    官网，只有 verified + US-ready + supported adapter 才进入调度。
    官网人工审核只使用 `career_site_review_workbench`；它把pending + verified整合为
    一张公司级视图，P0/潜在P0优先，Google等verified P0不会消失。Migration 057
-   已删除其余重复人工queue。2026-06-23 已先搜索150家公司/381候选，再增加50家潜在P0混合样本/123候选。
+   已删除其余重复人工queue。Migration 094 后，`ats_url_guess` 在这个 view
+   里每家公司只展示最强 1 个候选；Tavily/manual rows 仍可最多展示 3 个。
+   2026-06-23 已先搜索150家公司/381候选，再增加50家潜在P0混合样本/123候选。
 6. **职位人工标注**：SOC 精确匹配已自动分类；剩余 7,100 个 detailed titles 在
    `job_title_review_queue`，先处理导出表中的 171 个 HIGH 标题。
    HIGH已于2026-06-23全部标注并导入（37 target / 133 non-target / 1 review）。

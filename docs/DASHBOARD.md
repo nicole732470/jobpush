@@ -49,7 +49,10 @@ Codex token.
   be verified/rejected without TablePlus. Selecting a company row drives the
   panels below it: LCA sponsorship roles, P-tier override, candidate
   verify/reject, and manually imported official career URL. Manual URL import
-  no longer requires typing the company name again;
+  no longer requires typing the company name again. Direct ATS guessing
+  (`discovery_source='ats_url_guess'`) exposes only the strongest single
+  candidate per company in this queue, while Tavily/manual discovery can still
+  expose up to three URLs;
 - newly verified/imported career sites are marked `next_crawl_at = now()` and
   `crawl_status = 'pending'`. If `JOBPUSH_ENABLE_INLINE_CRAWL=1` is set on the
   dashboard host, the app also attempts a one-site due-crawl immediately;
