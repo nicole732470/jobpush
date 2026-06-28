@@ -117,6 +117,11 @@ Live titles are normalized and first matched exactly against
 - every new title is evaluated by the profile trigger at insert time, so the
   system does not send obvious target/avoid cases back to the human queue
   forever.
+- Current hard avoid families include senior/leadership, hardware/embedded/ML
+  research, HR, accounting/tax/audit, retail/in-store, manufacturing/factory,
+  restaurant/food service, medical/therapy/lab support, buyer/procurement,
+  non-technical sales, producer/media, teacher/education, warehouse/logistics,
+  aerospace/aviation, and actor/dancer/performance roles.
 
 The historical raw-title/SOC file is therefore the first labeling layer, not a
 replacement for reviewing new, more detailed career-site titles.

@@ -57,6 +57,15 @@ st.markdown(
       .hero .quiet {color:#d0d5dd;}
       .section-card {background:rgba(255,255,255,.8);border:1px solid #eaecf0;border-radius:18px;padding:14px 16px;}
       div[data-testid="stDataFrame"] {border-radius:16px; overflow:hidden;}
+      div[role="radiogroup"] {gap:.35rem;}
+      div[role="radiogroup"] label {
+        background:#fff;border:1px solid #e4e7ec;border-radius:999px;padding:.35rem .75rem;
+        box-shadow:0 5px 16px rgba(16,24,40,.04);
+      }
+      div[role="radiogroup"] label:has(input:checked) {
+        background:#111827;color:#fff;border-color:#111827;
+      }
+      [data-testid="stSidebar"] {background:#f8fafc;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -177,6 +186,90 @@ def coverage_by_tier() -> pd.DataFrame:
         LEFT JOIN candidate_counts USING (priority_tier)
         LEFT JOIN schedule_counts USING (priority_tier)
         ORDER BY CASE target_counts.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        """
+    )
+
+
+@st.cache_data(ttl=60)
+def review_workbench_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH target AS (
+            SELECT consolidation_key, priority_tier, priority_score, canonical_name
+            FROM jobpush.crawl_targets
+            WHERE enabled AND priority_tier = ANY(%s)
+        ), site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified') AS has_verified_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
+                   COUNT(*) FILTER (WHERE verification_status = 'unverified') AS unverified_candidates,
+                   COUNT(*) FILTER (WHERE verification_status = 'rejected') AS rejected_candidates
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        )
+        SELECT target.priority_tier,
+               COUNT(*) AS companies,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_verified_site, FALSE)) AS site_reviewed_verified,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.unverified_candidates, 0) > 0) AS waiting_site_review,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_enabled_site, FALSE)) AS can_crawl,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_attempt, FALSE)) AS crawled_at_least_once,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_success, FALSE)) AS crawled_successfully,
+               COUNT(*) FILTER (
+                   WHERE NOT COALESCE(site_rollup.has_verified_site, FALSE)
+                     AND COALESCE(site_rollup.unverified_candidates, 0) = 0
+               ) AS no_site_candidate_yet,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.rejected_candidates, 0) > 0) AS has_rejected_candidates,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_verified_site, FALSE)) / NULLIF(COUNT(*), 0), 2) AS verified_pct,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_success, FALSE)) / NULLIF(COUNT(*), 0), 2) AS success_pct
+        FROM target
+        LEFT JOIN site_rollup USING (consolidation_key)
+        GROUP BY target.priority_tier
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        """,
+        (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
+def crawl_rank_coverage() -> pd.DataFrame:
+    return query(
+        """
+        WITH ranked AS (
+            SELECT target.*,
+                   ROW_NUMBER() OVER (
+                       ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                                priority_score DESC NULLS LAST,
+                                canonical_name
+                   ) AS overall_rank
+            FROM jobpush.crawl_targets target
+            WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+        ), site_rollup AS (
+            SELECT consolidation_key,
+                   BOOL_OR(verification_status = 'verified') AS has_verified_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
+                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), buckets AS (
+            SELECT 'Top 500 overall' AS bucket, 500 AS max_rank
+            UNION ALL SELECT 'Top 1000 overall', 1000
+            UNION ALL SELECT 'All active P0/P1/P2', 999999
+        )
+        SELECT buckets.bucket,
+               COUNT(*) AS companies,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_verified_site, FALSE)) AS verified_site_companies,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_enabled_site, FALSE)) AS can_crawl,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_attempt, FALSE)) AS crawled_at_least_once,
+               COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_success, FALSE)) AS crawled_successfully,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site_rollup.has_success, FALSE)) / NULLIF(COUNT(*), 0), 2) AS success_pct
+        FROM buckets
+        JOIN ranked ON ranked.overall_rank <= buckets.max_rank
+        LEFT JOIN site_rollup USING (consolidation_key)
+        GROUP BY buckets.bucket, buckets.max_rank
+        ORDER BY buckets.max_rank
         """
     )
 
@@ -657,6 +750,8 @@ def clear_dashboard_caches() -> None:
         daily_activity,
         crawl_funnel,
         coverage_by_tier,
+        review_workbench_summary,
+        crawl_rank_coverage,
         crawl_rollout_by_tier,
         today_crawl_progress,
         crawl_completion_summary,
@@ -1295,32 +1390,22 @@ st.markdown(
 
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
 
-st.sidebar.header("Job filters")
-st.sidebar.caption(
-    "只控制“Jobs to apply / Company lookup”。爬虫覆盖率、失败原因、系统日志这些运营 tab 使用自己的统计口径。"
-)
-with st.sidebar.form("job_filters_form"):
+st.sidebar.header("Global view")
+st.sidebar.caption("只放全局时间和 P 档；公司/title/location 这类检索放到对应页面里。")
+with st.sidebar.form("global_view_form"):
     date_window = st.date_input(
         "First seen date range",
         value=(chicago_today - timedelta(days=6), chicago_today),
         min_value=chicago_today - timedelta(days=90),
         max_value=chicago_today,
     )
-    company = st.text_input("Company contains")
-    title = st.text_input("Title / role contains")
-    location = st.text_input("Location contains")
     priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "All P tiers"])
-    role_choice = st.selectbox(
-        "Role decision",
-        ["target only", "target + needs review", "needs review only", "all decisions"],
-        help="target = 推荐申请；needs review = 规则/模型还不够确定，用来抽样优化；excluded/non-target = 不推荐申请。",
-    )
-    app_choice = st.selectbox(
-        "My application status",
-        ["open items", "new only", "saved/apply next", "all statuses"],
-        help="这是你的个人投递状态，不是职位分类。new=还没处理，saved=收藏，apply_next=下一批投，applied=已投，dismissed=不投。",
-    )
-    st.form_submit_button("Apply filters", use_container_width=True)
+    st.form_submit_button("Apply global view", use_container_width=True)
+company = ""
+title = ""
+location = ""
+role_choice = "target only"
+app_choice = "open items"
 if isinstance(date_window, tuple):
     start_date = date_window[0]
     end_date = date_window[1] if len(date_window) > 1 else date_window[0]
@@ -1444,6 +1529,15 @@ if selected_page == "Home":
         st.info("No crawl attempts have been recorded today yet.")
     else:
         st.dataframe(progress_today, hide_index=True, use_container_width=True)
+    home_left, home_right = st.columns([1, 1])
+    with home_left:
+        st.subheader("Top-rank crawl coverage")
+        rank_coverage = crawl_rank_coverage()
+        st.dataframe(rank_coverage, hide_index=True, use_container_width=True, height=180)
+    with home_right:
+        st.subheader("Site review coverage")
+        site_summary = review_workbench_summary(tiers)
+        st.dataframe(site_summary, hide_index=True, use_container_width=True, height=180)
 
 if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 company crawl rollout")
@@ -1546,6 +1640,22 @@ if selected_page == "Jobs to apply":
         segmented["first_seen_ct"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
         segmented["track_label"] = segmented["role_stack"].map(TRACK_LABELS).fillna(segmented["role_stack"].fillna("Unlabeled"))
         segmented["role_family_label"] = segmented["role_family"].map(ROLE_FAMILY_LABELS).fillna(segmented["role_family"].fillna("Other"))
+        quick_filter_cols = st.columns(3)
+        job_company_filter = quick_filter_cols[0].text_input("Filter company in this table", key="jobs-company-filter")
+        job_title_filter = quick_filter_cols[1].text_input("Filter title in this table", key="jobs-title-filter")
+        job_location_filter = quick_filter_cols[2].text_input("Filter location in this table", key="jobs-location-filter")
+        if job_company_filter:
+            segmented = segmented[
+                segmented["canonical_name"].fillna("").str.contains(job_company_filter, case=False, regex=False)
+            ]
+        if job_title_filter:
+            segmented = segmented[
+                segmented["title"].fillna("").str.contains(job_title_filter, case=False, regex=False)
+            ]
+        if job_location_filter:
+            segmented = segmented[
+                segmented["location"].fillna("").str.contains(job_location_filter, case=False, regex=False)
+            ]
         selected_period_segment = segmented[
             (segmented["first_seen_date"] >= start_date) & (segmented["first_seen_date"] <= end_date)
         ]
@@ -1716,25 +1826,34 @@ if selected_page == "Title review":
     if review_frame.empty:
         st.success("No titles are currently waiting for manual review.")
     else:
-        st.subheader("Submit one title label")
-        title_options = {
-            (
-                f"{row.normalized_title} · {row.active_posting_count} active · "
-                f"{row.company_count} companies"
-            ): row
-            for row in review_frame.itertuples()
-        }
+        st.subheader("Select one title from the table")
+        title_selection = st.dataframe(
+            review_frame.drop(columns=["人工判断（请填写）", "标准岗位（可选）", "判断原因/备注（可选）"], errors="ignore"),
+            hide_index=True,
+            use_container_width=True,
+            height=420,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="title_review_table",
+        )
+        selected_title_rows = getattr(getattr(title_selection, "selection", None), "rows", []) or []
+        selected_title_index = selected_title_rows[0] if selected_title_rows else 0
+        selected_title_row = review_frame.iloc[int(selected_title_index)]
+        st.subheader("Submit selected title label")
         with st.form("single_title_review_form", clear_on_submit=True):
-            selected_title_label = st.selectbox("Title to label", list(title_options.keys()))
-            selected_title_row = title_options[selected_title_label]
             st.caption(
-                f"Example: {selected_title_row.example_title} | "
-                f"Suggested by: {selected_title_row.suggestion_reason}"
+                f"Selected: **{selected_title_row['normalized_title']}** · "
+                f"{int(selected_title_row['active_posting_count']):,} active postings · "
+                f"{int(selected_title_row['company_count']):,} companies"
+            )
+            st.caption(
+                f"Example: {selected_title_row['example_title']} | "
+                f"Suggested by: {selected_title_row['suggestion_reason']}"
             )
             single_status = st.selectbox("Decision", ["target", "non_target", "review"])
             single_canonical_role = st.text_input(
                 "Standard role / role family",
-                value=str(getattr(selected_title_row, "matched_soc_titles", "") or "")[:180],
+                value=str(selected_title_row.get("matched_soc_titles") or "")[:180],
             )
             single_reason = st.text_input(
                 "Reason / notes",
@@ -1743,64 +1862,64 @@ if selected_page == "Title review":
             single_submit = st.form_submit_button("Submit this title label", use_container_width=True)
         if single_submit:
             apply_title_review(
-                str(selected_title_row.normalized_title),
+                str(selected_title_row["normalized_title"]),
                 single_status,
                 single_canonical_role,
                 single_reason,
             )
             clear_dashboard_caches()
-            st.success(f"Submitted title label: {selected_title_row.normalized_title} → {single_status}.")
+            st.success(f"Submitted title label: {selected_title_row['normalized_title']} → {single_status}.")
 
     st.divider()
-    st.subheader("Optional batch editor")
-    st.caption("如果浏览器里的表格编辑不稳定，用上面的单条提交；这个批量表格只是加速入口。")
-    edited_titles = st.data_editor(
-        review_frame,
-        hide_index=True,
-        use_container_width=True,
-        height=620,
-        disabled=[
-            "normalized_title",
-            "example_title",
-            "active_posting_count",
-            "company_count",
-            "suggestion_reason",
-            "matched_soc_codes",
-            "matched_soc_titles",
-        ],
-        column_config={
-            "人工判断（请填写）": st.column_config.SelectboxColumn(
-                "人工判断",
-                options=["", "target", "non_target", "review"],
-                help="提交后写入 jobpush.job_title_labels，并保留 history。",
-            ),
-            "标准岗位（可选）": st.column_config.TextColumn("标准岗位 / role family"),
-            "判断原因/备注（可选）": st.column_config.TextColumn("判断原因/备注"),
-        },
-        key="title_review_editor",
-    )
-    filled_titles = edited_titles[
-        edited_titles["人工判断（请填写）"].isin(["target", "non_target", "review"])
-    ].copy()
-    title_submit_col, title_info_col = st.columns([1, 3])
-    if title_submit_col.button(
-        f"Submit {len(filled_titles):,} title labels",
-        disabled=filled_titles.empty,
-        use_container_width=True,
-    ):
-        for _, row in filled_titles.iterrows():
-            apply_title_review(
-                str(row["normalized_title"]),
-                str(row["人工判断（请填写）"]),
-                str(row.get("标准岗位（可选）") or ""),
-                str(row.get("判断原因/备注（可选）") or "dashboard title review"),
+    with st.expander("Optional batch editor"):
+        st.caption("备用批量入口；主流程优先用上面的表格选中一行再提交。")
+        edited_titles = st.data_editor(
+            review_frame,
+            hide_index=True,
+            use_container_width=True,
+            height=520,
+            disabled=[
+                "normalized_title",
+                "example_title",
+                "active_posting_count",
+                "company_count",
+                "suggestion_reason",
+                "matched_soc_codes",
+                "matched_soc_titles",
+            ],
+            column_config={
+                "人工判断（请填写）": st.column_config.SelectboxColumn(
+                    "人工判断",
+                    options=["", "target", "non_target", "review"],
+                    help="提交后写入 jobpush.job_title_labels，并保留 history。",
+                ),
+                "标准岗位（可选）": st.column_config.TextColumn("标准岗位 / role family"),
+                "判断原因/备注（可选）": st.column_config.TextColumn("判断原因/备注"),
+            },
+            key="title_review_editor",
         )
-        clear_dashboard_caches()
-        st.success(f"Submitted {len(filled_titles):,} title labels to the database.")
-    title_info_col.caption(
-        "提交后会立即影响新的 dashboard job 分类；规则代码不会被网页静默改写，"
-        "重复模式会在后续 migration / YAML 规则里固化。"
-    )
+        filled_titles = edited_titles[
+            edited_titles["人工判断（请填写）"].isin(["target", "non_target", "review"])
+        ].copy()
+        title_submit_col, title_info_col = st.columns([1, 3])
+        if title_submit_col.button(
+            f"Submit {len(filled_titles):,} title labels",
+            disabled=filled_titles.empty,
+            use_container_width=True,
+        ):
+            for _, row in filled_titles.iterrows():
+                apply_title_review(
+                    str(row["normalized_title"]),
+                    str(row["人工判断（请填写）"]),
+                    str(row.get("标准岗位（可选）") or ""),
+                    str(row.get("判断原因/备注（可选）") or "dashboard title review"),
+                )
+            clear_dashboard_caches()
+            st.success(f"Submitted {len(filled_titles):,} title labels to the database.")
+        title_info_col.caption(
+            "提交后会立即影响新的 dashboard job 分类；规则代码不会被网页静默改写，"
+            "重复模式会在后续 migration / YAML 规则里固化。"
+        )
 
 if selected_page == "Site review":
     st.subheader("Career-site samples for improving website selection")
@@ -1812,17 +1931,33 @@ if selected_page == "Site review":
     site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)
     site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2"], default=["P0", "P1"]))
     if site_tiers:
+        st.markdown("#### Review and crawl coverage")
+        site_summary = review_workbench_summary(site_tiers)
+        if not site_summary.empty:
+            totals = site_summary.drop(columns=["priority_tier"], errors="ignore").sum(numeric_only=True)
+            stat_cols = st.columns(6)
+            stat_cols[0].metric("Companies", f"{int(totals.get('companies', 0)):,}")
+            stat_cols[1].metric("Verified sites", f"{int(totals.get('site_reviewed_verified', 0)):,}")
+            stat_cols[2].metric("Waiting review", f"{int(totals.get('waiting_site_review', 0)):,}")
+            stat_cols[3].metric("Can crawl", f"{int(totals.get('can_crawl', 0)):,}")
+            stat_cols[4].metric("Crawled once", f"{int(totals.get('crawled_at_least_once', 0)):,}")
+            stat_cols[5].metric("Succeeded", f"{int(totals.get('crawled_successfully', 0)):,}")
+            st.dataframe(site_summary, hide_index=True, use_container_width=True, height=170)
+
         site_frame = site_review_queue(site_limit, site_tiers)
         st.download_button(
             "Download site review batch (CSV)", csv_bytes(site_frame),
             file_name=f"jobpush_site_review_{'_'.join(site_tiers)}_{chicago_today}_{site_limit}.csv",
             mime="text/csv",
         )
-        st.dataframe(
+        site_selection = st.dataframe(
             site_frame,
             hide_index=True,
             use_container_width=True,
             height=440,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="site_review_table",
             column_config={
                 "candidate_1_url": st.column_config.LinkColumn("Candidate 1", display_text="Open ↗"),
                 "candidate_2_url": st.column_config.LinkColumn("Candidate 2", display_text="Open ↗"),
@@ -1831,30 +1966,25 @@ if selected_page == "Site review":
             },
         )
         if not site_frame.empty:
-            st.subheader("Review one company on this page")
-            site_labels = {
-                (
-                    f"{row.priority_tier} · rank {row.priority_rank_in_tier} · "
-                    f"{row.canonical_name} · score {row.priority_score} · "
-                    f"{row.candidate_count} candidates"
-                ): row
-                for row in site_frame.itertuples()
-            }
-            selected_site_label = st.selectbox("Company to review", list(site_labels.keys()))
-            selected_row = site_labels[selected_site_label]
+            selected_site_rows = getattr(getattr(site_selection, "selection", None), "rows", []) or []
+            selected_site_index = selected_site_rows[0] if selected_site_rows else 0
+            selected_row = site_frame.iloc[int(selected_site_index)]
+            st.subheader("Review selected company")
+            st.caption("在上面的表格点一行；下面所有候选判断、P 档调整、手动官网导入都会默认作用于这家公司。")
             st.markdown("#### Selected company context")
             context_cols = st.columns(6)
-            context_cols[0].metric("Tier", str(selected_row.priority_tier))
-            context_cols[1].metric("Tier rank", f"{int(selected_row.priority_rank_in_tier):,}")
-            context_cols[2].metric("Priority score", f"{float(selected_row.priority_score):.2f}")
-            context_cols[3].metric("LCA rows", f"{int(selected_row.lca_count):,}")
-            context_cols[4].metric("Target LCA rows", f"{int(selected_row.target_role_lca_count):,}")
-            context_cols[5].metric("Candidates", f"{int(selected_row.candidate_count):,}")
+            context_cols[0].metric("Tier", str(selected_row["priority_tier"]))
+            context_cols[1].metric("Tier rank", f"{int(selected_row['priority_rank_in_tier']):,}")
+            context_cols[2].metric("Priority score", f"{float(selected_row['priority_score']):.2f}")
+            context_cols[3].metric("LCA rows", f"{int(selected_row['lca_count']):,}")
+            context_cols[4].metric("Target LCA rows", f"{int(selected_row['target_role_lca_count']):,}")
+            context_cols[5].metric("Candidates", f"{int(selected_row['candidate_count']):,}")
             st.caption(
-                f"Key: `{selected_row.consolidation_key}` · "
-                f"Location: {getattr(selected_row, 'employer_city', '') or '(missing)'}, "
-                f"{getattr(selected_row, 'employer_state', '') or '(missing)'} · "
-                f"Signal: {getattr(selected_row, 'potential_p0_signal', '') or '(none)'}"
+                f"Company: **{selected_row['canonical_name']}** · "
+                f"Key: `{selected_row['consolidation_key']}` · "
+                f"Location: {selected_row.get('employer_city') or '(missing)'}, "
+                f"{selected_row.get('employer_state') or '(missing)'} · "
+                f"Signal: {selected_row.get('potential_p0_signal') or '(none)'}"
             )
 
             priority_col, lca_col = st.columns([1, 2])
@@ -1863,32 +1993,32 @@ if selected_page == "Site review":
                 new_tier = st.selectbox(
                     "Change this company to",
                     ["Keep current", "P0", "P1", "P2"],
-                    key=f"site-priority-tier-{selected_row.consolidation_key}",
+                    key=f"site-priority-tier-{selected_row['consolidation_key']}",
                 )
                 priority_reason = st.text_input(
                     "Reason",
                     value="dashboard site review priority adjustment",
-                    key=f"site-priority-reason-{selected_row.consolidation_key}",
+                    key=f"site-priority-reason-{selected_row['consolidation_key']}",
                 )
                 if st.button(
                     "Save priority override",
                     disabled=new_tier == "Keep current",
                     use_container_width=True,
-                    key=f"site-priority-save-{selected_row.consolidation_key}",
+                    key=f"site-priority-save-{selected_row['consolidation_key']}",
                 ):
                     set_manual_crawl_priority(
-                        str(selected_row.consolidation_key),
+                        str(selected_row["consolidation_key"]),
                         new_tier,
                         priority_reason,
                     )
                     clear_dashboard_caches()
                     st.success(
-                        f"Updated {selected_row.canonical_name} to {new_tier}. "
+                        f"Updated {selected_row['canonical_name']} to {new_tier}. "
                         "This writes a manual override and keeps the company enabled in crawl_targets."
                     )
             with lca_col:
                 st.markdown("##### LCA sponsorship roles")
-                selected_lca_roles = company_lca_roles_by_key(str(selected_row.consolidation_key))
+                selected_lca_roles = company_lca_roles_by_key(str(selected_row["consolidation_key"]))
                 if selected_lca_roles.empty:
                     st.info("No LCA sponsorship roles found for this company key.")
                 else:
@@ -1897,10 +2027,10 @@ if selected_page == "Site review":
                         csv_bytes(selected_lca_roles),
                         file_name=(
                             f"jobpush_lca_roles_"
-                            f"{str(selected_row.consolidation_key).replace('/', '_')}_{chicago_today}.csv"
+                            f"{str(selected_row['consolidation_key']).replace('/', '_')}_{chicago_today}.csv"
                         ),
                         mime="text/csv",
-                        key=f"site-lca-download-{selected_row.consolidation_key}",
+                        key=f"site-lca-download-{selected_row['consolidation_key']}",
                     )
                     st.dataframe(
                         selected_lca_roles,
@@ -1912,19 +2042,19 @@ if selected_page == "Site review":
             st.divider()
             candidate_options: dict[str, tuple[int | None, str | None, str | None]] = {
                 "Candidate 1": (
-                    getattr(selected_row, "candidate_1_site_id", None),
-                    getattr(selected_row, "candidate_1_source", None),
-                    getattr(selected_row, "candidate_1_url", None),
+                    selected_row.get("candidate_1_site_id"),
+                    selected_row.get("candidate_1_source"),
+                    selected_row.get("candidate_1_url"),
                 ),
                 "Candidate 2": (
-                    getattr(selected_row, "candidate_2_site_id", None),
-                    getattr(selected_row, "candidate_2_source", None),
-                    getattr(selected_row, "candidate_2_url", None),
+                    selected_row.get("candidate_2_site_id"),
+                    selected_row.get("candidate_2_source"),
+                    selected_row.get("candidate_2_url"),
                 ),
                 "Candidate 3": (
-                    getattr(selected_row, "candidate_3_site_id", None),
-                    getattr(selected_row, "candidate_3_source", None),
-                    getattr(selected_row, "candidate_3_url", None),
+                    selected_row.get("candidate_3_site_id"),
+                    selected_row.get("candidate_3_source"),
+                    selected_row.get("candidate_3_url"),
                 ),
             }
             available_candidates = {
@@ -1954,39 +2084,44 @@ if selected_page == "Site review":
                 crawl_col.caption("Verify 会把该站点设为 due now；如果 inline crawl 未启用，调度器会尽快处理。")
             else:
                 st.info("This row has no usable candidate URL.")
+
+            st.divider()
+            st.subheader("Import a real official career site for selected company")
+            st.caption(
+                f"当前默认导入给：{selected_row['canonical_name']}。不需要再复制 company name。"
+            )
+            manual_url = st.text_input(
+                "Official career URL",
+                placeholder="https://jobs.example.com/...",
+                key=f"manual-site-url-{selected_row['consolidation_key']}",
+            )
+            manual_notes = st.text_input(
+                "Notes",
+                value="Manually confirmed official career site from dashboard",
+                key=f"manual-site-notes-{selected_row['consolidation_key']}",
+            )
+            if manual_url:
+                classified_preview = classify_career_url(manual_url)
+                st.caption(
+                    f"Detected: source_type={classified_preview['source_type']}, "
+                    f"source_key={classified_preview['source_key'] or '(none)'}, "
+                    f"scope={classified_preview['scope_method']}, canonical_url={classified_preview['site_url']}"
+                )
+            if st.button(
+                "Import verified site and crawl now",
+                disabled=not manual_url,
+                use_container_width=True,
+                key=f"manual-site-import-{selected_row['consolidation_key']}",
+            ):
+                classified = import_manual_career_site(str(selected_row["consolidation_key"]), manual_url, manual_notes)
+                ok, output = trigger_inline_due_crawl(1)
+                clear_dashboard_caches()
+                st.success(
+                    f"Imported {classified['site_url']} for {selected_row['canonical_name']} "
+                    f"as {classified['source_type']}. {output}"
+                )
     else:
         st.info("Select at least one tier for site review export.")
-
-    st.divider()
-    st.subheader("Import a real official career site")
-    st.caption("你自己找到官网时，在这里选公司 + 填 URL。保存后会 verified、due now，并尝试触发一条即时爬取。")
-    manual_company_query = st.text_input("Company name", placeholder="e.g. Google, Pfizer, StackAdapt", key="manual-site-company")
-    company_options = company_lookup_options(manual_company_query)
-    if manual_company_query and company_options.empty:
-        st.info("No P-tier company matched that name. Try a shorter legal/brand name.")
-    elif not company_options.empty:
-        company_option_labels = {
-            f"{row.priority_tier} · {row.canonical_name} · score {row.priority_score} · {row.consolidation_key}": row
-            for row in company_options.itertuples()
-        }
-        selected_company_label = st.selectbox("Matched company", list(company_option_labels.keys()))
-        selected_company = company_option_labels[selected_company_label]
-        manual_url = st.text_input("Official career URL", placeholder="https://jobs.example.com/...")
-        manual_notes = st.text_input("Notes", value="Manually confirmed official career site from dashboard")
-        if manual_url:
-            classified_preview = classify_career_url(manual_url)
-            st.caption(
-                f"Detected: source_type={classified_preview['source_type']}, "
-                f"source_key={classified_preview['source_key'] or '(none)'}, "
-                f"scope={classified_preview['scope_method']}, canonical_url={classified_preview['site_url']}"
-            )
-        if st.button("Import verified site and crawl now", disabled=not manual_url, use_container_width=True):
-            classified = import_manual_career_site(str(selected_company.consolidation_key), manual_url, manual_notes)
-            ok, output = trigger_inline_due_crawl(1)
-            clear_dashboard_caches()
-            st.success(
-                f"Imported {classified['site_url']} as {classified['source_type']}. {output}"
-            )
 
 if selected_page == "Company lookup":
     st.subheader("Company lookup")

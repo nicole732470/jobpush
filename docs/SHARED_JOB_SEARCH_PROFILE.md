@@ -46,6 +46,11 @@ Profile version `2026-06-27-draft-5` adds:
 - Machine-learning model work, Mechanical, Electrical, CAD/EDA, Embedded,
   firmware, RF, circuit, RTL, physical-design, and hardware domains as explicit
   exclusions.
+- Additional reviewed avoid families: HR/recruiting, accounting/tax/audit,
+  retail/in-store/warehouse, manufacturing/factory, restaurant/food service,
+  medical/therapy/lab support, buyer/procurement, non-technical sales,
+  producer/media, teacher/education, aerospace/aviation, and
+  actor/dancer/performance roles.
 - Applied AI/LLM application work as distinct from ML model development.
 - Conditional handling for software tools/automation inside hardware teams,
   systems integration, and performance-modeling software.
