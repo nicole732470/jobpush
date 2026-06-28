@@ -317,7 +317,52 @@ Generic HTML is handled in three layers, in this order:
    repeatedly request pages that already produced no structured ATS link.
    This marker is operational only; it does not reject the site or delete the
    candidate.
-3. **Write parsers only for repeatable patterns.** Do not build one-off parsers
+3. **Guess structured ATS boards without Tavily.** For companies that still
+   have only retained generic career pages, run deterministic public ATS probes
+   before writing custom generic parsers:
+
+   ```bash
+   bash db/deploy_via_ssm.sh db/run_guess_ats_sites.sh
+   bash db/deploy_via_ssm.sh db/run_guess_ats_sites_500.sh
+   ```
+
+   `scripts/guess_ats_sites.py` builds conservative company/domain slug
+   variants and probes public JSON APIs for Greenhouse, Lever, Ashby, and
+   SmartRecruiters. It writes normal `career_sites` candidates with
+   `discovery_source='ats_url_guess'` and `estimated_credits=0`. This is the
+   safe version of the "try `{company}.greenhouse.io` /
+   `jobs.lever.co/{company}`" idea: it validates through ATS APIs instead of
+   trusting a plain HTTP 200 page.
+
+   Quality gates:
+
+   - Do not auto-enable zero-job guessed boards.
+   - Do not use generic slugs such as `jobs`, `careers`, `global`, `services`,
+     `healthcare`, `glassdoor`, or similar noisy aliases.
+   - Run the cleanup/audit before trusting a new batch:
+
+     ```bash
+     bash db/deploy_via_ssm.sh db/run_remove_dangerous_ats_url_guess_slugs.sh
+     bash db/deploy_via_ssm.sh db/run_ats_url_guess_audit.sh
+     ```
+
+   - Then apply structured ATS auto-trust and crawl:
+
+     ```bash
+     bash db/deploy_via_ssm.sh db/run_apply_career_site_auto_trust.sh
+     bash db/deploy_via_ssm.sh db/run_due_crawl_batch_120.sh
+     ```
+
+   Workday and iCIMS are not included in deterministic guessing yet because
+   their public URLs have more tenant/site-path variation and plain 200 checks
+   have higher false-positive risk. Add them only after a stronger validator is
+   available.
+
+   Do not use Google search-result HTML scraping as a production dependency.
+   It is fragile, captcha-prone, and harder to operate reliably. Use official
+   search APIs only when credits/budget allow, or keep Google as a manual
+   research aid outside the automated pipeline.
+4. **Write parsers only for repeatable patterns.** Do not build one-off parsers
    for every company page. First group remaining generic pages by domain,
    template, or platform. Then add a parser only when the group is large enough
    or high-priority enough to justify the maintenance cost.
@@ -350,6 +395,23 @@ This means high-score P1 expansion is primarily a generic-HTML resolution
 problem, not a database-capacity problem. The next high-leverage work is to
 turn generic official career pages into ATS links where possible, then build
 repeatable generic parsers only for recurring templates.
+
+2026-06-28 direct ATS guessing update:
+
+- The first strict direct-guess rounds processed 1,500 generic P1 candidates
+  with zero Tavily credits.
+- The useful hit rate dropped as the easier structured ATS companies were
+  exhausted: early batches produced dozens of candidates, while a later
+  500-company batch produced 33 candidates and 24 newly enabled sites.
+- P1 crawl coverage improved to 1,520 successfully crawled companies out of
+  4,634 P1 companies; 1,549 now have an enabled site.
+- The remaining P1 blocker is still mostly generic HTML: 2,797 companies
+  require site resolution or a repeatable generic parser.
+
+Interpretation: direct ATS guessing is worth continuing in controlled batches
+because it is free and auditable, but it will not solve all generic HTML. The
+next expansion path is to group the remaining generic pages by platform or page
+template and implement parsers only for the largest repeatable groups.
 
 2026-06-27 cleanup/update:
 

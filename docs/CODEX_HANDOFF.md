@@ -1,9 +1,9 @@
 # JobPush → Codex 交接说明
 
-最后更新：2026-06-24
+最后更新：2026-06-28
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–073**；另外有 repeatable ops scripts for
-Tavily quota reset / career-site auto-trust / usage checks。
+生产 RDS 已部署 migration **001–086+**；另外有 repeatable ops scripts for
+Tavily quota reset / career-site auto-trust / ATS URL guessing / usage checks。
 
 Tavily discovery expansion must be credit-conservative: normal runs search only
 never-searched `pending` companies. Do not include historical `retry` or
@@ -79,11 +79,12 @@ pilot 已由 migration 073 删除，不再维护 `company_external_enrichment` /
 `company_priority_enrichment_workbench`。历史 discovery 的候选 URL/ATS/snippet
 仍保留在 `career_sites` 与 `company_tavily_discovery_features`。
 
-2026-06-25 P0/P1 链路状态：新 key 后追加 950 家 P0/P1 discovery，
-保留 2,237 个候选 URL，并自动启用 209 家 rank-1 structured ATS。P1
-当前 933 家有 enabled site，347 家已成功 crawl。最近 rollout 已写入
-6,482 个 parsed/new jobs，其中 target 1,050、review 3,681。`run_due_crawl_batch`
-已改为单站点失败不中断整批；失败记录留在 `crawl_runs` / `career_sites`。
+2026-06-28 P0/P1 链路状态：Tavily discovery 后追加了零成本 direct ATS
+URL guessing（Greenhouse / Lever / Ashby / SmartRecruiters public APIs），并
+严格清理 zero-job / generic slug 候选。P1 当前 1,549 家有 enabled site，
+1,520 家已成功 crawl，15 家当前失败，主要剩余 blocker 是 2,797 家 generic
+HTML candidate needs site resolution。`run_due_crawl_batch` 已改为单站点失败
+不中断整批；失败记录留在 `crawl_runs` / `career_sites`。
 
 ---
 

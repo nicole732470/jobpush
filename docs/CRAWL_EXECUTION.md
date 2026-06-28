@@ -59,10 +59,28 @@ public ATS adapters use the same batch/run/posting loader:
   the board exposes it.
 - `smartrecruiters-api`: SmartRecruiters public company-postings API with
   paginated normalization.
+- `ats-url-guess`: zero-credit discovery helper, not a crawler adapter. It
+  probes public Greenhouse, Lever, Ashby, and SmartRecruiters APIs with
+  conservative company/domain slugs, stores candidates as
+  `discovery_source='ats_url_guess'`, then relies on the normal structured-ATS
+  auto-trust and adapter crawl path.
 
 Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
 other verified sites of the same type.
+
+For free ATS expansion, use this order:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_guess_ats_sites_500.sh
+bash db/deploy_via_ssm.sh db/run_remove_dangerous_ats_url_guess_slugs.sh
+bash db/deploy_via_ssm.sh db/run_ats_url_guess_audit.sh
+bash db/deploy_via_ssm.sh db/run_apply_career_site_auto_trust.sh
+bash db/deploy_via_ssm.sh db/run_due_crawl_batch_120.sh
+```
+
+Do not skip the cleanup/audit step. Guessed slugs are cheaper than Tavily but
+can still create wrong-company candidates if generic aliases slip through.
 
 Migration 068 adds `career_site_selection_candidates`, which exposes every
 site-selection score and decision. Rank-1 P0/P1 Lever, Ashby, and
