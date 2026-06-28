@@ -22,12 +22,12 @@ Codex token.
 
 ## Current pages and interaction model
 
-- top-line P0/P1 crawl completion: total companies, companies with enabled
+- top-line selected-tier crawl completion: total companies, companies with enabled
   sites, ever-succeeded companies, due/unfinished sites, attempted-today count,
   and latest crawl start time;
 - today's active-US new target / needs-review jobs, US closed jobs, crawl runs,
   and failures;
-- **Jobs to apply**: default P0/P1 active US `target` job list with direct
+- **Jobs to apply**: selected-tier active US `target` job list with direct
   links, sorted newest first and controlled by the selected date range;
 - selected-period role summaries by track, role family, internship/full-time,
   location, seniority, company, and direct apply-link filters/downloads;
@@ -100,6 +100,10 @@ taxonomy becomes a durable product rule, promote it into
 `jobpush.job_title_labels` or a versioned config file instead of treating this
 display rule as source of truth.
 
+`Other` means the posting is still a target/review posting, but the dashboard
+display layer has not mapped its title or canonical role into a more specific
+role family yet. It is a grouping gap, not a crawler failure.
+
 ## Data retrieval and writeback chain
 
 ```mermaid
@@ -140,8 +144,8 @@ Streamlit is good enough for this internal operations console because it gives
 fast database-backed tables, downloads, forms, and basic drill-downs. It is not
 a full product frontend. Current limitations:
 
-- `st.metric` is not itself clickable; use adjacent **View details** buttons
-  for drill-down.
+- `st.metric` is not itself clickable; use the tables below the metric row for
+  operational drill-downs such as recent crawl runs and coverage.
 - Page state is preserved with a radio/pill navigation control instead of native
   `st.tabs`, because Streamlit reruns the script after every form/button action
   and native tabs can jump back unexpectedly.

@@ -47,32 +47,36 @@ st.markdown(
     <style>
       .stApp {background: linear-gradient(180deg,#fbfcff 0%,#f6f8fb 42%,#f7f7f4 100%);}
       .block-container {padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1500px;}
-      [data-testid="stMetric"] {background:rgba(255,255,255,.88);border:1px solid #e4e7ec;
-        border-radius:18px;padding:15px 17px;box-shadow:0 8px 24px rgba(16,24,40,.045); min-height:132px;}
-      [data-testid="stMetric"] [data-testid="stMetricDelta"] {min-height:22px;}
+      [data-testid="stMetric"] {background:rgba(255,255,255,.92);border:1px solid #e4e7ec;
+        border-radius:14px;padding:10px 12px;box-shadow:0 6px 18px rgba(16,24,40,.04); min-height:92px;}
+      [data-testid="stMetric"] [data-testid="stMetricDelta"] {min-height:16px;}
+      [data-testid="stMetric"] label {font-size:.78rem !important;}
       h1 {letter-spacing:-0.045em; margin-bottom:.15rem;}
       h2, h3 {letter-spacing:-0.025em;}
       .quiet {color:#667085;font-size:.92rem;}
-      .hero {padding:18px 22px;border-radius:24px;background:linear-gradient(135deg,#111827 0%,#25314a 58%,#43506b 100%);
+      .hero {padding:14px 18px;border-radius:20px;background:linear-gradient(135deg,#111827 0%,#25314a 58%,#43506b 100%);
         color:#fff;margin-bottom:18px;box-shadow:0 16px 38px rgba(17,24,39,.16);}
       .hero .quiet {color:#d0d5dd;}
       .section-card {background:rgba(255,255,255,.8);border:1px solid #eaecf0;border-radius:18px;padding:14px 16px;}
       div[data-testid="stDataFrame"] {border-radius:16px; overflow:hidden;}
-      div[role="radiogroup"] {gap:.35rem;}
+      div[role="radiogroup"] {gap:0;background:#eef2f6;border:1px solid #d0d5dd;border-radius:14px;padding:4px;}
       div[role="radiogroup"] label {
-        background:#fff;border:1px solid #e4e7ec;border-radius:999px;padding:.35rem .75rem;
-        box-shadow:0 5px 16px rgba(16,24,40,.04);
+        background:transparent;border:0;border-radius:10px;padding:.38rem .72rem;
+        box-shadow:none;color:#344054;
       }
       div[role="radiogroup"] label:has(input:checked) {
-        background:#111827;color:#fff;border-color:#111827;
+        background:#fff;color:#111827;border-color:#fff;box-shadow:0 4px 14px rgba(16,24,40,.08);
       }
-      div[role="radiogroup"] label:has(input:checked) * {color:#fff !important;}
-      div[role="radiogroup"] label:has(input:checked) svg {fill:#fff !important;}
-      div[role="radiogroup"] label:hover {border-color:#98a2b3;}
+      div[role="radiogroup"] label:has(input:checked) * {color:#111827 !important;}
+      div[role="radiogroup"] label:has(input:checked) svg {fill:#111827 !important;}
+      div[role="radiogroup"] label:hover {background:#fff;color:#111827;}
       div[data-baseweb="tag"] {background:#111827 !important;color:#fff !important;border-color:#111827 !important;}
       div[data-baseweb="tag"] * {color:#fff !important;fill:#fff !important;}
       [aria-selected="true"] {color:#fff !important;}
       [data-testid="stSidebar"] {background:#f8fafc;}
+      [data-baseweb="select"], [data-testid="stTextInput"] input, [data-testid="stDateInput"] input {
+        background:#fff;border-radius:12px;
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -365,63 +369,24 @@ def today_crawl_progress(tiers: tuple[str, ...]) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
-def home_metric_detail(metric_key: str, tiers: tuple[str, ...], activity_date: str) -> pd.DataFrame:
-    if metric_key in {"new_jobs", "new_target_jobs", "new_review_jobs"}:
-        role_filter = {
-            "new_target_jobs": "AND job.role_status = 'target'",
-            "new_review_jobs": "AND job.role_status = 'review'",
-        }.get(metric_key, "")
-        return query(
-            f"""
-            SELECT job.first_seen_at, job.priority_tier, job.canonical_name,
-                   job.title, job.location, job.role_status, job.canonical_role,
-                   job.application_status, job.job_url
-            FROM jobpush.dashboard_jobs job
-            WHERE job.priority_tier = ANY(%s)
-              AND (job.first_seen_at AT TIME ZONE 'America/Chicago')::date = %s::date
-              {role_filter}
-            ORDER BY job.first_seen_at DESC, job.priority_tier, job.canonical_name, job.title
-            LIMIT 1000
-            """,
-            (list(tiers), activity_date),
-        )
-    if metric_key == "closed_jobs":
-        return query(
-            """
-            SELECT posting.closed_at, target.priority_tier, target.canonical_name,
-                   posting.title, posting.location, posting.classification_status AS role_status,
-                   posting.job_url
-            FROM jobpush.job_postings posting
-            JOIN jobpush.crawl_targets target USING (consolidation_key)
-            WHERE target.priority_tier = ANY(%s)
-              AND posting.closed_at IS NOT NULL
-              AND (posting.closed_at AT TIME ZONE 'America/Chicago')::date = %s::date
-            ORDER BY posting.closed_at DESC, target.priority_tier, target.canonical_name, posting.title
-            LIMIT 1000
-            """,
-            (list(tiers), activity_date),
-        )
-    if metric_key in {"crawl_runs", "failed_runs"}:
-        status_filter = "AND run.status = 'failed'" if metric_key == "failed_runs" else ""
-        return query(
-            f"""
-            SELECT run.started_at, run.finished_at, target.priority_tier,
-                   target.canonical_name, site.source_type, run.status,
-                   run.requests_count, run.pages_fetched, run.parsed_job_count,
-                   run.new_job_count, run.closed_job_count, run.target_job_count,
-                   run.review_job_count, run.error_code, run.error_message, site.site_url
-            FROM jobpush.crawl_runs run
-            JOIN jobpush.career_sites site USING (site_id)
-            JOIN jobpush.crawl_targets target USING (consolidation_key)
-            WHERE target.priority_tier = ANY(%s)
-              AND (run.started_at AT TIME ZONE 'America/Chicago')::date = %s::date
-              {status_filter}
-            ORDER BY run.started_at DESC, target.priority_tier, target.canonical_name
-            LIMIT 1000
-            """,
-            (list(tiers), activity_date),
-        )
-    return pd.DataFrame()
+def recent_crawl_runs(tiers: tuple[str, ...], limit: int = 20) -> pd.DataFrame:
+    return query(
+        """
+        SELECT run.started_at AT TIME ZONE 'America/Chicago' AS started_ct,
+               run.finished_at AT TIME ZONE 'America/Chicago' AS finished_ct,
+               target.priority_tier, target.canonical_name, site.source_type,
+               run.status, run.parsed_job_count, run.new_job_count,
+               run.closed_job_count, run.target_job_count, run.review_job_count,
+               run.error_code, LEFT(run.error_message, 220) AS error_message
+        FROM jobpush.crawl_runs run
+        JOIN jobpush.career_sites site USING (site_id)
+        JOIN jobpush.crawl_targets target USING (consolidation_key)
+        WHERE target.priority_tier = ANY(%s)
+        ORDER BY run.started_at DESC
+        LIMIT %s
+        """,
+        (list(tiers), int(limit)),
+    )
 
 
 @st.cache_data(ttl=60)
@@ -821,7 +786,7 @@ def clear_dashboard_caches() -> None:
         crawl_rank_coverage,
         crawl_rollout_by_tier,
         today_crawl_progress,
-        home_metric_detail,
+        recent_crawl_runs,
         crawl_completion_summary,
         p1_blocker_distribution,
         p1_rank_coverage,
@@ -986,6 +951,8 @@ def jobs(
                ranked.priority_score, ranked.priority_rank_in_tier, job.title,
                location, category, employment_type, role_status, canonical_role,
                CASE
+                   WHEN role_status = 'target' AND canonical_role = 'candidate_profile_track: product' THEN 'stack_1_business_product_data'
+                   WHEN role_status = 'target' AND canonical_role = 'candidate_profile_track: analyst/bi' THEN 'stack_1_business_product_data'
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%product%%manager%%'
                        OR normalized_title LIKE '%%business%%analyst%%'
@@ -993,11 +960,27 @@ def jobs(
                        OR normalized_title LIKE '%%strategy%%analyst%%'
                        OR normalized_title LIKE '%%operations%%analyst%%'
                    ) THEN 'stack_1_business_product_data'
+                   WHEN role_status = 'target' AND canonical_role IN (
+                       'candidate_profile_track: software/data',
+                       'candidate_profile_track: solutions/systems',
+                       'candidate_profile_track: applied_ai'
+                   ) THEN 'stack_2_software_systems'
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%software%%'
                        OR normalized_title LIKE '%%systems%%analyst%%'
                        OR normalized_title LIKE '%%information%%system%%'
                    ) THEN 'stack_2_software_systems'
+                   WHEN role_status = 'target' AND canonical_role = 'candidate_profile_track: customer_success' THEN 'stack_3_customer_success'
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%%customer%%success%%'
+                       OR normalized_title LIKE '%%technical%%account%%'
+                       OR normalized_title LIKE '%%relationship%%manager%%'
+                   ) THEN 'stack_3_customer_success'
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%%sales%%'
+                       OR normalized_title LIKE '%%marketing%%'
+                       OR normalized_title LIKE '%%business%%development%%'
+                   ) THEN 'stack_3_gtm'
                    WHEN role_status = 'target' THEN 'stack_3_target_roles'
                    WHEN role_status = 'review' THEN 'needs_review'
                    ELSE 'excluded_non_target'
@@ -1005,12 +988,25 @@ def jobs(
                CASE
                    WHEN role_status = 'non_target' THEN 'excluded_non_target'
                    WHEN role_status = 'review' THEN 'needs_review'
+                   WHEN canonical_role = 'candidate_profile_track: product' THEN 'product_manager'
+                   WHEN canonical_role = 'candidate_profile_track: analyst/bi' THEN 'data_analytics_bi'
+                   WHEN canonical_role = 'candidate_profile_track: solutions/systems' THEN 'systems_engineering'
+                   WHEN canonical_role = 'candidate_profile_track: applied_ai' THEN 'applied_ai'
+                   WHEN canonical_role = 'candidate_profile_track: customer_success' THEN 'customer_success'
+                   WHEN canonical_role = 'candidate_profile_track: software/data'
+                        AND (normalized_title LIKE '%%data%%engineer%%'
+                             OR normalized_title LIKE '%%analytics%%engineer%%'
+                             OR normalized_title LIKE '%%data%%architect%%') THEN 'data_engineering'
+                   WHEN canonical_role = 'candidate_profile_track: software/data' THEN 'software_engineering'
                    WHEN normalized_title LIKE '%%intern%%'
                         OR normalized_title LIKE '%%internship%%'
                         OR normalized_title LIKE '%%co op%%'
                         OR normalized_title LIKE '%%co-op%%' THEN 'internship'
                    WHEN normalized_title LIKE '%%forward deployed engineer%%'
                         OR normalized_title LIKE '%%forward-deployed engineer%%' THEN 'forward_deployed_engineer'
+                   WHEN normalized_title LIKE '%%ai full stack%%'
+                        OR normalized_title LIKE '%%ai engineer%%'
+                        OR normalized_title LIKE '%%gtm engineer%%' THEN 'applied_ai'
                    WHEN normalized_title LIKE '%%product%%manager%%' THEN 'product_manager'
                    WHEN normalized_title LIKE '%%program%%manager%%' THEN 'program_manager'
                    WHEN normalized_title LIKE '%%project%%manager%%' THEN 'project_manager'
@@ -1036,8 +1032,22 @@ def jobs(
                    WHEN normalized_title LIKE '%%business%%analyst%%' THEN 'business_analyst'
                    WHEN normalized_title LIKE '%%operations%%analyst%%'
                         OR normalized_title LIKE '%%strategy%%analyst%%' THEN 'strategy_operations'
+                   WHEN normalized_title LIKE '%%customer%%success%%'
+                        OR normalized_title LIKE '%%technical%%account%%'
+                        OR normalized_title LIKE '%%relationship%%manager%%' THEN 'customer_success'
+                   WHEN normalized_title LIKE '%%technical%%support%%'
+                        OR normalized_title LIKE '%%technical%%specialist%%'
+                        OR normalized_title LIKE '%%technical%%expert%%' THEN 'technical_support'
                    WHEN normalized_title LIKE '%%marketing%%' THEN 'marketing'
                    WHEN normalized_title LIKE '%%sales%%' THEN 'sales'
+                   WHEN canonical_role ILIKE '%%market research%%' THEN 'marketing'
+                   WHEN canonical_role ILIKE '%%financial%%analyst%%'
+                        OR canonical_role ILIKE '%%financial and investment%%' THEN 'financial_analyst'
+                   WHEN canonical_role ILIKE '%%statistic%%' THEN 'data_analytics_bi'
+                   WHEN canonical_role ILIKE '%%information technology project manager%%' THEN 'project_manager'
+                   WHEN canonical_role ILIKE '%%network%%'
+                        OR canonical_role ILIKE '%%systems administrator%%' THEN 'systems_engineering'
+                   WHEN canonical_role ILIKE '%%software developer%%' THEN 'software_engineering'
                    ELSE COALESCE(NULLIF(canonical_role, ''), 'other')
                END AS role_family,
                CASE
@@ -1367,7 +1377,9 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
 TRACK_LABELS = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
-    "stack_3_target_roles": "Track 3 · Additional target track",
+    "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
+    "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
+    "stack_3_target_roles": "Track 3 · Other Target Roles",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "review": "Needs review",
@@ -1390,6 +1402,10 @@ ROLE_FAMILY_LABELS = {
     "strategy_operations": "Strategy / Operations",
     "marketing": "Marketing",
     "sales": "Sales",
+    "customer_success": "Customer Success / Technical Account",
+    "technical_support": "Technical Support / Specialist",
+    "applied_ai": "Applied AI / GTM Engineering",
+    "financial_analyst": "Financial Analyst",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "other": "Other",
@@ -1398,7 +1414,9 @@ ROLE_FAMILY_LABELS = {
 TRACK_OPTIONS = [
     "Track 1 · Business / Product / Data",
     "Track 2 · Software / Systems",
-    "Track 3 · Additional target track",
+    "Track 3 · Customer Success / Technical Account",
+    "Track 3 · GTM / Sales / Marketing",
+    "Track 3 · Other Target Roles",
     "Needs review",
     "Excluded / non-target",
 ]
@@ -1406,7 +1424,9 @@ TRACK_OPTIONS = [
 TRACK_VALUE_TO_LABEL = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
     "stack_2_software_systems": "Track 2 · Software / Systems",
-    "stack_3_target_roles": "Track 3 · Additional target track",
+    "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
+    "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
+    "stack_3_target_roles": "Track 3 · Other Target Roles",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
 }
@@ -1427,6 +1447,10 @@ ROLE_FAMILY_OPTIONS = [
     "Strategy / Operations",
     "Marketing",
     "Sales",
+    "Customer Success / Technical Account",
+    "Technical Support / Specialist",
+    "Applied AI / GTM Engineering",
+    "Financial Analyst",
     "Needs review",
     "Excluded / non-target",
     "Other",
@@ -1450,7 +1474,7 @@ st.markdown(
     """
     <div class="hero">
       <h1>JobPush Ops</h1>
-      <div class="quiet">P0/P1 career-site monitoring · all companies · dates shown in America/Chicago</div>
+      <div class="quiet">Career-site crawl operations, job discovery, and application review · timestamps in America/Chicago</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1459,7 +1483,7 @@ st.markdown(
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
 
 st.sidebar.header("Global view")
-st.sidebar.caption("只放全局时间和 P 档；公司/title/location 这类检索放到对应页面里。")
+st.sidebar.caption("Global date range and tier filter. Company, title, and location search live inside the relevant pages.")
 with st.sidebar.form("global_view_form"):
     date_window = st.date_input(
         "First seen date range",
@@ -1524,11 +1548,9 @@ metrics = [
 ]
 for column, (metric_key, label, value) in zip(metric_columns, metrics):
     column.metric(label, f"{value:,}")
-    if column.button("View details", key=f"home-detail-{metric_key}", use_container_width=True):
-        st.session_state["home_metric_detail"] = metric_key
 st.caption(
-    f"Current tier filter: {selected_tier_label}. Site crawl attempts = 今天请求过的网站次数；"
-    "New jobs = 第一次进入数据库的职位数；Closed jobs = 之前见过、这次快照里消失的职位。"
+    f"Current tier filter: {selected_tier_label}. New jobs are first-seen active US postings; "
+    "closed jobs are postings that disappeared from a later same-scope snapshot."
 )
 if not completion.empty:
     selected_completion = completion[completion["priority_tier"].isin(tiers)]
@@ -1572,30 +1594,6 @@ selected_page = st.radio(
 )
 
 if selected_page == "Home":
-    active_detail = st.session_state.get("home_metric_detail")
-    if active_detail:
-        detail_label = next((label for key, label, _ in metrics if key == active_detail), active_detail)
-        with st.expander(f"Details · {detail_label}", expanded=True):
-            detail_frame = home_metric_detail(active_detail, tiers, str(chicago_today))
-            if detail_frame.empty:
-                st.info("No rows for this metric under the current global tier/date filter.")
-            else:
-                st.download_button(
-                    "Download detail rows (CSV)",
-                    csv_bytes(detail_frame),
-                    file_name=f"jobpush_home_detail_{active_detail}_{chicago_today}.csv",
-                    mime="text/csv",
-                )
-                st.dataframe(
-                    detail_frame,
-                    hide_index=True,
-                    use_container_width=True,
-                    height=360,
-                    column_config={
-                        "job_url": st.column_config.LinkColumn("Job", display_text="Open ↗"),
-                        "site_url": st.column_config.LinkColumn("Site", display_text="Open ↗"),
-                    },
-                )
     left, right = st.columns([1.35, 1])
     with left:
         st.subheader("30-day job discovery")
@@ -1632,6 +1630,12 @@ if selected_page == "Home":
         st.subheader("Site review coverage")
         site_summary = review_workbench_summary(tiers)
         st.dataframe(site_summary, hide_index=True, use_container_width=True, height=180)
+    st.subheader("Latest crawl runs")
+    latest_runs = recent_crawl_runs(tiers, limit=20)
+    if latest_runs.empty:
+        st.info("No crawl runs found for the current tier filter.")
+    else:
+        st.dataframe(latest_runs, hide_index=True, use_container_width=True, height=330)
 
 if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 company crawl rollout")
