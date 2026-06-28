@@ -534,7 +534,7 @@ def company_targets(tiers: tuple[str, ...]) -> pd.DataFrame:
 def site_review_queue(limit: int = 500, tiers: tuple[str, ...] = ("P0", "P1")) -> pd.DataFrame:
     return query(
         """
-        SELECT review_rank, priority_tier, priority_score,
+        SELECT review_rank, consolidation_key, priority_tier, priority_score,
                row_number() OVER (
                    PARTITION BY priority_tier
                    ORDER BY priority_score DESC NULLS LAST, canonical_name
@@ -671,6 +671,7 @@ def clear_dashboard_caches() -> None:
         jobs,
         company_jobs,
         company_lca_roles,
+        company_lca_roles_by_key,
         company_lookup_options,
         lca_soc_review_table,
         lca_raw_job_review_sample,
@@ -686,6 +687,13 @@ def apply_title_review(normalized_title: str, status: str, canonical_role: str, 
     execute(
         "SELECT jobpush.apply_manual_job_title_label(%s, %s, %s, %s, 'nicole')",
         (normalized_title, status, canonical_role, reason),
+    )
+
+
+def set_manual_crawl_priority(consolidation_key: str, tier: str, reason: str) -> None:
+    execute(
+        "SELECT jobpush.set_manual_crawl_priority(%s, %s, %s, 'nicole')",
+        (consolidation_key, tier, reason),
     )
 
 
@@ -1039,6 +1047,54 @@ def company_lca_roles(company: str) -> pd.DataFrame:
         LIMIT 1000
         """,
         (company,),
+    )
+
+
+@st.cache_data(ttl=60)
+def company_lca_roles_by_key(consolidation_key: str) -> pd.DataFrame:
+    if not consolidation_key:
+        return pd.DataFrame()
+    return query(
+        """
+        WITH selected_company AS (
+            SELECT consolidation_key, canonical_name, member_feins
+            FROM jobpush.company_targets_consolidated
+            WHERE consolidation_key = %s
+        ), member_feins AS (
+            SELECT selected.consolidation_key, selected.canonical_name,
+                   unnest(selected.member_feins) AS employer_fein
+            FROM selected_company selected
+        ), lca AS (
+            SELECT member.consolidation_key, member.canonical_name,
+                   jobpush.normalize_soc_code(case_row.soc_code) AS normalized_soc_code,
+                   COALESCE(NULLIF(case_row.soc_title, ''), '(missing SOC title)') AS soc_title,
+                   COALESCE(NULLIF(case_row.job_title, ''), '(missing raw title)') AS raw_job_title,
+                   case_row.case_status, case_row.decision_date,
+                   case_row.wage_rate_of_pay_from, case_row.wage_unit_of_pay
+            FROM member_feins member
+            JOIN public.lca_cases case_row
+              ON case_row.employer_fein = member.employer_fein
+        )
+        SELECT lca.normalized_soc_code,
+               lca.soc_title,
+               lca.raw_job_title,
+               CASE WHEN target.normalized_soc_code IS NOT NULL THEN TRUE ELSE FALSE END AS current_target_soc,
+               COUNT(*) AS lca_count,
+               COUNT(*) FILTER (WHERE lca.case_status = 'Certified') AS certified_count,
+               MIN(lca.decision_date) AS first_decision_date,
+               MAX(lca.decision_date) AS last_decision_date,
+               MIN(lca.wage_rate_of_pay_from) FILTER (WHERE lca.wage_unit_of_pay = 'Year') AS min_yearly_wage_from,
+               MAX(lca.wage_rate_of_pay_from) FILTER (WHERE lca.wage_unit_of_pay = 'Year') AS max_yearly_wage_from
+        FROM lca
+        LEFT JOIN jobpush.target_soc_roles target
+          ON target.normalized_soc_code = lca.normalized_soc_code
+         AND target.active
+        GROUP BY lca.normalized_soc_code, lca.soc_title,
+                 lca.raw_job_title, target.normalized_soc_code
+        ORDER BY current_target_soc DESC, lca_count DESC, raw_job_title
+        LIMIT 500
+        """,
+        (consolidation_key,),
     )
 
 
@@ -1777,11 +1833,83 @@ if selected_page == "Site review":
         if not site_frame.empty:
             st.subheader("Review one company on this page")
             site_labels = {
-                f"{row.priority_tier} · {row.canonical_name} · score {row.priority_score} · {row.candidate_count} candidates": row
+                (
+                    f"{row.priority_tier} · rank {row.priority_rank_in_tier} · "
+                    f"{row.canonical_name} · score {row.priority_score} · "
+                    f"{row.candidate_count} candidates"
+                ): row
                 for row in site_frame.itertuples()
             }
             selected_site_label = st.selectbox("Company to review", list(site_labels.keys()))
             selected_row = site_labels[selected_site_label]
+            st.markdown("#### Selected company context")
+            context_cols = st.columns(6)
+            context_cols[0].metric("Tier", str(selected_row.priority_tier))
+            context_cols[1].metric("Tier rank", f"{int(selected_row.priority_rank_in_tier):,}")
+            context_cols[2].metric("Priority score", f"{float(selected_row.priority_score):.2f}")
+            context_cols[3].metric("LCA rows", f"{int(selected_row.lca_count):,}")
+            context_cols[4].metric("Target LCA rows", f"{int(selected_row.target_role_lca_count):,}")
+            context_cols[5].metric("Candidates", f"{int(selected_row.candidate_count):,}")
+            st.caption(
+                f"Key: `{selected_row.consolidation_key}` · "
+                f"Location: {getattr(selected_row, 'employer_city', '') or '(missing)'}, "
+                f"{getattr(selected_row, 'employer_state', '') or '(missing)'} · "
+                f"Signal: {getattr(selected_row, 'potential_p0_signal', '') or '(none)'}"
+            )
+
+            priority_col, lca_col = st.columns([1, 2])
+            with priority_col:
+                st.markdown("##### Priority override")
+                new_tier = st.selectbox(
+                    "Change this company to",
+                    ["Keep current", "P0", "P1", "P2"],
+                    key=f"site-priority-tier-{selected_row.consolidation_key}",
+                )
+                priority_reason = st.text_input(
+                    "Reason",
+                    value="dashboard site review priority adjustment",
+                    key=f"site-priority-reason-{selected_row.consolidation_key}",
+                )
+                if st.button(
+                    "Save priority override",
+                    disabled=new_tier == "Keep current",
+                    use_container_width=True,
+                    key=f"site-priority-save-{selected_row.consolidation_key}",
+                ):
+                    set_manual_crawl_priority(
+                        str(selected_row.consolidation_key),
+                        new_tier,
+                        priority_reason,
+                    )
+                    clear_dashboard_caches()
+                    st.success(
+                        f"Updated {selected_row.canonical_name} to {new_tier}. "
+                        "This writes a manual override and keeps the company enabled in crawl_targets."
+                    )
+            with lca_col:
+                st.markdown("##### LCA sponsorship roles")
+                selected_lca_roles = company_lca_roles_by_key(str(selected_row.consolidation_key))
+                if selected_lca_roles.empty:
+                    st.info("No LCA sponsorship roles found for this company key.")
+                else:
+                    st.download_button(
+                        "Download selected company LCA roles (CSV)",
+                        csv_bytes(selected_lca_roles),
+                        file_name=(
+                            f"jobpush_lca_roles_"
+                            f"{str(selected_row.consolidation_key).replace('/', '_')}_{chicago_today}.csv"
+                        ),
+                        mime="text/csv",
+                        key=f"site-lca-download-{selected_row.consolidation_key}",
+                    )
+                    st.dataframe(
+                        selected_lca_roles,
+                        hide_index=True,
+                        use_container_width=True,
+                        height=300,
+                    )
+
+            st.divider()
             candidate_options: dict[str, tuple[int | None, str | None, str | None]] = {
                 "Candidate 1": (
                     getattr(selected_row, "candidate_1_site_id", None),
