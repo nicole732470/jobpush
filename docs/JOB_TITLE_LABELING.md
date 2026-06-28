@@ -74,6 +74,20 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
 - Active US postings after the 2026-06-27 round-3 import and local ML pass:
   roughly `target` 4.3k, `review` 14.2k before ML / 13.7k after ML, and
   `non_target` 21.6k+.
+- 2026-06-28 P1 crawl expansion quality issue: large newly enabled sites exposed
+  obvious non-target titles in review, especially `Leader/Leadership`,
+  `Cleaner/Janitorial`, `Merchant/Merchandising`, and non-US market/language
+  markers such as `M/F/D`, `H/F`, `EMEA`, `LATAM`, `Japan`, and `Thailand`.
+  Migration 089 records this as classifier leakage and turns these repeated
+  patterns into deterministic `non_target` rules.
+- 2026-06-28 follow-up migration 090 closes residual leakage from joined
+  leadership terms (`teamleader`, `shiftlead`, `future leaders`), Latin-script
+  non-US markers (`m/w/d`, `solicitud`, `técnico`, `verkauf`, `Vietnam`), and
+  `business development executive`.
+- After migrations 089 and 090, `db/run_title_review_leak_audit.sh` reduced the
+  monitored leakage set from 452 suspect review titles to 1 remaining title:
+  `Sales Operations Analyst (Sales Leads and Pipeline)`. This one is left in
+  review because `leads` means sales leads/pipeline, not leadership.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
@@ -166,3 +180,36 @@ flowchart TD
 
 Manual labels always win. A draft profile never activates broad exclusions;
 unresolved titles stay in review.
+
+## Known leakage issue: high-volume crawl expansion
+
+When P1 coverage was expanded on 2026-06-28, some broad enterprise career sites
+introduced thousands of postings. This made small title-rule gaps highly
+visible: titles such as `Cleaner`, `Store Cleaner`, `Agile Leader`, and
+non-US strings with `M/F/D`, `H/F`, `EMEA`, or `LATAM` entered
+`job_title_review_queue`.
+
+Root cause:
+
+1. `job_title_review_queue` shows any `job_title_labels` row still marked
+   `review`; it does not independently reclassify rows.
+2. The deterministic profile rules did not yet include `leader/leadership`,
+   `cleaner/janitorial`, `merchant/merchandising`, or Latin-script non-US market
+   markers.
+3. Large sites amplify leakage because one overly broad site can add hundreds or
+   thousands of detailed titles at once.
+
+Mitigation:
+
+- Migration 089 adds deterministic `non_target` rules for these clusters and
+  backfills existing non-manual review labels.
+- Migration 090 closes residual joined-word and Latin-script non-US markers
+  found by the follow-up audit.
+- `db/run_title_review_leak_audit.sh` audits future leakage clusters before a
+  review batch is exported.
+- The audit should remain conservative: do not globally block `lead`/`leads`
+  when it means sales leads or data lead fields; block leadership/seniority
+  terms only when the pattern clearly means level/title.
+- Large-site anomalies should be checked before treating all new titles as high
+  value; a site producing thousands of jobs may be correct, but it should be
+  flagged for entity/scope review.
