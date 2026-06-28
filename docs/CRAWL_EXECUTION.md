@@ -64,6 +64,10 @@ public ATS adapters use the same batch/run/posting loader:
   conservative company/domain slugs, stores candidates as
   `discovery_source='ats_url_guess'`, then relies on the normal structured-ATS
   auto-trust and adapter crawl path.
+- `generic-jsonld`: conservative parser for manually verified `generic_html`
+  career pages that expose standard `schema.org/JobPosting` JSON-LD. It fetches
+  one page, uses no browser, and does not make unverified generic candidates
+  crawlable by itself.
 
 Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
@@ -81,6 +85,19 @@ bash db/deploy_via_ssm.sh db/run_due_crawl_batch_120.sh
 
 Do not skip the cleanup/audit step. Guessed slugs are cheaper than Tavily but
 can still create wrong-company candidates if generic aliases slip through.
+
+Additional zero/low-credit discovery fallbacks, mainly for later P2 expansion:
+
+- Avoid direct Google scraping at scale; it is CAPTCHA/IP-block prone.
+- DuckDuckGo HTML can be used for small batches:
+  `https://html.duckduckgo.com/html/?q={company}+careers`. Parse returned
+  links, then pass them through the existing `classify_url` and cleanup flow.
+- Bing Search API is a quota-based fallback. Verify the current free quota
+  before use, reserve it for high-score companies with no retained candidate,
+  and log estimated credits in `career_site_discovery_runs`.
+- LinkedIn company jobs pages may reveal an "Apply on company website" domain,
+  but LinkedIn is anti-scraping sensitive. Use only for tiny/manual batches with
+  browser-like headers and never as the default high-volume path.
 
 Migration 068 adds `career_site_selection_candidates`, which exposes every
 site-selection score and decision. Rank-1 P0/P1 Lever, Ashby, and

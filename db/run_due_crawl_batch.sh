@@ -38,6 +38,8 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="cognizant-careers-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_cognizant_jobs.py" ;;
     eightfold)
       adapter_name="eightfold-embedded"; adapter_version="0.1.0"; adapter_script="scripts/crawl_eightfold_jobs.py" ;;
+    generic_html)
+      adapter_name="generic-jsonld"; adapter_version="0.1.0"; adapter_script="scripts/crawl_generic_jsonld.py" ;;
     greenhouse)
       adapter_name="greenhouse-api"; adapter_version="0.2.0"; adapter_script="scripts/crawl_greenhouse.py" ;;
     lever)

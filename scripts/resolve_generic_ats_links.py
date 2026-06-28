@@ -28,6 +28,19 @@ CAREER_HINTS = re.compile(
     r"(job|jobs|career|careers|opening|openings|position|positions|opportunit|workday|greenhouse|lever|ashby|icims|jobvite|workable|paylocity|rippling|ultipro)",
     re.I,
 )
+SUPPORTED_ATS_LINKS = {
+    "greenhouse",
+    "workday",
+    "lever",
+    "ashby",
+    "smartrecruiters",
+    "icims",
+    "oracle_cloud",
+    "workable",
+    "jobvite",
+    "paylocity",
+    "rippling",
+}
 
 
 class LinkParser(HTMLParser):
@@ -90,7 +103,7 @@ def score_candidate(company_name: str, source_url: str, href: str, anchor_text: 
         score += 15
     if tokens and any(token in text for token in tokens[:4]):
         score += 10
-    if source_type in {"greenhouse", "workday", "lever", "ashby", "smartrecruiters", "icims", "oracle_cloud"}:
+    if source_type in SUPPORTED_ATS_LINKS:
         score += 10
 
     return {
