@@ -1541,7 +1541,7 @@ metric_columns = st.columns(6)
 metrics = [
     ("new_jobs", f"New jobs today · {selected_tier_label}", int(today.get("new_jobs", 0))),
     ("new_target_jobs", "Target jobs today", int(today.get("new_target_jobs", 0))),
-    ("new_review_jobs", "Needs-review today", int(today.get("new_review_jobs", 0))),
+    ("new_review_jobs", "New jobs pending classification", int(today.get("new_review_jobs", 0))),
     ("closed_jobs", "Closed jobs today", int(today.get("closed_jobs", 0))),
     ("crawl_runs", "Site crawl attempts", int(today.get("crawl_runs", 0))),
     ("failed_runs", "Failed site attempts", int(today.get("failed_runs", 0))),
@@ -1924,7 +1924,7 @@ if selected_page == "Title review":
     if review_frame.empty:
         st.success("No titles are currently waiting for manual review.")
     else:
-        st.subheader("Select one title from the table")
+        st.subheader("Select one or more titles from the table")
         title_selection = st.dataframe(
             review_frame.drop(columns=["人工判断（请填写）", "标准岗位（可选）", "判断原因/备注（可选）"], errors="ignore"),
             hide_index=True,
@@ -1938,13 +1938,17 @@ if selected_page == "Title review":
         selected_title_indices = [int(index) for index in selected_title_rows] if selected_title_rows else [0]
         selected_title_rows_frame = review_frame.iloc[selected_title_indices]
         selected_title_row = selected_title_rows_frame.iloc[0]
-        if len(selected_title_rows) > 1:
-            st.info(f"{len(selected_title_rows):,} titles selected. The form below will apply the same decision to all selected titles.")
-        st.subheader("Submit selected title label")
-        with st.form("single_title_review_form", clear_on_submit=True):
+        selected_count = len(selected_title_rows_frame)
+        if selected_count > 1:
+            st.info(
+                f"{selected_count:,} titles selected. The decision and notes below will be submitted "
+                "for every selected title."
+            )
+        st.subheader("Submit selected title label(s)")
+        with st.form("title_review_form", clear_on_submit=True):
             st.caption(
                 f"Selected: **{selected_title_row['normalized_title']}** · "
-                f"{len(selected_title_rows_frame):,} selected · "
+                f"{selected_count:,} selected · "
                 f"{int(selected_title_row['active_posting_count']):,} active postings · "
                 f"{int(selected_title_row['company_count']):,} companies"
             )
@@ -1952,26 +1956,35 @@ if selected_page == "Title review":
                 f"Example: {selected_title_row['example_title']} | "
                 f"Suggested by: {selected_title_row['suggestion_reason']}"
             )
-            single_status = st.selectbox("Decision", ["target", "non_target", "review"])
-            single_canonical_role = st.text_input(
-                "Standard role / role family",
-                value=str(selected_title_row.get("matched_soc_titles") or "")[:180],
+            title_status = st.selectbox("Decision for all selected titles", ["target", "non_target", "review"])
+            default_role = str(selected_title_row.get("matched_soc_titles") or "")[:180] if selected_count == 1 else ""
+            canonical_role_override = st.text_input(
+                "Standard role / role family override",
+                value=default_role,
+                help=(
+                    "For multiple selected titles, leave this blank to use each row's own suggested SOC/role. "
+                    "Fill it only when every selected title should share the same role label."
+                ),
             )
-            single_reason = st.text_input(
+            title_reason = st.text_input(
                 "Reason / notes",
-                value="dashboard single-title review",
+                value="dashboard title review",
             )
-            single_submit = st.form_submit_button("Submit this title label", use_container_width=True)
-        if single_submit:
+            title_submit = st.form_submit_button(
+                f"Submit {selected_count:,} selected title label(s)",
+                use_container_width=True,
+            )
+        if title_submit:
             for _, title_row in selected_title_rows_frame.iterrows():
+                row_suggested_role = str(title_row.get("matched_soc_titles") or "")[:180]
                 apply_title_review(
                     str(title_row["normalized_title"]),
-                    single_status,
-                    single_canonical_role if len(selected_title_rows_frame) == 1 else "",
-                    single_reason,
+                    title_status,
+                    canonical_role_override.strip() or row_suggested_role,
+                    title_reason,
                 )
             clear_dashboard_caches()
-            st.success(f"Submitted {len(selected_title_rows_frame):,} title label(s) → {single_status}.")
+            st.success(f"Submitted {selected_count:,} title label(s) → {title_status}.")
 
     st.divider()
     with st.expander("Optional batch editor"):
