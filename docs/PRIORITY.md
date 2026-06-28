@@ -1,5 +1,9 @@
 # JobPush priority scoring
 
+For interpretation/audit notes about what P0/P1/P2 means, how many companies
+are inside/outside the enabled crawl pool, and how not to misread "outside pool"
+as "not tech", see [`PRIORITY_AUDIT.md`](PRIORITY_AUDIT.md).
+
 `jobpush.company_targets_consolidated` is the canonical crawl-priority table.
 It stores one score column per evidence type, then sums them into
 `priority_score`. Higher values are crawled first. The per-FEIN

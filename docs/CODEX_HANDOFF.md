@@ -10,6 +10,11 @@ never-searched `pending` companies. Do not include historical `retry` or
 `not_found` rows unless a separate recovery audit confirms a provider/network
 batch failure.
 
+Priority interpretation has a dedicated audit note:
+`docs/PRIORITY_AUDIT.md`. Use it to distinguish the enabled P0/P1/P2 crawl pool
+from broader LCA target-role evidence and from companies outside the current
+crawl pool.
+
 ---
 
 ## 1. 项目是做什么的
