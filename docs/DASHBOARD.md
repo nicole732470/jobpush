@@ -30,9 +30,24 @@ Codex token.
 - CSV download for the current filtered job view, segmented job view, track
   summary, and one-company job list;
 - downloadable 100/250/500/1,000/2,000-title classifier-improvement batches;
-- filters for company, title/role, location, priority tier, role decision, and
-  application status;
-- one-company job list for networking/application planning;
+- sidebar filters for company, title/role, location, priority tier, role
+  decision, and application status. These live inside a Streamlit form so edits
+  do not trigger a rerun until **Apply filters** is clicked;
+- one-company lookup for networking/application planning, including active
+  official-site jobs, LCA sponsorship role aggregates, CSV download, and a
+  LinkedIn company-search shortcut;
+- **Title review**: editable in-page review table. Filled `target`,
+  `non_target`, or `review` rows are written through
+  `jobpush.apply_manual_job_title_label(...)` and therefore keep history;
+- **Site review**: separate in-page candidate review. Existing candidates can
+  be verified/rejected without TablePlus. A manually found official career URL
+  can be imported directly for a selected P-tier company;
+- newly verified/imported career sites are marked `next_crawl_at = now()` and
+  `crawl_status = 'pending'`. If `JOBPUSH_ENABLE_INLINE_CRAWL=1` is set on the
+  dashboard host, the app also attempts a one-site due-crawl immediately;
+  otherwise the scheduler/GitHub Action picks it up from `crawl_schedule_queue`;
+- **Scoring rules** page showing P0/P1/P2 definitions, score components, and
+  the relationship between LCA/SOC target labels and `target_role_score`;
 - personal saved/apply-next/applied/dismissed workflow;
 - adapter health, recent run logs, failed run details, and active alerts;
 - full company-to-schedulable-site coverage funnel, P0/P1/P2 coverage by tier,
