@@ -39,13 +39,11 @@ Candidate source distribution:
 
 Open schema `jobpush`, then use **`career_site_review_workbench`** for the
 full company/site audit surface. It is the canonical one-company-per-row view
-and contains the verified URL plus review candidates. Tavily/manual discovery
-can expose up to three candidates; direct ATS URL guessing
-(`discovery_source='ats_url_guess'`) exposes only the strongest single
-candidate per company. For actual human review export, filter
-`action_status = 'REVIEW_CANDIDATES'`; verified companies such as Google are
-already confirmed and should not be mixed into Nicole's downloadable review
-batch. The full workbench sorts:
+and contains the verified URL plus up to three review candidates for every
+discovery source, including direct ATS URL guessing
+(`discovery_source='ats_url_guess'`). Site review is an override surface, so
+verified/auto-trusted rows may still be shown when Nicole wants to audit or
+override them. The full workbench sorts:
 
 1. manual P0 needing review;
 2. verified manual P0 in the audit surface only, including Google;
@@ -264,9 +262,8 @@ Candidate ranking rule: `scripts/discover_career_sites.py` queries
 score. The score favors employer-owned career/careers/jobs pages and known ATS
 platforms; it penalizes external aggregators and weak company-name matches.
 The operational review surface is `jobpush.career_site_review_workbench`, and
-the dashboard can export a site-review batch. Tavily/manual rows may include
-candidate 1/2/3 for sampling; `ats_url_guess` rows intentionally show only one
-candidate.
+the dashboard can export a site-review batch with candidate 1/2/3 for sampling.
+Already verified/auto-trusted rows remain available for manual override.
 
 2026-06-25 update after key rotation: an additional 950 P0/P1 companies were
 searched, retaining 2,237 candidates with zero provider errors. Auto-trust

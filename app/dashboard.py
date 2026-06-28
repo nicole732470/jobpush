@@ -656,7 +656,11 @@ def company_targets(tiers: tuple[str, ...]) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
-def site_review_queue(limit: int = 500, tiers: tuple[str, ...] = ("P0", "P1")) -> pd.DataFrame:
+def site_review_queue(
+    limit: int = 500,
+    tiers: tuple[str, ...] = ("P0", "P1"),
+    statuses: tuple[str, ...] = ("REVIEW_CANDIDATES", "VERIFIED"),
+) -> pd.DataFrame:
     return query(
         """
         SELECT review_rank, consolidation_key, priority_tier, priority_score,
@@ -669,18 +673,19 @@ def site_review_queue(limit: int = 500, tiers: tuple[str, ...] = ("P0", "P1")) -
                candidate_1_site_id, candidate_1_source, candidate_1_url,
                candidate_2_site_id, candidate_2_source, candidate_2_url,
                candidate_3_site_id, candidate_3_source, candidate_3_url,
-               verified_source, verified_url,
+               verified_site_id, verified_source, verified_url,
                discovery_status, employer_city, employer_state,
                lca_count, target_role_lca_count
         FROM jobpush.career_site_review_workbench
         WHERE priority_tier = ANY(%s)
-          AND action_status = 'REVIEW_CANDIDATES'
+          AND action_status = ANY(%s)
         ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                 CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
                  priority_score DESC NULLS LAST,
                  review_rank
         LIMIT %s
         """,
-        (list(tiers), limit),
+        (list(tiers), list(statuses), limit),
     )
 
 
@@ -2040,13 +2045,18 @@ if selected_page == "Title review":
 if selected_page == "Site review":
     st.subheader("Career-site samples for improving website selection")
     st.caption(
-        "这里只导出还没有 verified 的公司候选；Google 这类已经人工确认的网站不会进入这个 review batch。"
-        "一行是一家公司；Tavily/规则候选最多展示前三个，direct ATS guessing 只展示最强的一个候选；"
+        "这里是人工 override surface，不只是系统待审核队列；已 verified / auto-trusted 的站点也可以展示并被重新判断。"
+        "一行是一家公司；所有 discovery source（包括 direct ATS guessing）最多展示前三个候选；"
         "你也可以直接输入真实官网 URL。"
     )
-    site_col1, site_col2 = st.columns([1, 1])
+    site_col1, site_col2, site_col3 = st.columns([1, 1, 1])
     site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)
     site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2"], default=["P0", "P1"]))
+    site_statuses = tuple(site_col3.multiselect(
+        "Site statuses",
+        ["REVIEW_CANDIDATES", "VERIFIED"],
+        default=["REVIEW_CANDIDATES", "VERIFIED"],
+    ))
     if site_tiers:
         st.markdown("#### Review and crawl coverage")
         site_summary = review_workbench_summary(site_tiers)
@@ -2061,7 +2071,7 @@ if selected_page == "Site review":
             stat_cols[5].metric("Succeeded", f"{int(totals.get('crawled_successfully', 0)):,}")
             st.dataframe(site_summary, hide_index=True, use_container_width=True, height=170)
 
-        site_frame = site_review_queue(site_limit, site_tiers)
+        site_frame = site_review_queue(site_limit, site_tiers, site_statuses or ("REVIEW_CANDIDATES", "VERIFIED"))
         st.download_button(
             "Download site review batch (CSV)", csv_bytes(site_frame),
             file_name=f"jobpush_site_review_{'_'.join(site_tiers)}_{chicago_today}_{site_limit}.csv",
@@ -2160,6 +2170,11 @@ if selected_page == "Site review":
 
             st.divider()
             candidate_options: dict[str, tuple[int | None, str | None, str | None]] = {
+                "Verified site": (
+                    selected_row.get("verified_site_id"),
+                    selected_row.get("verified_source"),
+                    selected_row.get("verified_url"),
+                ),
                 "Candidate 1": (
                     selected_row.get("candidate_1_site_id"),
                     selected_row.get("candidate_1_source"),
@@ -2200,7 +2215,7 @@ if selected_page == "Site review":
                     review_existing_career_site(int(selected_site_id), "rejected", str(selected_source), decision_notes)
                     clear_dashboard_caches()
                     st.success(f"Rejected {selected_url}.")
-                crawl_col.caption("Verify 会把该站点设为 due now；如果 inline crawl 未启用，调度器会尽快处理。")
+                crawl_col.caption("Verify 会把该站点设为 due now；Reject 可覆盖已 verified/auto-trusted 的系统选择。")
             else:
                 st.info("This row has no usable candidate URL.")
 

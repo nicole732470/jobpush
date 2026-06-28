@@ -248,8 +248,9 @@ bash db/deploy_via_ssm.sh db/run_priority_audit.sh
    官网，只有 verified + US-ready + supported adapter 才进入调度。
    官网人工审核只使用 `career_site_review_workbench`；它把pending + verified整合为
    一张公司级视图，P0/潜在P0优先，Google等verified P0不会消失。Migration 057
-   已删除其余重复人工queue。Migration 094 后，`ats_url_guess` 在这个 view
-   里每家公司只展示最强 1 个候选；Tavily/manual rows 仍可最多展示 3 个。
+   已删除其余重复人工queue。Migration 095 后，Site review 被定义为人工
+   override surface：pending candidates 和 verified/auto-trusted sites 都可展示；
+   `ats_url_guess` 和 Tavily/manual rows 一样最多可展示 3 个候选。
    2026-06-23 已先搜索150家公司/381候选，再增加50家潜在P0混合样本/123候选。
 6. **职位人工标注**：SOC 精确匹配已自动分类；剩余 7,100 个 detailed titles 在
    `job_title_review_queue`，先处理导出表中的 171 个 HIGH 标题。
