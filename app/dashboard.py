@@ -803,11 +803,33 @@ def site_review_queue(
 def title_review_queue(limit: int = 2000) -> pd.DataFrame:
     frame = query(
         """
-        SELECT normalized_title, example_title, active_posting_count,
-               company_count, suggestion_reason, matched_soc_codes,
-               matched_soc_titles
-        FROM jobpush.job_title_review_queue
-        ORDER BY active_posting_count DESC, company_count DESC, normalized_title
+        WITH latest_ml AS (
+            SELECT DISTINCT ON (normalized_title)
+                   normalized_title,
+                   confidence AS ml_confidence,
+                   classification_status AS ml_suggestion
+            FROM jobpush.job_title_ml_classifications
+            ORDER BY normalized_title, created_at DESC, ml_classification_id DESC
+        )
+        SELECT queue.normalized_title, queue.example_title, queue.active_posting_count,
+               queue.company_count, queue.suggestion_reason, queue.matched_soc_codes,
+               queue.matched_soc_titles,
+               latest_ml.ml_suggestion,
+               latest_ml.ml_confidence,
+               ROUND((1 - COALESCE(latest_ml.ml_confidence, 0.5))::numeric, 5) AS ml_uncertainty,
+               (
+                   queue.active_posting_count
+                   + queue.company_count * 3
+                   + CASE WHEN latest_ml.ml_confidence IS NULL THEN 25
+                          ELSE ROUND((1 - latest_ml.ml_confidence) * 50)::integer
+                     END
+               ) AS learning_priority_score
+        FROM jobpush.job_title_review_queue queue
+        LEFT JOIN latest_ml USING (normalized_title)
+        ORDER BY learning_priority_score DESC,
+                 queue.active_posting_count DESC,
+                 queue.company_count DESC,
+                 queue.normalized_title
         LIMIT %s
         """,
         (limit,),
