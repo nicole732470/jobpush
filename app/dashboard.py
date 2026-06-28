@@ -672,6 +672,8 @@ def clear_dashboard_caches() -> None:
         company_jobs,
         company_lca_roles,
         company_lookup_options,
+        lca_soc_review_table,
+        lca_raw_job_review_sample,
         recent_failures,
     ]:
         try:
@@ -1040,6 +1042,76 @@ def company_lca_roles(company: str) -> pd.DataFrame:
     )
 
 
+@st.cache_data(ttl=300)
+def lca_soc_review_table(statuses: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        SELECT normalized_soc_code, soc_title, review_status, previous_target,
+               lca_count, company_count, certified_count, raw_title_count,
+               first_decision_date, last_decision_date,
+               min_yearly_wage_from, median_yearly_wage_from, max_yearly_wage_from,
+               source_file, reviewed_by, reviewed_at
+        FROM jobpush.lca_soc_role_review_current
+        WHERE review_status = ANY(%s)
+        ORDER BY CASE review_status WHEN 'target' THEN 0 WHEN 'review' THEN 1 WHEN 'non_target' THEN 2 ELSE 3 END,
+                 lca_count DESC, normalized_soc_code, soc_title
+        """,
+        (list(statuses),),
+    )
+
+
+@st.cache_data(ttl=300)
+def lca_raw_job_review_sample(statuses: tuple[str, ...], search: str, limit: int) -> pd.DataFrame:
+    search = normalize_company_query(search)
+    if not search:
+        return pd.DataFrame()
+    return query(
+        """
+        WITH lca AS (
+            SELECT jobpush.normalize_soc_code(case_row.soc_code) AS normalized_soc_code,
+                   COALESCE(NULLIF(case_row.soc_title, ''), '(missing SOC title)') AS soc_title,
+                   COALESCE(NULLIF(case_row.job_title, ''), '(missing raw title)') AS raw_job_title,
+                   case_row.employer_fein,
+                   case_row.employer_name,
+                   case_row.case_status,
+                   case_row.decision_date,
+                   case_row.wage_rate_of_pay_from,
+                   case_row.wage_unit_of_pay
+            FROM public.lca_cases case_row
+            WHERE case_row.job_title ILIKE '%%' || %s || '%%'
+               OR case_row.soc_title ILIKE '%%' || %s || '%%'
+        )
+        SELECT lca.normalized_soc_code,
+               lca.soc_title,
+               lca.raw_job_title,
+               COALESCE(review.review_status, '') AS soc_review_status,
+               COUNT(*) AS lca_count,
+               COUNT(DISTINCT lca.employer_fein) AS company_count,
+               COUNT(*) FILTER (WHERE lca.case_status = 'Certified') AS certified_count,
+               LEFT(
+                   STRING_AGG(DISTINCT lca.employer_name, ' | ' ORDER BY lca.employer_name)
+                       FILTER (WHERE lca.employer_name IS NOT NULL),
+                   1000
+               ) AS example_employers,
+               MIN(lca.decision_date) AS first_decision_date,
+               MAX(lca.decision_date) AS last_decision_date,
+               MIN(lca.wage_rate_of_pay_from) FILTER (WHERE lca.wage_unit_of_pay = 'Year') AS min_yearly_wage_from,
+               PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lca.wage_rate_of_pay_from)
+                   FILTER (WHERE lca.wage_unit_of_pay = 'Year') AS median_yearly_wage_from,
+               MAX(lca.wage_rate_of_pay_from) FILTER (WHERE lca.wage_unit_of_pay = 'Year') AS max_yearly_wage_from
+        FROM lca
+        LEFT JOIN jobpush.lca_soc_role_review_current review
+          ON review.normalized_soc_code = lca.normalized_soc_code
+        WHERE COALESCE(review.review_status, '') = ANY(%s)
+        GROUP BY lca.normalized_soc_code, lca.soc_title, lca.raw_job_title,
+                 COALESCE(review.review_status, '')
+        ORDER BY lca_count DESC, company_count DESC, lca.raw_job_title
+        LIMIT %s
+        """,
+        (search, search, list(statuses), int(limit)),
+    )
+
+
 @st.cache_data(ttl=60)
 def recent_failures() -> pd.DataFrame:
     return query(
@@ -1268,23 +1340,27 @@ job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, 
 if not job_frame.empty:
     first_seen_dates = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
     job_frame = job_frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
-overview_tab, jobs_tab, rollout_tab, title_review_tab, site_review_tab, company_tab, target_tab, scoring_tab, apply_tab, health_tab, coverage_tab = st.tabs(
-    [
-        "Home",
-        "Jobs to apply",
-        "Crawl monitor",
-        "Title review",
-        "Site review",
-        "Company lookup",
-        "Company priority",
-        "Scoring rules",
-        "Application status",
-        "System logs",
-        "Coverage",
-    ]
+PAGE_LABELS = [
+    "Home",
+    "Jobs to apply",
+    "Crawl monitor",
+    "Title review",
+    "Site review",
+    "Company lookup",
+    "Company priority",
+    "Scoring rules",
+    "Application status",
+    "System logs",
+    "Coverage",
+]
+selected_page = st.radio(
+    "Dashboard page",
+    PAGE_LABELS,
+    horizontal=True,
+    key="dashboard_page",
 )
 
-with overview_tab:
+if selected_page == "Home":
     left, right = st.columns([1.35, 1])
     with left:
         st.subheader("30-day job discovery")
@@ -1313,7 +1389,7 @@ with overview_tab:
     else:
         st.dataframe(progress_today, hide_index=True, use_container_width=True)
 
-with rollout_tab:
+if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 company crawl rollout")
     st.caption(
         "这个 tab 回答三个问题：总共有多少公司、今天/目前跑了多少、没跑成功主要卡在哪里。"
@@ -1400,7 +1476,7 @@ ORDER BY target.priority_tier;
         else:
             st.dataframe(classifier_status, hide_index=True, use_container_width=True, height=260)
 
-with jobs_tab:
+if selected_page == "Jobs to apply":
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
     st.caption(
         "核心用途：看选定日期范围内新发现/仍 active 的岗位，然后点 apply link。默认只显示 target；"
@@ -1569,7 +1645,7 @@ LIMIT 5000;
             mime="text/csv",
         )
 
-with title_review_tab:
+if selected_page == "Title review":
     st.subheader("Title samples for improving the classifier")
     st.caption(
         "这里只是抽样训练/修正规则用，不是每天申请流程。已被人工标注、YAML/profile hard rules、"
@@ -1581,6 +1657,47 @@ with title_review_tab:
         "Download title review batch (CSV)", csv_bytes(review_frame),
         file_name=f"jobpush_title_review_{chicago_today}_{review_limit}.csv", mime="text/csv",
     )
+    if review_frame.empty:
+        st.success("No titles are currently waiting for manual review.")
+    else:
+        st.subheader("Submit one title label")
+        title_options = {
+            (
+                f"{row.normalized_title} · {row.active_posting_count} active · "
+                f"{row.company_count} companies"
+            ): row
+            for row in review_frame.itertuples()
+        }
+        with st.form("single_title_review_form", clear_on_submit=True):
+            selected_title_label = st.selectbox("Title to label", list(title_options.keys()))
+            selected_title_row = title_options[selected_title_label]
+            st.caption(
+                f"Example: {selected_title_row.example_title} | "
+                f"Suggested by: {selected_title_row.suggestion_reason}"
+            )
+            single_status = st.selectbox("Decision", ["target", "non_target", "review"])
+            single_canonical_role = st.text_input(
+                "Standard role / role family",
+                value=str(getattr(selected_title_row, "matched_soc_titles", "") or "")[:180],
+            )
+            single_reason = st.text_input(
+                "Reason / notes",
+                value="dashboard single-title review",
+            )
+            single_submit = st.form_submit_button("Submit this title label", use_container_width=True)
+        if single_submit:
+            apply_title_review(
+                str(selected_title_row.normalized_title),
+                single_status,
+                single_canonical_role,
+                single_reason,
+            )
+            clear_dashboard_caches()
+            st.success(f"Submitted title label: {selected_title_row.normalized_title} → {single_status}.")
+
+    st.divider()
+    st.subheader("Optional batch editor")
+    st.caption("如果浏览器里的表格编辑不稳定，用上面的单条提交；这个批量表格只是加速入口。")
     edited_titles = st.data_editor(
         review_frame,
         hide_index=True,
@@ -1621,16 +1738,15 @@ with title_review_tab:
                 str(row["人工判断（请填写）"]),
                 str(row.get("标准岗位（可选）") or ""),
                 str(row.get("判断原因/备注（可选）") or "dashboard title review"),
-            )
+        )
         clear_dashboard_caches()
         st.success(f"Submitted {len(filled_titles):,} title labels to the database.")
-        st.rerun()
     title_info_col.caption(
         "提交后会立即影响新的 dashboard job 分类；规则代码不会被网页静默改写，"
         "重复模式会在后续 migration / YAML 规则里固化。"
     )
 
-with site_review_tab:
+if selected_page == "Site review":
     st.subheader("Career-site samples for improving website selection")
     st.caption(
         "这里只导出还没有 verified 的公司候选；Google 这类已经人工确认的网站不会进入这个 review batch。"
@@ -1703,12 +1819,10 @@ with site_review_tab:
                     ok, output = trigger_inline_due_crawl(1)
                     clear_dashboard_caches()
                     st.success(f"Verified {selected_url}. {output}")
-                    st.rerun()
                 if reject_col.button("Reject selected site", use_container_width=True):
                     review_existing_career_site(int(selected_site_id), "rejected", str(selected_source), decision_notes)
                     clear_dashboard_caches()
                     st.success(f"Rejected {selected_url}.")
-                    st.rerun()
                 crawl_col.caption("Verify 会把该站点设为 due now；如果 inline crawl 未启用，调度器会尽快处理。")
             else:
                 st.info("This row has no usable candidate URL.")
@@ -1745,9 +1859,8 @@ with site_review_tab:
             st.success(
                 f"Imported {classified['site_url']} as {classified['source_type']}. {output}"
             )
-            st.rerun()
 
-with company_tab:
+if selected_page == "Company lookup":
     st.subheader("Company lookup")
     lookup = st.text_input("Open one company", value=company.strip(), placeholder="e.g. Pfizer, Google, StackAdapt")
     if lookup.strip():
@@ -1783,7 +1896,7 @@ with company_tab:
             )
             st.dataframe(lca_role_frame, hide_index=True, use_container_width=True, height=460)
 
-with target_tab:
+if selected_page == "Company priority":
     st.subheader("Company priority tables")
     st.caption("Company-level scoring table with tier rank. Default includes P0/P1/P2; use tiers to narrow.")
     target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2"], default=["P0", "P1", "P2"], key="company-target-tiers"))
@@ -1803,7 +1916,7 @@ with target_tab:
         )
         st.dataframe(target_frame, hide_index=True, use_container_width=True, height=600)
 
-with scoring_tab:
+if selected_page == "Scoring rules":
     st.subheader("Company priority and role-labeling rules")
     st.caption("这个区域展示公司 P 档从哪里来，以及 LCA/SOC 初始职业标注如何影响 target_role_score。")
     st.markdown(
@@ -1861,8 +1974,61 @@ priority_score =
         file_name=f"jobpush_priority_rules_score_bands_{chicago_today}.csv",
         mime="text/csv",
     )
+    st.divider()
+    st.subheader("LCA / SOC role review table")
+    st.caption(
+        "这是当前生效的 SOC 大类复审表。改这张表会影响 target_role_score，进而影响公司 P 档。"
+    )
+    soc_status_options = st.multiselect(
+        "SOC review status",
+        ["target", "non_target", "review", ""],
+        default=["target", "non_target"],
+        format_func=lambda value: value or "(blank)",
+        key="soc-review-status-filter",
+    )
+    if soc_status_options:
+        soc_review = lca_soc_review_table(tuple(soc_status_options))
+        soc_counts = soc_review.groupby("review_status", dropna=False).size().reset_index(name="rows")
+        st.dataframe(soc_counts, hide_index=True, use_container_width=True)
+        st.download_button(
+            "Download SOC review table (CSV)",
+            csv_bytes(soc_review),
+            file_name=f"jobpush_lca_soc_review_current_{chicago_today}.csv",
+            mime="text/csv",
+        )
+        st.dataframe(soc_review, hide_index=True, use_container_width=True, height=520)
+    else:
+        st.info("Select at least one SOC review status.")
 
-with apply_tab:
+    st.subheader("Raw LCA job-title aggregate search")
+    st.caption(
+        "Raw job title 很长尾；这里用于抽查和复审 SOC 下面的具体 title，不建议把每个 raw title 都变成长期规则。"
+    )
+    raw_col1, raw_col2, raw_col3 = st.columns([1.3, 1, 1])
+    raw_search = raw_col1.text_input("Search raw title / SOC title", placeholder="e.g. Product, Customer, Chief")
+    raw_statuses = tuple(raw_col2.multiselect(
+        "SOC status for raw titles",
+        ["target", "non_target", "review", ""],
+        default=["target"],
+        format_func=lambda value: value or "(blank)",
+        key="raw-soc-status-filter",
+    ))
+    raw_limit = raw_col3.selectbox("Rows", [100, 250, 500, 1000], index=1)
+    if raw_statuses and raw_search.strip():
+        raw_review = lca_raw_job_review_sample(raw_statuses, raw_search.strip(), raw_limit)
+        st.download_button(
+            "Download raw job aggregate sample (CSV)",
+            csv_bytes(raw_review),
+            file_name=f"jobpush_lca_raw_job_review_sample_{chicago_today}.csv",
+            mime="text/csv",
+        )
+        st.dataframe(raw_review, hide_index=True, use_container_width=True, height=520)
+    elif not raw_search.strip():
+        st.info("Enter a keyword before searching raw LCA titles. This avoids scanning the full LCA table from the dashboard.")
+    else:
+        st.info("Select at least one SOC status for raw job search.")
+
+if selected_page == "Application status":
     actionable = job_frame[job_frame["role_status"] == "target"].copy()
     st.subheader("Target roles to review and apply")
     with st.expander("What do new / saved / apply_next / applied / dismissed mean?"):
@@ -1901,7 +2067,7 @@ with apply_tab:
                 st.rerun()
         dataframe(actionable, height=410)
 
-with health_tab:
+if selected_page == "System logs":
     adapter_health = query("SELECT * FROM jobpush.crawl_adapter_health ORDER BY source_type")
     st.subheader("Adapter health · trailing 7 days")
     st.dataframe(adapter_health, hide_index=True, use_container_width=True)
@@ -1933,7 +2099,7 @@ with health_tab:
             column_config={"site_url": st.column_config.LinkColumn("Site", display_text="Open ↗")},
         )
 
-with coverage_tab:
+if selected_page == "Coverage":
     funnel = crawl_funnel().iloc[0]
     st.subheader("Company → scheduled crawl funnel")
     funnel_columns = st.columns(4)

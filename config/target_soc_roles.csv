@@ -1,9 +1,12 @@
 normalized_soc_code,representative_title,source_code_count,selected_title_count
+11101100,Chief Executives,1,1
 11102100,General and Operations Managers,1,1
+11201100,Advertising and Promotions Managers,2,2
 11202100,Marketing Managers,2,3
 11302100,Computer and Information Systems Managers,2,7
 11303100,Financial Managers,2,3
 11303103,Investment Fund Managers,1,1
+11307104,Supply Chain Managers,1,1
 11904100,Architectural and Engineering Managers,1,1
 11919900,"Managers, All Other",1,1
 12125200,Software Developers,2,1
@@ -12,13 +15,16 @@ normalized_soc_code,representative_title,source_code_count,selected_title_count
 13108200,Project Management Specialists,2,1
 13111100,MANAGEMENT ANALYSTS,1,1
 13116100,Market Research Analysts and Marketing Specialists,2,8
+13116101,Search Marketing Strategists,1,1
 13119900,"Business Operations Specialists, All Other",2,1
 13205100,Financial and Investment Analysts,2,4
 13205101,Business Intelligence Analysts,1,1
 13205400,Financial Risk Specialists,2,2
 13209900,"Financial Specialists, All Other",2,2
 13209901,Financial Quantitative Analysts,1,2
+13209902,Risk Management Specialists,1,1
 15102200,"Computer Programmers, Non R&D",1,1
+15103100,Operations Research Analysts,1,1
 15103400,"Software Developers, Applications, Non R&D",1,1
 15103500,"Software Developers, Applications, R&D",2,1
 15103600,"Software Developers, Systems Software, Non R&D",1,1
@@ -47,6 +53,7 @@ normalized_soc_code,representative_title,source_code_count,selected_title_count
 15119909,Information Technology Project Managers,1,1
 15119910,Search Marketing Strategists,1,1
 15121100,Computer Systems Analysts,2,5
+15121101,Health Informatics Specialists,2,2
 15121109,Computer Systems Analysts,1,1
 15121200,Information Security Analysts,2,2
 15121700,"Computer Systems Analysts, Non R&D",2,2
@@ -88,11 +95,15 @@ normalized_soc_code,representative_title,source_code_count,selected_title_count
 15205102,Business Intelligence Analyst,1,1
 17125200,Software Developers,1,1
 17206300,"Computer Hardware Engineers, R&D",1,1
+17211100,"Health and Safety Engineers, Except Mining Safety Engineers and Inspectors",1,1
 19302200,Survey Researchers,1,1
 25102100,"Computer Science Teachers, Postsecondary",1,1
 33302106,Intelligence Analysts,1,1
 40903100,Sales Engineers,2,2
+41301100,Advertising Sales Agents,1,1
 41303100,"Securities, Commodities, and Financial Services Sales Agents",1,1
+41401100,"Sales Representatives, Wholesale and Manufacturing, Technical and Scientific Products",1,1
 41903100,Sales Engineers,2,2
 41909900,"Sales and Related Workers, All Other",1,1
+43405100,Customer Service Representatives,1,1
 43911100,Statistical Assistants,1,1
