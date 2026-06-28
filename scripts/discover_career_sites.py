@@ -10,7 +10,7 @@ import os
 import re
 import time
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 
@@ -78,6 +78,7 @@ def excluded(host):
 def classify_url(raw_url):
     parsed = urlparse(raw_url)
     host = parsed.netloc.casefold().split(":", 1)[0].removeprefix("www.")
+    netloc = parsed.netloc
     path_parts = [part for part in parsed.path.split("/") if part]
     source_type = "generic_html"
     source_key = None
@@ -85,8 +86,10 @@ def classify_url(raw_url):
     canonical_path = parsed.path.rstrip("/") or "/"
 
     if host in {"boards.greenhouse.io", "job-boards.greenhouse.io"} and path_parts:
-        source_type, source_key, site_kind = "greenhouse", path_parts[0], "ats_feed"
-        canonical_path = f"/{source_key}"
+        source_key = (parse_qs(parsed.query).get("for") or [None])[0] if path_parts[0] == "embed" else path_parts[0]
+        if source_key:
+            source_type, site_kind = "greenhouse", "ats_feed"
+            canonical_path = f"/{source_key}"
     elif host in {"jobs.lever.co", "jobs.eu.lever.co"} and path_parts:
         source_type, source_key, site_kind = "lever", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"
@@ -95,6 +98,11 @@ def classify_url(raw_url):
         canonical_path = f"/{source_key}"
     elif host == "careers.smartrecruiters.com" and path_parts:
         source_type, source_key, site_kind = "smartrecruiters", path_parts[0], "ats_feed"
+        canonical_path = f"/{source_key}"
+    elif host == "api.smartrecruiters.com" and len(path_parts) >= 3 and path_parts[:2] == ["v1", "companies"]:
+        source_type, source_key, site_kind = "smartrecruiters", path_parts[2], "ats_feed"
+        host = "careers.smartrecruiters.com"
+        netloc = host
         canonical_path = f"/{source_key}"
     elif host == "jobs.jobvite.com" and path_parts:
         source_type, source_key, site_kind = "jobvite", path_parts[1] if path_parts[0] == "careers" and len(path_parts) >= 2 else path_parts[0], "ats_feed"
@@ -124,7 +132,11 @@ def classify_url(raw_url):
     elif host.endswith("successfactors.com"):
         source_type, source_key, site_kind = "successfactors", host, "ats_feed"
     elif host.endswith("oraclecloud.com") and "CandidateExperience" in parsed.path and "/sites/" in parsed.path:
-        source_type, source_key, site_kind = "oracle_cloud", host, "ats_feed"
+        site_index = path_parts.index("sites") if "sites" in path_parts else -1
+        source_key = path_parts[site_index + 1] if site_index >= 0 and site_index + 1 < len(path_parts) else host
+        source_type, site_kind = "oracle_cloud", "ats_feed"
+        locale = "/".join(path_parts[:site_index]) if site_index > 0 else "hcmUI/CandidateExperience/en"
+        canonical_path = f"/{locale}/sites/{source_key}/jobs"
     elif host == "amazon.jobs" and any(term in parsed.path.casefold() for term in CAREER_TERMS):
         source_type, source_key, site_kind = "amazon_jobs", host, "ats_feed"
     elif host == "www.google.com" and "/about/careers/applications/jobs/results" in parsed.path:
@@ -136,7 +148,7 @@ def classify_url(raw_url):
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
 
-    canonical_url = urlunparse((parsed.scheme or "https", parsed.netloc, canonical_path, "", "", ""))
+    canonical_url = urlunparse((parsed.scheme or "https", netloc, canonical_path, "", "", ""))
     return canonical_url, host, site_kind, source_type, source_key
 
 

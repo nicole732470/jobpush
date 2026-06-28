@@ -34,7 +34,10 @@ def normalize(value: str) -> str:
 
 
 def company_token(url: str) -> str:
-    parts = [part for part in urlsplit(url).path.split("/") if part]
+    split = urlsplit(url)
+    parts = [part for part in split.path.split("/") if part]
+    if split.netloc.casefold() == "api.smartrecruiters.com" and len(parts) >= 3 and parts[:2] == ["v1", "companies"]:
+        return parts[2]
     if not parts:
         raise ValueError(f"Cannot derive SmartRecruiters company token from {url}")
     return parts[0]

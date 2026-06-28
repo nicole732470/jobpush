@@ -55,7 +55,7 @@ def main() -> int:
     if not parsed.hostname or not match:
         raise ValueError(f"Cannot derive Oracle site number from {args.url}")
     site_number = match.group(1)
-    site_base_url = re.sub(r"/jobs/?$", "", args.url)
+    site_base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path[:match.end()]}"
     api = f"{parsed.scheme}://{parsed.netloc}/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
 
     discovery, last_status = get_json(api, {
