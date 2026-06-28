@@ -88,6 +88,12 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
   monitored leakage set from 452 suspect review titles to 1 remaining title:
   `Sales Operations Analyst (Sales Leads and Pipeline)`. This one is left in
   review because `leads` means sales leads/pipeline, not leadership.
+- 2026-06-28 follow-up migration 092 fixes the `cleaning` leak found in the
+  dashboard: migration 089 blocked `cleaner`, but not `cleaning associate`,
+  `store cleaning`, `cleanroom`, `cleanline`, or `sanitation` variants.
+- 2026-06-28 migration 093 closes the remaining residual cleaning strings
+  (`clean/processor`, `nettoyage`) without blocking unrelated phrases such as
+  `clean energy` or `custody`.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
@@ -205,6 +211,8 @@ Mitigation:
   backfills existing non-manual review labels.
 - Migration 090 closes residual joined-word and Latin-script non-US markers
   found by the follow-up audit.
+- Migration 092 closes the remaining `cleaning` / `cleanroom` / `sanitation`
+  variants that were still visible in the dashboard title review queue.
 - `db/run_title_review_leak_audit.sh` audits future leakage clusters before a
   review batch is exported.
 - The audit should remain conservative: do not globally block `lead`/`leads`
