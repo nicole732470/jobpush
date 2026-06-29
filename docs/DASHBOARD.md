@@ -105,10 +105,11 @@ Dashboard vocabulary:
   disappeared from a later snapshot. JobPush does not crawl the entire database
   every day; only scheduled/due enabled sites are refreshed.
 
-Application status is a personal workflow, not a classifier: `new` means no
-application decision, `saved` is an interesting bookmark, `apply_next` is the
-shortlist, `applied` means submitted, and `dismissed` means intentionally
-skipped. The dashboard explains these values in the Application queue tab.
+Application status is a personal workflow, not a classifier. The active queue
+states are `apply_next`, `referred`, `applied`, and `dismissed`; `new` means no
+decision yet and `saved` is legacy data kept for backwards compatibility. The
+old Jobs/Application Status split is now one Application queue: filter jobs,
+pick the current row, update one status, then move to the next.
 
 `role_stack` / `role_family` are dashboard-level convenience groupings derived
 from `job_title_labels.classification_status`, `canonical_role`, and title text.

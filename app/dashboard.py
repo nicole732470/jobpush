@@ -43,6 +43,15 @@ LOCAL_FILTER_SOURCE_TYPES = {
     "icims",
     "workday",
 }
+APPLICATION_STATUS_OPTIONS = {
+    "New": "new",
+    "Apply Next": "apply_next",
+    "Referred": "referred",
+    "Applied": "applied",
+    "Dismiss": "dismissed",
+    "Saved (legacy)": "saved",
+}
+OPEN_APPLICATION_STATUSES = ("new", "saved", "apply_next", "referred")
 
 
 st.set_page_config(page_title="JobPush Ops", page_icon="↗", layout="wide")
@@ -98,7 +107,7 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
             FROM jobpush.dashboard_jobs
             WHERE priority_tier = ANY(%s)
               AND role_status = 'target'
-              AND application_status IN ('new', 'saved', 'apply_next')
+              AND application_status = ANY(%s)
         ), closed_today AS (
             SELECT count(*) AS closed_jobs_today
             FROM jobpush.job_postings posting
@@ -124,7 +133,7 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
         FROM open_jobs
         CROSS JOIN chicago_day
         """,
-        (list(tiers), list(tiers)),
+        (list(tiers), list(OPEN_APPLICATION_STATUSES), list(tiers)),
     )
 
 
@@ -1786,10 +1795,10 @@ role_statuses = {
     "all decisions": ("target", "review", "non_target"),
 }[role_choice]
 app_statuses = {
-    "open items": ("new", "saved", "apply_next"),
+    "open items": OPEN_APPLICATION_STATUSES,
     "new only": ("new",),
-    "saved/apply next": ("saved", "apply_next"),
-    "all statuses": ("new", "saved", "apply_next", "applied", "dismissed"),
+    "saved/apply next": ("saved", "apply_next", "referred"),
+    "all statuses": ("new", "saved", "apply_next", "referred", "applied", "dismissed"),
 }[app_choice]
 if not tiers or not role_statuses or not app_statuses:
     st.warning("Select at least one priority tier, role decision, and application status.")
@@ -1805,7 +1814,6 @@ PAGE_LABELS = [
     "Site review",
     "Companies",
     "Scoring rules",
-    "Application status",
 ]
 selected_page = st.radio(
     "Dashboard page",
@@ -1835,6 +1843,24 @@ if selected_page == "Pulse":
 
     st.subheader("Crawl rollout by priority tier")
     rollout = crawl_rollout_by_tier()
+    if not rollout.empty:
+        st.caption("Company coverage by priority tier")
+        coverage_cards = st.columns(4)
+        for column, tier in zip(coverage_cards, ["P0", "P1", "P2", "P3"]):
+            tier_rows = rollout[rollout["priority_tier"] == tier]
+            if tier_rows.empty:
+                column.metric(tier, "0 / 0", "0.0% succeeded")
+                continue
+            tier_row = tier_rows.iloc[0]
+            total = int(tier_row.get("companies", 0))
+            enabled = int(tier_row.get("enabled_site_companies", 0))
+            succeeded = int(tier_row.get("succeeded_companies", 0))
+            pct = 100 * succeeded / total if total else 0
+            column.metric(
+                f"{tier} coverage",
+                f"{succeeded:,} / {total:,}",
+                f"{pct:.1f}% succeeded · {enabled:,} enabled",
+            )
     st.dataframe(rollout, hide_index=True, use_container_width=True, height=240)
 
 if selected_page == "Crawl monitor":
@@ -1942,9 +1968,9 @@ ORDER BY target.priority_tier;
             st.dataframe(classifier_status, hide_index=True, use_container_width=True, height=260)
 
 if selected_page == "Jobs to apply":
-    st.subheader("Jobs to apply")
+    st.subheader("Application queue")
     st.caption(
-        "Fast path: this page only loads the job table and filters. Summary charts live on Home; crawl health lives in Crawl monitor."
+        "Review target jobs, update application status, and open application links from one page."
     )
     filter_cols = st.columns(6)
     job_company_filter = filter_cols[0].text_input("Company", key="jobs-company-filter")
@@ -1960,6 +1986,12 @@ if selected_page == "Jobs to apply":
     )
     role_family_choice = filter_cols[4].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
     employment_choice = filter_cols[5].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
+    selected_status_labels = st.multiselect(
+        "Application status",
+        list(APPLICATION_STATUS_OPTIONS.keys()),
+        default=["New", "Apply Next", "Referred", "Saved (legacy)"],
+    )
+    job_app_statuses = tuple(APPLICATION_STATUS_OPTIONS[label] for label in selected_status_labels) or OPEN_APPLICATION_STATUSES
 
     job_frame = jobs(
         start_date,
@@ -1969,7 +2001,7 @@ if selected_page == "Jobs to apply":
         job_location_filter.strip(),
         tiers,
         role_statuses,
-        app_statuses,
+        job_app_statuses,
         row_limit,
     )
     if job_frame.empty:
@@ -1988,6 +2020,47 @@ if selected_page == "Jobs to apply":
         job_frame = job_frame[job_frame["track_label"].isin(selected_tracks)].sort_values("first_seen_at", ascending=False)
 
         st.caption(f"Showing {len(job_frame):,} rows after page filters. Increase “Rows to load” only when you need a bigger export.")
+        queue_frame = job_frame[job_frame["role_status"] == "target"].copy()
+        if not queue_frame.empty:
+            st.markdown("#### Update selected job")
+            selected_job_index = st.selectbox(
+                "Current job",
+                queue_frame.index.tolist(),
+                format_func=lambda index: (
+                    f"{queue_frame.loc[index, 'canonical_name']} · "
+                    f"{queue_frame.loc[index, 'title']} · "
+                    f"{queue_frame.loc[index, 'location'] or 'Location not listed'}"
+                )[:240],
+            )
+            selected_job = queue_frame.loc[selected_job_index]
+            st.caption(
+                f"Current status: `{selected_job['application_status']}` · "
+                f"[Open application link]({selected_job['job_url']})"
+            )
+            status_note = st.text_input(
+                "Optional note",
+                placeholder="Referral contact, resume tweak, deadline, why dismissed…",
+                key=f"job-status-note-{selected_job['site_id']}-{selected_job['external_job_id']}",
+            )
+            action_columns = st.columns(4)
+            for column, (button_label, status) in zip(
+                action_columns,
+                [
+                    ("Apply Next", "apply_next"),
+                    ("Referred", "referred"),
+                    ("Applied", "applied"),
+                    ("Dismiss", "dismissed"),
+                ],
+            ):
+                if column.button(button_label, use_container_width=True, key=f"job-{status}-{selected_job['site_id']}-{selected_job['external_job_id']}"):
+                    execute(
+                        "SELECT jobpush.set_job_application_action(%s, %s, %s, %s, 'nicole')",
+                        (int(selected_job["site_id"]), str(selected_job["external_job_id"]), status, status_note),
+                    )
+                    jobs.clear()
+                    apply_job_summary.clear()
+                    st.success(f"Saved as {status}.")
+                    st.rerun()
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
             "priority_rank_in_tier", "title", "location",
@@ -2571,46 +2644,6 @@ priority_score =
         st.info("Enter a keyword before searching raw LCA titles. This avoids scanning the full LCA table from the dashboard.")
     else:
         st.info("Select at least one SOC status for raw job search.")
-
-if selected_page == "Application status":
-    job_frame = load_current_jobs()
-    actionable = job_frame[job_frame["role_status"] == "target"].copy()
-    st.subheader("Target roles to review and apply")
-    with st.expander("What do new / saved / apply_next / applied / dismissed mean?"):
-        st.markdown(
-            "- **new**: newly discovered; no decision yet.\n"
-            "- **saved**: interesting, but not queued for immediate application.\n"
-            "- **apply_next**: next application shortlist.\n"
-            "- **applied**: application submitted.\n"
-            "- **dismissed**: reviewed and intentionally skipped."
-        )
-    if actionable.empty:
-        st.info("No target roles match the current filters.")
-    else:
-        labels = {
-            f"{row.canonical_name} · {row.title} · {row.location or 'Location not listed'}": (row.site_id, row.external_job_id)
-            for row in actionable.itertuples()
-        }
-        selected = st.selectbox("Choose a job", labels.keys())
-        site_id, external_job_id = labels[selected]
-        notes = st.text_input("Optional note", placeholder="Referral, deadline, contact, next step…")
-        action_columns = st.columns(4)
-        actions = [
-            ("Save", "saved"),
-            ("Apply next", "apply_next"),
-            ("Applied", "applied"),
-            ("Dismiss", "dismissed"),
-        ]
-        for column, (button_label, status) in zip(action_columns, actions):
-            if column.button(button_label, use_container_width=True, key=f"{status}-{site_id}-{external_job_id}"):
-                execute(
-                    "SELECT jobpush.set_job_application_action(%s, %s, %s, %s, 'nicole')",
-                    (int(site_id), str(external_job_id), status, notes),
-                )
-                jobs.clear()
-                st.success(f"Saved as {status}.")
-                st.rerun()
-        dataframe(actionable, height=410)
 
 if selected_page == "Crawl monitor":
     st.divider()
