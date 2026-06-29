@@ -114,3 +114,12 @@ bash db/run_migration_019.sh                     # deploy FEIN stats layer
 ```
 
 Details: [`PERFORMANCE.md`](PERFORMANCE.md).
+
+## Job posting retention
+
+`jobpush.job_postings` is intentionally larger than the application queue
+because it stores the previous crawl snapshot needed for de-dupe and closed-job
+detection. It should still be pruned: active postings and anything with
+application actions stay; old closed non-target/non-US rows can be deleted.
+
+Policy and commands are documented in [`DATA_RETENTION.md`](DATA_RETENTION.md).

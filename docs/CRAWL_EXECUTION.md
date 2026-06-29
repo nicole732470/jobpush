@@ -27,6 +27,10 @@ crawl_targets 1 ── N career_sites
 New titles start as `review`; the adapter does not guess relevance. Detailed
 title labeling and later generalization can therefore use real crawl output.
 
+Retention is documented in [`DATA_RETENTION.md`](DATA_RETENTION.md). In short:
+active rows are kept for future closed-job detection; old closed non-target,
+non-US, and long-stale review rows can be pruned by the manual retention script.
+
 ## HERE iCIMS Batch 0
 
 HERE North America is a manually verified P0 company with a verified public
