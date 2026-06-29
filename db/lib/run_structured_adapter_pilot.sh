@@ -77,6 +77,8 @@ trap fail_run ERR
 
 if [[ "$SOURCE_TYPE" == "icims" ]]; then
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
+elif [[ "$SOURCE_TYPE" == "generic_html" ]]; then
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SCOPE_METHOD" == "local_filter" ]]; then
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market unknown > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 else

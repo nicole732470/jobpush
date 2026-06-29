@@ -95,7 +95,9 @@ more companies only after a representative site passes a second idempotent run.
 - When one company has multiple enabled sites for the same company-specific
   adapter, keep one canonical site and disable the duplicate sites so jobs are
   not repeated in the dashboard.
-- Generic HTML remains outside automatic promotion.
+- Generic HTML remains outside broad automatic promotion. A limited pilot may
+  enable high-score P1 pages only when the parser can extract explicit US job
+  links; expand it by measured batches, not by blanket verification.
 - iCIMS remains conservative: if a United States location option exists, the
   adapter uses it; otherwise it crawls the public search page and classifies
   each posting's location locally. This prevents a whole site from failing just

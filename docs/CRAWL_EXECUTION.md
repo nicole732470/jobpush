@@ -64,10 +64,10 @@ public ATS adapters use the same batch/run/posting loader:
   conservative company/domain slugs, stores candidates as
   `discovery_source='ats_url_guess'`, then relies on the normal structured-ATS
   auto-trust and adapter crawl path.
-- `generic-jsonld`: conservative parser for manually verified `generic_html`
-  career pages that expose standard `schema.org/JobPosting` JSON-LD. It fetches
-  one page, uses no browser, and does not make unverified generic candidates
-  crawlable by itself.
+- `generic-jsonld`: conservative parser for `generic_html` career pages. It
+  tries standard `schema.org/JobPosting` JSON-LD first, then a small fallback
+  that accepts only job links with explicit nearby US location text and no
+  nearby non-US marker. It fetches one page and uses no browser.
 
 Both pilots store detailed titles as `review`, record request/page metrics, and
 are rerun once to verify idempotent upserts before the adapter is widened to
@@ -110,6 +110,11 @@ bash db/deploy_via_ssm.sh db/run_promote_generic_jsonld_sites_1000.sh
 The resolver checks both anchor tags and embedded HTML/JS URLs. The JSON-LD
 probe promotes only pages that expose standard `JobPosting` data. Both use zero
 Tavily credits.
+
+Migration 117 is a 25-site P1 pilot for the generic HTML fallback; migration
+118 adds that source type to the shared schedule queue. Keep this small until
+crawl output quality is checked; generic pages are messy and should not be
+mass-enabled just because they return HTTP 200.
 
 Migration 068 adds `career_site_selection_candidates`, which exposes every
 site-selection score and decision. Rank-1 P0/P1 Lever, Ashby, and
