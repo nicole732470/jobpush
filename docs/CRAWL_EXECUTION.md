@@ -153,9 +153,11 @@ records the intended market for each configured endpoint.
 
 Exact live-title matches against the historical raw-title/SOC mapping are
 applied by migration 046. `job_title_soc_match_candidates` explains every
-suggestion; `job_title_review_queue` contains only unresolved titles and is the
-safe TablePlus surface to export for manual labeling. Manual decisions are
-never overwritten by the automatic rule.
+suggestion. `job_title_review_queue` is intentionally narrower: it contains
+only unresolved titles that still have active, current-year US postings in
+`job_postings_us`. Non-US examples such as Mumbai-only postings should not enter
+human title review. Manual decisions are never overwritten by the automatic
+rule.
 
 ## Production scheduler and monitoring
 

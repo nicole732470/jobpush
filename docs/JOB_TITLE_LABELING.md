@@ -216,8 +216,9 @@ non-US strings with `M/F/D`, `H/F`, `EMEA`, or `LATAM` entered
 
 Root cause:
 
-1. `job_title_review_queue` shows any `job_title_labels` row still marked
-   `review`; it does not independently reclassify rows.
+1. `job_title_review_queue` shows `job_title_labels` rows still marked `review`
+   only when the title still has active, current-year US postings in
+   `job_postings_us`; it does not independently reclassify rows.
 2. The deterministic profile rules did not yet include `leader/leadership`,
    `cleaner/janitorial`, `merchant/merchandising`, or Latin-script non-US market
    markers.

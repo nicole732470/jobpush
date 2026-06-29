@@ -870,7 +870,7 @@ def title_review_queue(limit: int = 2000) -> pd.DataFrame:
         LEFT JOIN latest_ml USING (normalized_title)
         LEFT JOIN LATERAL (
             SELECT posting.job_url
-            FROM jobpush.job_postings posting
+            FROM jobpush.job_postings_us posting
             WHERE posting.normalized_title = queue.normalized_title
               AND posting.active
               AND posting.job_url IS NOT NULL
