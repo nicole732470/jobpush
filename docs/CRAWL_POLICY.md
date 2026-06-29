@@ -42,6 +42,9 @@ office identifiers exist.
 
 - `job_postings` keeps the source snapshot/history; `job_postings_us` is the
   active US business surface.
+- `job_postings_us` includes only active US-scope postings whose `posted_text`
+  is not explicitly from a prior year. Blank/relative dates are kept; explicit
+  old years are excluded from New Jobs / Jobs to apply.
 - Identity is `(site_id, external_job_id)`, never title text.
 - A complete run upserts seen jobs and closes jobs missing from the same scope.
 - A US run may close only prior US jobs. It must never close overseas jobs that
