@@ -3,16 +3,19 @@
 BEGIN;
 
 -- Scale website selection without making Nicole manually verify thousands of
--- companies. Human labels remain authoritative; this only promotes rank-1
--- structured ATS candidates when no verified site already exists.
-WITH eligible AS (
-    SELECT site.site_id
+-- companies. Human labels remain authoritative; this only promotes the best
+-- supported structured ATS candidate when no verified site already exists.
+WITH supported AS (
+    SELECT
+        site.site_id,
+        site.consolidation_key,
+        site.candidate_rank,
+        site.candidate_score
     FROM jobpush.career_sites site
     JOIN jobpush.crawl_targets target USING (consolidation_key)
     WHERE target.enabled
       AND target.priority_tier IN ('P0', 'P1', 'P2', 'P3')
       AND site.verification_status = 'unverified'
-      AND site.candidate_rank = 1
       AND (
           site.source_type IN ('amazon_jobs', 'greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters', 'oracle_cloud')
           OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
@@ -26,6 +29,10 @@ WITH eligible AS (
           WHERE verified.consolidation_key = site.consolidation_key
             AND verified.verification_status = 'verified'
       )
+), eligible AS (
+    SELECT DISTINCT ON (consolidation_key) site_id
+    FROM supported
+    ORDER BY consolidation_key, candidate_rank NULLS LAST, candidate_score DESC NULLS LAST, site_id
 )
 UPDATE jobpush.career_sites site
 SET verification_status = 'verified',
@@ -35,8 +42,8 @@ SET verification_status = 'verified',
     scope_method = 'local_filter',
     next_crawl_at = now(),
     reviewed_at = now(),
-    reviewed_by = 'system:structured-ats-rank1-v3',
-    review_notes = 'Auto-trusted rank-1 structured ATS candidate after discovery; human labels override this, monitor crawl health and entity mismatch',
+    reviewed_by = 'system:structured-ats-best-v4',
+    review_notes = 'Auto-trusted best supported structured ATS candidate after discovery; human labels override this, monitor crawl health and entity mismatch',
     updated_at = now()
 FROM eligible
 WHERE site.site_id = eligible.site_id;
@@ -50,7 +57,7 @@ WHERE EXISTS (
     FROM jobpush.career_sites site
     WHERE site.consolidation_key = target.consolidation_key
       AND site.verification_status = 'verified'
-      AND site.reviewed_by = 'system:structured-ats-rank1-v3'
+      AND site.reviewed_by = 'system:structured-ats-best-v4'
 );
 
 UPDATE jobpush.career_sites site
@@ -80,6 +87,6 @@ COMMIT;
 
 SELECT reviewed_by, source_type, count(*) AS newly_or_previously_auto_verified
 FROM jobpush.career_sites
-WHERE reviewed_by = 'system:structured-ats-rank1-v3'
+WHERE reviewed_by IN ('system:structured-ats-rank1-v3', 'system:structured-ats-best-v4')
 GROUP BY 1, 2
 ORDER BY 2;

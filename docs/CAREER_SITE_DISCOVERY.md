@@ -224,7 +224,7 @@ The important distinction: a Tavily discovery search produces *candidate URLs*.
 It does not automatically mean the company has a safe, adapter-supported,
 US-scoped career site. Most retained candidates are `generic_html`; those are
 kept for review or later generic parsing but are not automatically enabled for
-daily crawl. Rank-1 structured ATS candidates are auto-trusted only for
+daily crawl. Best supported structured ATS candidates are auto-trusted only for
 supported adapters:
 
 ```bash
@@ -291,7 +291,7 @@ Already verified/auto-trusted rows remain available for manual override.
 
 2026-06-25 update after key rotation: an additional 950 P0/P1 companies were
 searched, retaining 2,237 candidates with zero provider errors. Auto-trust
-promoted 209 rank-1 structured ATS sites. P1 coverage reached 933 enabled
+promoted 209 best supported structured ATS sites. P1 coverage reached 933 enabled
 sites, with 347 successfully crawled so far.
 
 2026-06-25 later audit: P1 successful crawl coverage reached 913 companies.

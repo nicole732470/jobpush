@@ -9,7 +9,7 @@ All crawler writes remain in the `jobpush` schema.
 1. `crawl_targets` supplies the consolidated company identity and P tier.
 2. Discovery may propose up to three URLs; generic candidates never enable themselves.
 3. Prefer an official ATS/search endpoint over a corporate careers landing page.
-4. Human confirmation is authoritative. Rank-1 structured ATS candidates may
+4. Human confirmation is authoritative. Best supported structured ATS candidates may
    also enter a versioned `system:*` auto-trust cohort after an adapter health
    gate; this prevents human review from becoming a one-company-at-a-time
    scaling requirement.
@@ -84,7 +84,7 @@ more companies only after a representative site passes a second idempotent run.
   site and the adapter has a safe US-scoping strategy.
 - Greenhouse and Workday may be auto-trusted with conservative local US
   classification.
-- Lever, Ashby, and SmartRecruiters now have public-API adapters. Rank-1 P0/P1
+- Lever, Ashby, and SmartRecruiters now have public-API adapters. Best supported P0/P1
   candidates can enter a controlled auto-trust rollout when no verified site
   already exists; crawl health and entity mismatch remain rollback gates.
 - Workable, Jobvite, Paylocity, Rippling, and selected Eightfold boards have
