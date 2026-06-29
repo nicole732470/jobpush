@@ -369,6 +369,8 @@ Generic HTML is handled in three layers, in this order:
    for every company page. First group remaining generic pages by domain,
    template, or platform. Then add a parser only when the group is large enough
    or high-priority enough to justify the maintenance cost.
+   Do not blindly expand `generic_html`: when the latest batch yield is low,
+   switch back to hidden ATS detection and template clustering.
 
 Use the audit runner to pick the next parser target:
 
@@ -439,8 +441,8 @@ template and implement parsers only for the largest repeatable groups.
 | Rippling `ats.rippling.com` | Added in migration 078 | Parses static Next.js pages: board links plus per-job `__NEXT_DATA__`. |
 | Eightfold | Added for selected verified sites; expanded in migration 113 | Uses embedded `smartApplyData` when present. Auto-trust is conservative because some Eightfold-looking URLs are privacy/error/event pages rather than job boards. |
 | Amazon Jobs / Cognizant Jobs | Expanded in migration 115 | Company-specific adapters with explicit US server filters. Migration 116 disables duplicate same-company/same-adapter sites after one canonical site succeeds. |
-| SuccessFactors | Backlog / needs better discovery | Current retained candidates are often generic root/login/CDN URLs without company-specific search parameters, so a parser alone would not reliably map jobs to the intended company. |
-| UltiPro | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
+| SuccessFactors | Sample first | Do not build a broad adapter yet. First inspect 3–5 high-priority examples and confirm the company-specific API/HTML shape is stable; many retained candidates are generic root/login/CDN URLs. |
+| UKG / UltiPro | Sample first | Do not build a broad adapter yet. First inspect 3–5 `recruiting.ultipro.com` examples and confirm URL token + HTML/API stability. |
 | TriNet Hire | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | Comeet | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 
@@ -478,6 +480,21 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
 - Next high-leverage work is the large `careers_path` / `jobs_path` generic
   pool. Build repeatable parsers only where the page template recurs; avoid
   one-off company pages.
+
+2026-06-29 follow-up audit:
+
+- `generic_html` blocker clustering is still dominated by plain corporate
+  career pages: 2,195 P1 companies / 81.27%. Obvious missed structured ATS is
+  tiny in the current pool: Greenhouse 4, Ashby 1, Oracle 1, SmartRecruiters 1.
+- Current failed enabled sites: 30 total. Split: Workday payload/endpoint 7,
+  iCIMS timeout 5, Oracle other 5, Eightfold other 4, Eightfold timeout 3,
+  generic_html timeout 3, Rippling timeout 1, Workable other 1, Workday 403 1.
+- SuccessFactors sample is not ready for a broad adapter: sampled retained
+  URLs were generic `career*.successfactors.com/career` entry pages or a
+  `performancemanager*.successfactors.com` static JS file.
+- UKG / UltiPro sample is not ready for a broad adapter: sampled
+  `recruiting.ultipro.com/.../JobBoard` URLs returned 404 from a simple public
+  fetch. Confirm stable tenant URLs/API before coding.
 
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the
