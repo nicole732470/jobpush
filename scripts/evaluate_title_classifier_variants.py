@@ -47,7 +47,7 @@ def feature_list(title: str, variant: str) -> list[str]:
     return result
 
 
-def train(rows: list[tuple[str, str]], variant: str) -> dict[str, object]:
+def train(rows: list[tuple[str, str]], variant: str, class_prior: str) -> dict[str, object]:
     counts = {label: Counter() for label in LABELS}
     totals = Counter()
     docs = Counter()
@@ -58,7 +58,14 @@ def train(rows: list[tuple[str, str]], variant: str) -> dict[str, object]:
         counts[label].update(row_features)
         totals[label] += len(row_features)
         vocabulary.update(row_features)
-    return {"counts": counts, "totals": totals, "docs": docs, "vocab": vocabulary, "variant": variant}
+    return {
+        "counts": counts,
+        "totals": totals,
+        "docs": docs,
+        "vocab": vocabulary,
+        "variant": variant,
+        "class_prior": class_prior,
+    }
 
 
 def predict(model: dict[str, object], title: str) -> tuple[str, float]:
@@ -67,12 +74,16 @@ def predict(model: dict[str, object], title: str) -> tuple[str, float]:
     docs = model["docs"]
     vocab = model["vocab"]
     variant = str(model["variant"])
+    class_prior = str(model["class_prior"])
     total_docs = sum(docs.values())
     if total_docs == 0 or any(docs[label] == 0 for label in LABELS):
         return "non_target", 0.5
     scores = {}
     for label in LABELS:
-        score = math.log((docs[label] + 1) / (total_docs + len(LABELS)))
+        if class_prior == "balanced":
+            score = math.log(1 / len(LABELS))
+        else:
+            score = math.log((docs[label] + 1) / (total_docs + len(LABELS)))
         denom = totals[label] + max(len(vocab), 1)
         for feature in feature_list(title, variant):
             score += math.log((counts[label][feature] + 1) / denom)
@@ -123,25 +134,30 @@ def main() -> None:
     }
     csv_rows = []
     for variant in ("baseline", "stem", "char", "stem_char"):
-        holdout = []
-        for fold in range(5):
-            train_rows = [row for row in rows if fold_for(row[0]) != fold]
-            test_rows = [row for row in rows if fold_for(row[0]) == fold]
-            model = train(train_rows, variant)
-            for title, actual in test_rows:
-                predicted, confidence = predict(model, title)
-                holdout.append((actual, predicted, confidence))
-        variant_rows = []
-        for label in LABELS:
-            for threshold in THRESHOLDS:
-                row = {"variant": variant, **metrics_for(holdout, label, threshold)}
-                variant_rows.append(row)
-                csv_rows.append(row)
-        report["variants"].append({"variant": variant, "metrics": variant_rows})
+        for class_prior in ("observed", "balanced"):
+            holdout = []
+            for fold in range(5):
+                train_rows = [row for row in rows if fold_for(row[0]) != fold]
+                test_rows = [row for row in rows if fold_for(row[0]) == fold]
+                model = train(train_rows, variant, class_prior)
+                for title, actual in test_rows:
+                    predicted, confidence = predict(model, title)
+                    holdout.append((actual, predicted, confidence))
+            variant_rows = []
+            for label in LABELS:
+                for threshold in THRESHOLDS:
+                    row = {
+                        "variant": variant,
+                        "class_prior": class_prior,
+                        **metrics_for(holdout, label, threshold),
+                    }
+                    variant_rows.append(row)
+                    csv_rows.append(row)
+            report["variants"].append({"variant": variant, "class_prior": class_prior, "metrics": variant_rows})
 
     Path(args.output_json).write_text(json.dumps(report, indent=2), encoding="utf-8")
     with open(args.output_csv, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["variant", "label", "threshold", "selected", "precision", "recall"])
+        writer = csv.DictWriter(handle, fieldnames=["variant", "class_prior", "label", "threshold", "selected", "precision", "recall"])
         writer.writeheader()
         writer.writerows(csv_rows)
     print(json.dumps(report, indent=2))
