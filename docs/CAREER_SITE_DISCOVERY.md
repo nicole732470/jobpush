@@ -508,6 +508,9 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
 - Obvious bad failed URLs are rejected instead of retried: Eightfold privacy /
   error collector pages, `jobs.workable.com/company`, Workday root URLs, and
   Workday URLs polluted with serialized JSON suffixes.
+- iCIMS legacy servlet/login URLs are also rejected when they fail
+  (`/icims2/servlet/icims2`, `/jobs/login`). They repeatedly redirect/timeout;
+  replacing them requires fresh site discovery, not adapter retries.
 
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the
