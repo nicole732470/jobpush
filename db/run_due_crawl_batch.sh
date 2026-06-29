@@ -15,6 +15,7 @@ done < <("${PSQL[@]}" -qAtF $'\t' -c \
   "SELECT consolidation_key, source_type, priority_tier, scope_method, site_id
    FROM jobpush.crawl_schedule_queue
    WHERE is_due
+     AND crawl_status <> 'running'
    ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
             priority_score DESC, site_id
    LIMIT $LIMIT;")
