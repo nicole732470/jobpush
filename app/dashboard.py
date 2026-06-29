@@ -52,8 +52,8 @@ st.markdown(
       .stApp {background: linear-gradient(180deg,#fbfcff 0%,#f6f8fb 42%,#f7f7f4 100%);}
       .block-container {padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1500px;}
       [data-testid="stMetric"] {background:rgba(255,255,255,.92);border:1px solid #e4e7ec;
-        border-radius:14px;padding:10px 12px;box-shadow:0 6px 18px rgba(16,24,40,.04); min-height:92px;}
-      [data-testid="stMetric"] [data-testid="stMetricDelta"] {min-height:16px;}
+        border-radius:14px;padding:10px 12px;box-shadow:0 6px 18px rgba(16,24,40,.04); min-height:106px;}
+      [data-testid="stMetric"] [data-testid="stMetricDelta"] {min-height:18px;}
       [data-testid="stMetric"] label {font-size:.78rem !important;}
       h1 {letter-spacing:-0.045em; margin-bottom:.15rem;}
       h2, h3 {letter-spacing:-0.025em;}
@@ -1065,7 +1065,7 @@ def review_existing_career_site(site_id: int, decision: str, source_type: str, n
         update_site_scope_and_due(site_id, source_type, notes)
 
 
-def import_manual_career_site(consolidation_key: str, raw_url: str, notes: str) -> dict[str, str | None]:
+def import_manual_career_site(consolidation_key: str, raw_url: str, notes: str) -> dict[str, str | int | None]:
     classified = classify_career_url(raw_url)
     execute(
         """
@@ -1117,6 +1117,18 @@ def import_manual_career_site(consolidation_key: str, raw_url: str, notes: str) 
         """,
         (consolidation_key,),
     )
+    site = query(
+        """
+        SELECT site_id
+        FROM jobpush.career_sites
+        WHERE consolidation_key = %s
+          AND site_url = %s
+        ORDER BY site_id DESC
+        LIMIT 1
+        """,
+        (consolidation_key, classified["site_url"]),
+    )
+    classified["site_id"] = int(site.iloc[0]["site_id"]) if not site.empty else None
     return classified
 
 
@@ -1134,6 +1146,29 @@ def trigger_inline_due_crawl(limit: int = 1) -> tuple[bool, str]:
         )
     except Exception as exc:
         return False, f"Could not trigger inline crawl: {exc}"
+    output = "\n".join(part for part in [result.stdout.strip(), result.stderr.strip()] if part)
+    return result.returncode == 0, output[-4000:]
+
+
+def trigger_inline_site_crawl(site_id: int | None) -> tuple[bool, str]:
+    if not site_id:
+        return trigger_inline_due_crawl(1)
+    if os.environ.get("JOBPUSH_ENABLE_INLINE_CRAWL") != "1":
+        return False, "Inline crawl is disabled; site was marked due now and the scheduler/GitHub Action will pick it up."
+    env = os.environ.copy()
+    env["SITE_ID_FILTER"] = str(int(site_id))
+    try:
+        result = subprocess.run(
+            ["bash", "db/run_due_crawl_batch.sh", "1"],
+            cwd=os.environ.get("JOBPUSH_REPO_DIR", os.getcwd()),
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except Exception as exc:
+        return False, f"Could not trigger inline crawl for site_id={site_id}: {exc}"
     output = "\n".join(part for part in [result.stdout.strip(), result.stderr.strip()] if part)
     return result.returncode == 0, output[-4000:]
 
@@ -1754,7 +1789,7 @@ if not tiers or not role_statuses or not app_statuses:
 selected_tier_label = priority_choice.replace(" only", "").replace("All P tiers", "P0+P1+P2+P3")
 
 PAGE_LABELS = [
-    "Home",
+    "Pulse",
     "Jobs to apply",
     "Crawl monitor",
     "Title review",
@@ -1773,7 +1808,7 @@ selected_page = st.radio(
 def load_current_jobs() -> pd.DataFrame:
     return jobs(start_date, end_date, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
 
-if selected_page == "Home":
+if selected_page == "Pulse":
     summary = apply_job_summary(tiers)
     summary_row = summary.iloc[0] if not summary.empty else pd.Series(dtype="int64")
     metric_columns = st.columns(5)
@@ -1789,6 +1824,10 @@ if selected_page == "Home":
     chart = activity.sort_values("activity_date").set_index("activity_date")
     st.line_chart(chart[["new_target_jobs", "closed_jobs"]], height=330)
 
+    st.subheader("Crawl rollout by priority tier")
+    rollout = crawl_rollout_by_tier()
+    st.dataframe(rollout, hide_index=True, use_container_width=True, height=240)
+
 if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 / P3 company crawl rollout")
     st.caption(
@@ -1801,10 +1840,10 @@ if selected_page == "Crawl monitor":
     p0p1_attempted = int(p0p1["attempted_companies"].sum()) if not p0p1.empty else 0
     p0p1_waiting = int(p0p1["due_now_companies"].sum()) if not p0p1.empty else 0
     rollout_cols = st.columns(4)
-    rollout_cols[0].metric("P0+P1 companies", f"{p0p1_total:,}")
-    rollout_cols[1].metric("Successfully crawled", f"{p0p1_success:,}", f"{(100 * p0p1_success / p0p1_total):.1f}%" if p0p1_total else None)
-    rollout_cols[2].metric("Attempted at least once", f"{p0p1_attempted:,}", f"{(100 * p0p1_attempted / p0p1_total):.1f}%" if p0p1_total else None)
-    rollout_cols[3].metric("Due / waiting now", f"{p0p1_waiting:,}")
+    rollout_cols[0].metric("P0+P1 companies", f"{p0p1_total:,}", " ")
+    rollout_cols[1].metric("Succeeded", f"{p0p1_success:,}", f"{(100 * p0p1_success / p0p1_total):.1f}%" if p0p1_total else " ")
+    rollout_cols[2].metric("Attempted", f"{p0p1_attempted:,}", f"{(100 * p0p1_attempted / p0p1_total):.1f}%" if p0p1_total else " ")
+    rollout_cols[3].metric("Due / waiting", f"{p0p1_waiting:,}", " ")
 
     st.dataframe(rollout, hide_index=True, use_container_width=True)
     with st.expander("这些状态是什么意思？"):
@@ -2260,7 +2299,7 @@ if selected_page == "Site review":
                 selected_site_id, selected_source, selected_url = available_candidates[selected_candidate]
                 if verify_col.button("Verify selected site", use_container_width=True):
                     review_existing_career_site(int(selected_site_id), "verified", str(selected_source), decision_notes)
-                    ok, output = trigger_inline_due_crawl(1)
+                    ok, output = trigger_inline_site_crawl(int(selected_site_id))
                     clear_dashboard_caches()
                     st.success(f"Verified {selected_url}. {output}")
                 if reject_col.button("Reject selected site", use_container_width=True):
@@ -2300,7 +2339,7 @@ if selected_page == "Site review":
                 key=f"manual-site-import-{selected_row['consolidation_key']}",
             ):
                 classified = import_manual_career_site(str(selected_row["consolidation_key"]), manual_url, manual_notes)
-                ok, output = trigger_inline_due_crawl(1)
+                ok, output = trigger_inline_site_crawl(classified.get("site_id"))
                 clear_dashboard_caches()
                 st.success(
                     f"Imported {classified['site_url']} for {selected_row['canonical_name']} "
@@ -2395,6 +2434,16 @@ priority_score =
 
 `target_role_score` 来自你人工确认的目标 SOC code：只要公司至少一条 LCA 的
 `soc_code` 命中 `jobpush.target_soc_roles`，就是 1，否则是 0。大部分后续加分都以它为前提。
+
+| Score item | Points | Meaning |
+|---|---:|---|
+| `target_role_score` | +1 | At least one LCA SOC code is in the target SOC list |
+| `lca_count_score` | +1 | Has target-role evidence and more than one LCA |
+| `chicago_score` | +0.5 | Has target-role evidence and employer city is in Chicago metro |
+| `product_role_score` | +1 | Has target-role evidence and LCA raw title matches product-class rules |
+| `product_manager_score` | +0.25 | Has target-role evidence and LCA raw title is Product Manager / Technical Product Manager |
+| `salary_score` | +1 | Has target-role evidence and valid minimum target-role salary is at least $90k |
+| `linkedin_top_employer_score` | +1 | Has target-role evidence and matches LinkedIn Top Companies 2026 |
 
 ### 初始职业标注层
 

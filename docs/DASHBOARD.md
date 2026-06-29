@@ -22,9 +22,11 @@ Codex token.
 
 ## Current pages and interaction model
 
-- top-line selected-tier crawl completion: total companies, companies with enabled
-  sites, ever-succeeded companies, due/unfinished sites, attempted-today count,
-  and latest crawl start time;
+- **Pulse** is the default landing page. It shows top-line selected-tier job
+  counts, 30-day target discovery, and P0/P1/P2/P3 crawl rollout;
+- selected-tier crawl completion: total companies, companies with enabled sites,
+  ever-succeeded companies, due/unfinished sites, attempted-today count, and
+  latest crawl start time;
 - today's active-US new target / needs-review jobs, US closed jobs, crawl runs,
   and failures;
 - **Jobs to apply**: fast selected-tier active US `target` job list with direct
@@ -56,9 +58,10 @@ Codex token.
   be shown. Every discovery source, including direct ATS guessing
   (`discovery_source='ats_url_guess'`), can expose up to three candidate URLs;
 - newly verified/imported career sites are marked `next_crawl_at = now()` and
-  `crawl_status = 'pending'`. If `JOBPUSH_ENABLE_INLINE_CRAWL=1` is set on the
-  dashboard host, the app also attempts a one-site due-crawl immediately;
-  otherwise the scheduler/GitHub Action picks it up from `crawl_schedule_queue`;
+  `crawl_status = 'pending'`. The dashboard host sets
+  `JOBPUSH_ENABLE_INLINE_CRAWL=1`, so the app immediately attempts to crawl the
+  specific verified/imported `site_id` via `SITE_ID_FILTER`; if inline crawl is
+  disabled, the scheduler/GitHub Action picks it up from `crawl_schedule_queue`;
 - **Scoring rules** page showing P0/P1/P2/P3 definitions, score components, the
   company-to-schedulable-site coverage funnel, score distributions, and the
   relationship between LCA/SOC target labels and `target_role_score`; SOC and
@@ -142,8 +145,8 @@ Dashboard actions are database operations, not silent code edits:
 | Dashboard action | Writes database? | Changes repo code? | Triggers crawl? | Affects ML/rules? |
 |---|---:|---:|---:|---:|
 | Mark title `target` / `non_target` / `review` | Yes, `job_title_labels` + history | No | No | It becomes training/evaluation data immediately |
-| Verify/reject a candidate site | Yes, `career_sites` | No | Verified site is marked due now; scheduler runs it if adapter/scope gates pass | No |
-| Import official career URL | Yes, `career_sites` and crawl target status | No | Marked due now; inline crawl only if enabled on server | No |
+| Verify/reject a candidate site | Yes, `career_sites` | No | Verified site is marked due now and inline crawl targets that `site_id` when enabled | No |
+| Import official career URL | Yes, `career_sites` and crawl target status | No | Marked due now and inline crawl targets that `site_id` when enabled | No |
 | Override P0/P1/P2 or clear override | Yes, `crawl_priority_overrides` + `crawl_targets` | No | No direct crawl, but priority affects queue ordering/frequency | No |
 | Add new hard title rule | Via migration/config | Yes, when committed | No | Yes, updates deterministic rule layer |
 | Add/fix adapter | No by itself | Yes, script/migration commit | Yes after deployment and schedule | No |

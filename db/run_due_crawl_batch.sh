@@ -7,6 +7,13 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${1:-10}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "limit must be a positive integer" >&2; exit 2; }
+SITE_ID_FILTER="${SITE_ID_FILTER:-}"
+if [[ -n "$SITE_ID_FILTER" ]]; then
+  [[ "$SITE_ID_FILTER" =~ ^[1-9][0-9]*$ ]] || { echo "SITE_ID_FILTER must be a positive integer" >&2; exit 2; }
+  SITE_ID_WHERE="AND site_id=$SITE_ID_FILTER"
+else
+  SITE_ID_WHERE=""
+fi
 
 DUE_SITES=()
 while IFS= read -r row; do
@@ -16,6 +23,7 @@ done < <("${PSQL[@]}" -qAtF $'\t' -c \
    FROM jobpush.crawl_schedule_queue
    WHERE is_due
      AND crawl_status <> 'running'
+     $SITE_ID_WHERE
    ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
             priority_score DESC, site_id
    LIMIT $LIMIT;")

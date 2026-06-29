@@ -10,6 +10,8 @@ export JOBPUSH_DB_NAME="$RDS_DB"
 export JOBPUSH_DB_USER="$RDS_USER"
 export JOBPUSH_DB_PASSWORD="$RDS_PASS"
 export JOBPUSH_DB_SSLMODE=require
+export JOBPUSH_ENABLE_INLINE_CRAWL="${JOBPUSH_ENABLE_INLINE_CRAWL:-1}"
+export JOBPUSH_REPO_DIR="$INSTALL_DIR"
 
 cd "$INSTALL_DIR/app"
 exec "$INSTALL_DIR/.venv-dashboard/bin/streamlit" run dashboard.py
