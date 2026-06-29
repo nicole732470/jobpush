@@ -439,7 +439,7 @@ template and implement parsers only for the largest repeatable groups.
 | Jobvite `jobs.jobvite.com` | Added in migration 076 | Parses board HTML and per-job schema.org `JobPosting` JSON-LD. |
 | Paylocity | Added in migration 077 | Parses `window.pageData.Jobs` on listing pages and schema.org `JobPosting` on detail pages. |
 | Rippling `ats.rippling.com` | Added in migration 078 | Parses static Next.js pages: board links plus per-job `__NEXT_DATA__`. |
-| Eightfold | Added for selected verified sites; expanded in migration 113 | Uses embedded `smartApplyData` when present. Auto-trust is conservative because some Eightfold-looking URLs are privacy/error/event pages rather than job boards. |
+| Eightfold | Added for selected verified sites; expanded in migration 113; PCSX fallback added 2026-06-29 | Uses embedded `smartApplyData` when present, otherwise the PCSX search API. Auto-trust is conservative because some Eightfold-looking URLs are privacy/error/event pages rather than job boards. |
 | Amazon Jobs / Cognizant Jobs | Expanded in migration 115 | Company-specific adapters with explicit US server filters. Migration 116 disables duplicate same-company/same-adapter sites after one canonical site succeeds. |
 | SuccessFactors | Sample first | Do not build a broad adapter yet. First inspect 3–5 high-priority examples and confirm the company-specific API/HTML shape is stable; many retained candidates are generic root/login/CDN URLs. |
 | UKG / UltiPro | Sample first | Do not build a broad adapter yet. First inspect 3–5 `recruiting.ultipro.com` examples and confirm URL token + HTML/API stability. |
@@ -514,6 +514,11 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
 - iCIMS legacy servlet/login URLs are also rejected when they fail
   (`/icims2/servlet/icims2`, `/jobs/login`). They repeatedly redirect/timeout;
   replacing them requires fresh site discovery, not adapter retries.
+- Eightfold now supports the newer PCSX search API fallback. If
+  `smartApplyData` is absent, read `pcsx-data.domain` and page
+  `/api/pcsx/search?domain=...&query=&location=&start=...`. This cleared the
+  remaining P1 Eightfold failures; the last root URL case is normalized to
+  `/careers`.
 
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the
