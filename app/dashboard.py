@@ -282,7 +282,7 @@ def review_workbench_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
         FROM target
         LEFT JOIN site_rollup USING (consolidation_key)
         GROUP BY target.priority_tier
-        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END
         """,
         (list(tiers),),
     )
@@ -312,7 +312,7 @@ def crawl_rank_coverage() -> pd.DataFrame:
         ), buckets AS (
             SELECT 'Top 500 overall' AS bucket, 500 AS max_rank
             UNION ALL SELECT 'Top 1000 overall', 1000
-            UNION ALL SELECT 'All active P0/P1/P2', 999999
+            UNION ALL SELECT 'All active P0/P1/P2/P3', 999999
         )
         SELECT buckets.bucket,
                COUNT(*) AS companies,
@@ -407,7 +407,7 @@ def today_crawl_progress(tiers: tuple[str, ...]) -> pd.DataFrame:
         WHERE run.started_at >= chicago_day.start_at
           AND target.priority_tier = ANY(%s)
         GROUP BY target.priority_tier
-        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END
         """,
         (list(tiers),),
     )
@@ -495,7 +495,7 @@ def crawl_completion_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
                  today_runs.site_attempts_today, today_runs.companies_attempted_today,
                  today_runs.companies_succeeded_today, today_runs.failed_site_attempts_today,
                  today_runs.latest_started_at, today_runs.latest_finished_at
-        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END
         """,
         (list(tiers),),
     )
@@ -589,7 +589,7 @@ def crawl_state_by_tier(tiers: tuple[str, ...]) -> pd.DataFrame:
                ROUND(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (PARTITION BY priority_tier), 0), 2) AS pct_within_tier
         FROM classified
         GROUP BY priority_tier, crawl_state
-        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  crawl_state
         """,
         (list(tiers),),
@@ -644,7 +644,7 @@ def generic_blocker_template_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
                ROUND(100.0 * COUNT(DISTINCT consolidation_key) / NULLIF(SUM(COUNT(DISTINCT consolidation_key)) OVER (PARTITION BY priority_tier), 0), 2) AS pct_within_tier
         FROM classified
         GROUP BY priority_tier, template_family
-        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  companies DESC, template_family
         """,
         (list(tiers),),
@@ -799,7 +799,7 @@ def company_targets(tiers: tuple[str, ...]) -> pd.DataFrame:
         FROM ranked_targets target
         JOIN jobpush.company_targets_consolidated consolidated USING (consolidation_key)
         WHERE target.priority_tier = ANY(%s)
-        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  target.priority_rank_in_tier
         """,
         (list(tiers),),
@@ -830,7 +830,7 @@ def site_review_queue(
         FROM jobpush.career_site_review_workbench
         WHERE priority_tier = ANY(%s)
           AND action_status = ANY(%s)
-        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
                  priority_score DESC NULLS LAST,
                  review_rank
@@ -1745,7 +1745,10 @@ with st.sidebar.form("global_view_form"):
         min_value=chicago_today - timedelta(days=90),
         max_value=chicago_today,
     )
-    priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "P3 only", "All P tiers"])
+    priority_choice = st.selectbox(
+        "Priority tier",
+        ["All P tiers", "P0 only", "P1 only", "P2 only", "P3 only", "P0 + P1"],
+    )
     row_limit = st.selectbox("Rows to load", [1000, 2000, 5000, 20000], index=0)
     st.form_submit_button("Apply global view", use_container_width=True)
 company = ""
@@ -1834,16 +1837,16 @@ if selected_page == "Crawl monitor":
         "这个 tab 回答三个问题：总共有多少公司、今天/目前跑了多少、没跑成功主要卡在哪里。"
     )
     rollout = crawl_rollout_by_tier()
-    p0p1 = rollout[rollout["priority_tier"].isin(["P0", "P1"])]
-    p0p1_total = int(p0p1["companies"].sum()) if not p0p1.empty else 0
-    p0p1_success = int(p0p1["succeeded_companies"].sum()) if not p0p1.empty else 0
-    p0p1_attempted = int(p0p1["attempted_companies"].sum()) if not p0p1.empty else 0
-    p0p1_waiting = int(p0p1["due_now_companies"].sum()) if not p0p1.empty else 0
+    selected_rollout = rollout[rollout["priority_tier"].isin(tiers)]
+    selected_total = int(selected_rollout["companies"].sum()) if not selected_rollout.empty else 0
+    selected_success = int(selected_rollout["succeeded_companies"].sum()) if not selected_rollout.empty else 0
+    selected_attempted = int(selected_rollout["attempted_companies"].sum()) if not selected_rollout.empty else 0
+    selected_waiting = int(selected_rollout["due_now_companies"].sum()) if not selected_rollout.empty else 0
     rollout_cols = st.columns(4)
-    rollout_cols[0].metric("P0+P1 companies", f"{p0p1_total:,}", " ")
-    rollout_cols[1].metric("Succeeded", f"{p0p1_success:,}", f"{(100 * p0p1_success / p0p1_total):.1f}%" if p0p1_total else " ")
-    rollout_cols[2].metric("Attempted", f"{p0p1_attempted:,}", f"{(100 * p0p1_attempted / p0p1_total):.1f}%" if p0p1_total else " ")
-    rollout_cols[3].metric("Due / waiting", f"{p0p1_waiting:,}", " ")
+    rollout_cols[0].metric(f"{selected_tier_label} companies", f"{selected_total:,}", " ")
+    rollout_cols[1].metric("Succeeded", f"{selected_success:,}", f"{(100 * selected_success / selected_total):.1f}%" if selected_total else " ")
+    rollout_cols[2].metric("Attempted", f"{selected_attempted:,}", f"{(100 * selected_attempted / selected_total):.1f}%" if selected_total else " ")
+    rollout_cols[3].metric("Due / waiting", f"{selected_waiting:,}", " ")
 
     st.dataframe(rollout, hide_index=True, use_container_width=True)
     with st.expander("这些状态是什么意思？"):
@@ -2142,7 +2145,7 @@ if selected_page == "Site review":
     )
     site_col1, site_col2, site_col3 = st.columns([1, 1, 1])
     site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)
-    site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2", "P3"], default=["P0", "P1"]))
+    site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2", "P3"], default=["P0", "P1", "P2", "P3"]))
     site_statuses = tuple(site_col3.multiselect(
         "Site statuses",
         ["REVIEW_CANDIDATES", "VERIFIED"],

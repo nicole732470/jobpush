@@ -139,6 +139,11 @@ estimated credits for every completed batch.
 
 ## P0/P1 monthly expansion policy (2026-06-24)
 
+Historical note: this section records the earlier P0/P1-first rollout. The
+current dashboard/reporting default is P0/P1/P2/P3 combined, with each tier
+available separately. P1 remains the highest-value expansion focus, but P2/P3
+are now included in coverage statistics and site review surfaces.
+
 The operating goal is to make P0/P1 usable before spending time or credits on
 P2. Use `db/run_discover_career_sites_p0_p1.sh` for the normal expansion path:
 

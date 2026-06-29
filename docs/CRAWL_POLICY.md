@@ -84,9 +84,10 @@ more companies only after a representative site passes a second idempotent run.
   site and the adapter has a safe US-scoping strategy.
 - Greenhouse and Workday may be auto-trusted with conservative local US
   classification.
-- Lever, Ashby, and SmartRecruiters now have public-API adapters. Best supported P0/P1
-  candidates can enter a controlled auto-trust rollout when no verified site
-  already exists; crawl health and entity mismatch remain rollback gates.
+- Lever, Ashby, and SmartRecruiters now have public-API adapters. Best
+  supported P0/P1/P2/P3 candidates can enter controlled auto-trust when no
+  verified site already exists; crawl health and entity mismatch remain
+  rollback gates.
 - Workable, Jobvite, Paylocity, Rippling, and selected Eightfold boards have
   low-cost static/API-style parsers and can be promoted in small structured
   batches.
