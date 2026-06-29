@@ -495,6 +495,11 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
 - UKG / UltiPro sample is not ready for a broad adapter: sampled
   `recruiting.ultipro.com/.../JobBoard` URLs returned 404 from a simple public
   fetch. Confirm stable tenant URLs/API before coding.
+- Workday CXS tenant slugs use underscores where the public host uses hyphens
+  (`osv-chegg` host -> `osv_chegg` API tenant). Fixing this recovered 4 of 8
+  failed Workday sites in the first retry; remaining Workday failures are bad
+  root URLs or forbidden boards and should be handled by better site discovery,
+  not adapter guessing.
 
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the

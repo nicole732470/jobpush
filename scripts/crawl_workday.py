@@ -78,7 +78,7 @@ def main() -> int:
     started = time.monotonic()
     parsed = urlsplit(args.url)
     site = workday_site_from_path(parsed.path)
-    tenant = parsed.hostname.split(".")[0] if parsed.hostname else None
+    tenant = parsed.hostname.split(".")[0].replace("-", "_") if parsed.hostname else None
     if not tenant or not site:
         raise ValueError(f"Cannot derive Workday tenant/site from {args.url}")
     endpoint = f"{parsed.scheme}://{parsed.netloc}/wday/cxs/{tenant}/{site}/jobs"
@@ -88,6 +88,7 @@ def main() -> int:
     requests_count = 0
     last_status = 0
     total = 1
+    raw_job_count = 0
     while offset < total:
         payload, last_status = post_json(endpoint, {
             "appliedFacets": {}, "limit": args.page_size, "offset": offset, "searchText": ""
@@ -95,6 +96,7 @@ def main() -> int:
         requests_count += 1
         total = int(payload.get("total", 0))
         postings = payload.get("jobPostings", [])
+        raw_job_count += len(postings)
         for job in postings:
             bullets = job.get("bulletFields") or []
             external_id = clean(bullets[0] if bullets else job.get("externalPath"))
@@ -126,8 +128,8 @@ def main() -> int:
         writer.writerows(rows.values())
 
     print(json.dumps({"status": "succeeded", "requests_count": requests_count,
-                      "pages_fetched": requests_count, "raw_job_count": total,
-                      "parsed_job_count": len(rows), "duplicate_count": total - len(rows),
+                      "pages_fetched": requests_count, "raw_job_count": raw_job_count,
+                      "parsed_job_count": len(rows), "duplicate_count": raw_job_count - len(rows),
                       "last_http_status": last_status,
                       "latency_ms": round((time.monotonic() - started) * 1000)}))
     return 0
