@@ -90,6 +90,11 @@ more companies only after a representative site passes a second idempotent run.
 - Workable, Jobvite, Paylocity, Rippling, and selected Eightfold boards have
   low-cost static/API-style parsers and can be promoted in small structured
   batches.
+- Company-specific adapters with explicit US server filters, such as Amazon
+  Jobs and Cognizant Jobs, can be auto-enabled when no verified site exists.
+- When one company has multiple enabled sites for the same company-specific
+  adapter, keep one canonical site and disable the duplicate sites so jobs are
+  not repeated in the dashboard.
 - Generic HTML remains outside automatic promotion.
 - iCIMS remains conservative: if a United States location option exists, the
   adapter uses it; otherwise it crawls the public search page and classifies

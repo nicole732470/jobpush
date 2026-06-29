@@ -438,6 +438,7 @@ template and implement parsers only for the largest repeatable groups.
 | Paylocity | Added in migration 077 | Parses `window.pageData.Jobs` on listing pages and schema.org `JobPosting` on detail pages. |
 | Rippling `ats.rippling.com` | Added in migration 078 | Parses static Next.js pages: board links plus per-job `__NEXT_DATA__`. |
 | Eightfold | Added for selected verified sites; expanded in migration 113 | Uses embedded `smartApplyData` when present. Auto-trust is conservative because some Eightfold-looking URLs are privacy/error/event pages rather than job boards. |
+| Amazon Jobs / Cognizant Jobs | Expanded in migration 115 | Company-specific adapters with explicit US server filters. Migration 116 disables duplicate same-company/same-adapter sites after one canonical site succeeds. |
 | SuccessFactors | Backlog / needs better discovery | Current retained candidates are often generic root/login/CDN URLs without company-specific search parameters, so a parser alone would not reliably map jobs to the intended company. |
 | UltiPro | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | TriNet Hire | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
@@ -470,13 +471,17 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
 - JSON-LD probing also had near-zero yield, so do not keep running large
   JSON-LD batches unless the candidate pool changes materially.
 - Migration 113 enabled a small Eightfold batch because an adapter already
-  existed. Final P1 snapshot after this round: 1,923 successfully crawled
-  companies and 2,346 generic-HTML blockers.
+  existed. Migration 115 then enabled the remaining Amazon/Cognizant
+  company-specific adapters, and migration 116 disabled duplicate Cognizant
+  sites after the first canonical site succeeded. Final P1 snapshot after this
+  round: 1,925 successfully crawled companies and 2,346 generic-HTML blockers.
 - Next high-leverage work is the large `careers_path` / `jobs_path` generic
   pool. Build repeatable parsers only where the page template recurs; avoid
   one-off company pages.
-without this, companies with multiple same-platform candidates could repeatedly
-crawl the first site and leave the selected due site untouched.
+
+Scheduled crawls must pass `site_id` into the adapter runner; without this,
+companies with multiple same-platform candidates could repeatedly crawl the
+first site and leave the selected due site untouched.
 
 iCIMS was updated after the migration-079 batch showed that many valid pages do
 not expose a standardized "United States" location dropdown. The adapter now
