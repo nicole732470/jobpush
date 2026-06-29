@@ -2309,7 +2309,7 @@ if selected_page == "Site review":
                 st.markdown("##### Priority override")
                 new_tier = st.selectbox(
                     "Change this company to",
-                    ["Keep current", "P0", "P1", "P2"],
+                    ["Keep current", "P0", "P1", "P2", "Use computed / remove override"],
                     key=f"site-priority-tier-{selected_row['consolidation_key']}",
                 )
                 priority_reason = st.text_input(
@@ -2323,15 +2323,15 @@ if selected_page == "Site review":
                     use_container_width=True,
                     key=f"site-priority-save-{selected_row['consolidation_key']}",
                 ):
+                    tier_value = "AUTO" if new_tier == "Use computed / remove override" else new_tier
                     set_manual_crawl_priority(
                         str(selected_row["consolidation_key"]),
-                        new_tier,
+                        tier_value,
                         priority_reason,
                     )
                     clear_dashboard_caches()
                     st.success(
-                        f"Updated {selected_row['canonical_name']} to {new_tier}. "
-                        "This writes a manual override and keeps the company enabled in crawl_targets."
+                        f"Updated {selected_row['canonical_name']} to {new_tier}."
                     )
             with lca_col:
                 st.markdown("##### LCA sponsorship roles")

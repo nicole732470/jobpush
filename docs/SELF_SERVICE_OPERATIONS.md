@@ -5,7 +5,7 @@ when Codex is unavailable. The file contains copy-paste SQL for:
 
 1. finding a company's exact `consolidation_key`;
 2. saving an official career URL found manually;
-3. setting a persistent manual P0/P1/P2 tier;
+3. setting a persistent manual P0/P1/P2 tier, or clearing it back to computed;
 4. rejecting all current candidates;
 5. confirming which candidate is correct;
 6. checking whether the site is actually crawl-ready.

@@ -132,7 +132,7 @@ Dashboard actions are database operations, not silent code edits:
 | Mark title `target` / `non_target` / `review` | Yes, `job_title_labels` + history | No | No | It becomes training/evaluation data immediately |
 | Verify/reject a candidate site | Yes, `career_sites` | No | Verified site is marked due now; scheduler runs it if adapter/scope gates pass | No |
 | Import official career URL | Yes, `career_sites` and crawl target status | No | Marked due now; inline crawl only if enabled on server | No |
-| Override P0/P1/P2 | Yes, `crawl_priority_overrides` + `crawl_targets` | No | No direct crawl, but priority affects queue ordering/frequency | No |
+| Override P0/P1/P2 or clear override | Yes, `crawl_priority_overrides` + `crawl_targets` | No | No direct crawl, but priority affects queue ordering/frequency | No |
 | Add new hard title rule | Via migration/config | Yes, when committed | No | Yes, updates deterministic rule layer |
 | Add/fix adapter | No by itself | Yes, script/migration commit | Yes after deployment and schedule | No |
 
