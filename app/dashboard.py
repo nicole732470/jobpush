@@ -849,7 +849,9 @@ def site_review_queue(
     limit: int = 500,
     tiers: tuple[str, ...] = ("P0", "P1"),
     statuses: tuple[str, ...] = ("REVIEW_CANDIDATES", "VERIFIED"),
+    company_search: str = "",
 ) -> pd.DataFrame:
+    company_search = normalize_company_query(company_search)
     return query(
         """
         SELECT review_rank, consolidation_key, priority_tier, priority_score,
@@ -868,13 +870,18 @@ def site_review_queue(
         FROM jobpush.career_site_review_workbench
         WHERE priority_tier = ANY(%s)
           AND action_status = ANY(%s)
+          AND (
+              %s = ''
+              OR canonical_name ILIKE '%%' || %s || '%%'
+              OR consolidation_key ILIKE '%%' || %s || '%%'
+          )
         ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
                  priority_score DESC NULLS LAST,
                  review_rank
         LIMIT %s
         """,
-        (list(tiers), list(statuses), limit),
+        (list(tiers), list(statuses), company_search, company_search, company_search, limit),
     )
 
 
@@ -2263,7 +2270,7 @@ if selected_page == "Site review":
         "一行是一家公司；所有 discovery source（包括 direct ATS guessing）最多展示前三个候选；"
         "你也可以直接输入真实官网 URL。"
     )
-    site_col1, site_col2, site_col3 = st.columns([1, 1, 1])
+    site_col1, site_col2, site_col3, site_col4 = st.columns([1, 1, 1, 1.3])
     site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)
     site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2", "P3"], default=["P0", "P1", "P2", "P3"]))
     site_statuses = tuple(site_col3.multiselect(
@@ -2271,6 +2278,10 @@ if selected_page == "Site review":
         ["REVIEW_CANDIDATES", "VERIFIED"],
         default=["REVIEW_CANDIDATES", "VERIFIED"],
     ))
+    site_company_search = site_col4.text_input(
+        "Find company in site review",
+        placeholder="Uber, Google, Pfizer...",
+    )
     if site_tiers:
         st.markdown("#### Review and crawl coverage")
         site_summary = review_workbench_summary(site_tiers)
@@ -2285,7 +2296,12 @@ if selected_page == "Site review":
             stat_cols[5].metric("Succeeded", f"{int(totals.get('crawled_successfully', 0)):,}")
             st.dataframe(site_summary, hide_index=True, use_container_width=True, height=170)
 
-        site_frame = site_review_queue(site_limit, site_tiers, site_statuses or ("REVIEW_CANDIDATES", "VERIFIED"))
+        site_frame = site_review_queue(
+            site_limit,
+            site_tiers,
+            site_statuses or ("REVIEW_CANDIDATES", "VERIFIED"),
+            site_company_search,
+        )
         st.download_button(
             "Download site review batch (CSV)", csv_bytes(site_frame),
             file_name=f"jobpush_site_review_{'_'.join(site_tiers)}_{chicago_today}_{site_limit}.csv",
