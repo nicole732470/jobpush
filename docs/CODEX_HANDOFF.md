@@ -2,7 +2,7 @@
 
 最后更新：2026-06-28
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–086+**；另外有 repeatable ops scripts for
+生产 RDS 已部署 migration **001–108**；另外有 repeatable ops scripts for
 Tavily quota reset / career-site auto-trust / ATS URL guessing / usage checks。
 
 Tavily discovery expansion must be credit-conservative: normal runs search only
@@ -61,7 +61,7 @@ bash db/deploy_via_ssm.sh db/refresh/run_refresh_pipeline.sh
 | `jobpush.company_consolidation_*` | 保守多 FEIN 合并（Amazon、Apple 等） |
 | `jobpush.linkedin_top_employer_*` | LinkedIn 2026 Top Employers 匹配与打分 |
 | `jobpush.product_role_title_rules` | Product 类 job title 规则 |
-| `jobpush.target_soc_roles` | 97 个目标 SOC 码 |
+| `jobpush.target_soc_roles` | 107 个 active 目标 SOC 码；`Chief Executives` (`11101100`) 已 inactive |
 | `jobpush.profile_title_rule_terms` | JobPush title 推荐规则表；`profile-title-rules-v2` 从这里读取 target / avoid 规则 |
 | `jobpush.job_title_ai_classifications` | 可选实验性 AI 审计表；默认不依赖付费模型且永不覆盖 manual |
 
@@ -112,14 +112,15 @@ priority_score =
 | **P0** | **仅手动**；写入 `crawl_priority_overrides`，refresh 不会覆盖 |
 | `NULL` | 其余（0、1、2、2.25 等） |
 
-生产占比（全表 68,958）：
+生产占比（全表 68,957；2026-06-29 refresh 后）：
 
-- **P0**：7（Salesforce、Cognizant主美国实体、Google、Alphabet/Google、HERE、Grubhub Holdings Inc.、JPMorgan Chase & Co.）
-- **P1**：4,650（6.74%）
-- **P2**：14,487（21.01%）
-- 未分档：49,816（72.24%）
+- **P0**：11（手动 override）
+- **P1**：4,630（6.71%）
+- **P2**：14,419（20.91%）
+- 未分档：49,897（72.36%）
 
-在有目标岗公司（41,360）中：P1 **11.3%**，P2 **35.0%**。
+`Chief Executives` (`11101100`) 已从目标 SOC 中剔除；若仍出现在队列，
+只能来自 `manual_override`，不是 `target_role_score`。
 
 手动override：
 

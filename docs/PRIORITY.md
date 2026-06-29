@@ -102,6 +102,8 @@ If `target_role_score = 0`, every downstream component stays 0.
   extension becomes `00` (for example `15-1252` → `15125200`)
 - **Rule:** `+1` when `target_role_lca_count > 0`
 - **No prerequisite**
+- **Explicit exclusion:** `Chief Executives` (`11101100`) is inactive and does
+  not count as target-role evidence.
 
 ### 2. `lca_count_score` (+1)
 
@@ -202,8 +204,9 @@ Skokie, Tinley Park, Wheaton.
 Source workbook: `outputs/job_roles_20260621/LCA_All_Job_Roles_Summary.xlsx`,
 sheet `SOC标准岗位汇总`, column `是否目标`.
 
-- **97** active target SOC codes in `jobpush.target_soc_roles`
+- **107** active target SOC codes in `jobpush.target_soc_roles`
 - `Dentists, General` (`29102100`) removed in v2
+- `Chief Executives` (`11101100`) excluded on 2026-06-29
 
 ### Why SOC codes instead of fuzzy raw title matching
 
