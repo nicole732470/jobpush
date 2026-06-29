@@ -520,6 +520,29 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
   remaining P1 Eightfold failures; the last root URL case is normalized to
   `/careers`.
 
+2026-06-29 P1 generic template-clustering pass:
+
+- Re-ran `db/run_generic_blocker_template_audit.sh` after the adapter fixes.
+  P1 generic blockers are now almost entirely non-ATS landing pages:
+  `corporate_careers_page` 2,197 companies / 81.43% and
+  `generic_or_corporate_page` 498 / 18.46%.
+- Only seven hidden-ATS-looking rows appeared. Four were real Greenhouse
+  boards and were verified locally with `scripts/crawl_greenhouse.py`, then
+  promoted by `db/run_promote_p1_hidden_greenhouse_sites.sh`.
+- The four promoted Greenhouse boards all crawled successfully:
+  Convera 58 jobs, IMC 134, ISAM 11, and TripleDot/Lion Studios 62.
+- The remaining hidden-ATS candidates are intentionally **not** auto-promoted:
+  an Oracle CandidateExperience root page, a SmartRecruiters root page, and
+  the Ashby vendor careers page. These are not employer-specific feeds.
+- Current failed enabled P1 sites are small enough to handle separately:
+  generic HTML timeout 3, Rippling timeout 1, Workday 403 1.
+
+Decision: do not spend more effort on broad direct guessing for this P1
+generic pool right now. The cheap ATS misses are mostly exhausted. Next useful
+work is either (a) page-template clustering for recurring official corporate
+career pages, or (b) focused manual/automated review of the highest-score
+companies whose generic page may link to a hidden ATS behind JavaScript.
+
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the
 first site and leave the selected due site untouched.

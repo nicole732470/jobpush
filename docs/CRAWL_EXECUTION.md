@@ -105,11 +105,26 @@ company-specific parsers:
 ```bash
 bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links_1000.sh
 bash db/deploy_via_ssm.sh db/run_promote_generic_jsonld_sites_1000.sh
+bash db/deploy_via_ssm.sh db/run_generic_blocker_template_audit.sh
+bash db/deploy_via_ssm.sh db/run_p1_generic_hidden_ats_detail.sh
 ```
 
 The resolver checks both anchor tags and embedded HTML/JS URLs. The JSON-LD
 probe promotes only pages that expose standard `JobPosting` data. Both use zero
 Tavily credits.
+
+When hidden ATS details find employer-specific Greenhouse boards, validate a
+small sample with `scripts/crawl_greenhouse.py` first, then use:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_promote_p1_hidden_greenhouse_sites.sh
+bash db/deploy_via_ssm.sh db/run_due_crawl_greenhouse_10.sh
+bash db/deploy_via_ssm.sh db/run_p1_hidden_greenhouse_promotion_status.sh
+```
+
+Do not promote ATS vendor root pages such as `jobs.smartrecruiters.com/`,
+generic Oracle CandidateExperience roots, or `ashbyhq.com/careers`; those are
+not employer-specific job feeds.
 
 Migration 117 is a 25-site P1 pilot for the generic HTML fallback; migration
 118 adds that source type to the shared schedule queue. Keep this small until
