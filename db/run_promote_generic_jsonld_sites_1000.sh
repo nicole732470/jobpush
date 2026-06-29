@@ -6,6 +6,10 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${GENERIC_JSONLD_LIMIT:-1000}"
+TIERS="${GENERIC_JSONLD_TIERS:-P0,P1}"
+TIER_ARRAY="ARRAY[$(
+  printf "%s" "$TIERS" | tr ',' '\n' | awk 'NF {gsub(/'\''/, ""); printf "%s'\''%s'\''", sep, $1; sep=","}'
+)]"
 WORK_DIR="$(mktemp -d -t jobpush-generic-jsonld.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 TARGETS="$WORK_DIR/targets.csv"
@@ -20,7 +24,7 @@ RESULTS="$WORK_DIR/results.csv"
   FROM jobpush.career_sites site
   JOIN jobpush.crawl_targets target USING (consolidation_key)
   WHERE target.enabled
-    AND target.priority_tier IN ('P0','P1')
+    AND target.priority_tier = ANY($TIER_ARRAY)
     AND site.source_type = 'generic_html'
     AND site.verification_status = 'unverified'
     AND site.crawl_enabled = FALSE
