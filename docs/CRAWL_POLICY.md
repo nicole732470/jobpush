@@ -84,8 +84,9 @@ more companies only after a representative site passes a second idempotent run.
 - Lever, Ashby, and SmartRecruiters now have public-API adapters. Rank-1 P0/P1
   candidates can enter a controlled auto-trust rollout when no verified site
   already exists; crawl health and entity mismatch remain rollback gates.
-- Workable, Jobvite, Paylocity, and Rippling have low-cost static/API-style
-  parsers and can be promoted in small structured batches.
+- Workable, Jobvite, Paylocity, Rippling, and selected Eightfold boards have
+  low-cost static/API-style parsers and can be promoted in small structured
+  batches.
 - Generic HTML remains outside automatic promotion.
 - iCIMS remains conservative: if a United States location option exists, the
   adapter uses it; otherwise it crawls the public search page and classifies
