@@ -88,6 +88,38 @@ st.markdown(
 
 
 @st.cache_data(ttl=60)
+def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH chicago_day AS (
+            SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        )
+        SELECT
+            count(*) AS open_target_jobs,
+            count(DISTINCT consolidation_key) AS companies,
+            count(*) FILTER (WHERE first_seen_at >= chicago_day.start_at) AS new_target_jobs_today,
+            count(*) FILTER (
+                WHERE COALESCE(location, '') ILIKE '%%chicago%%'
+                   OR COALESCE(location, '') ILIKE '%%illinois%%'
+                   OR COALESCE(location, '') ~* '(^|[,/ -])IL($|[,/ -])'
+            ) AS chicago_or_il_jobs,
+            count(*) FILTER (
+                WHERE normalized_title LIKE '%%intern%%'
+                   OR normalized_title LIKE '%%internship%%'
+                   OR normalized_title LIKE '%%co op%%'
+                   OR normalized_title LIKE '%%co-op%%'
+            ) AS internship_jobs
+        FROM jobpush.dashboard_jobs
+        CROSS JOIN chicago_day
+        WHERE priority_tier = ANY(%s)
+          AND role_status = 'target'
+          AND application_status IN ('new', 'saved', 'apply_next')
+        """,
+        (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
 def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -949,6 +981,7 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
 
 def clear_dashboard_caches() -> None:
     for cached_fn in [
+        apply_job_summary,
         daily_activity,
         crawl_funnel,
         coverage_by_tier,
@@ -1098,7 +1131,8 @@ def trigger_inline_due_crawl(limit: int = 1) -> tuple[bool, str]:
 
 @st.cache_data(ttl=60)
 def jobs(
-    days: int,
+    start_date,
+    end_date,
     company: str,
     title: str,
     location: str,
@@ -1266,7 +1300,8 @@ def jobs(
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
-        WHERE job.first_seen_at >= now() - make_interval(days => %s)
+        WHERE job.first_seen_at >= (%s::date AT TIME ZONE 'America/Chicago')
+          AND job.first_seen_at < ((%s::date + 1) AT TIME ZONE 'America/Chicago')
           AND (%s = '' OR job.canonical_name ILIKE '%%' || %s || '%%')
           AND (%s = '' OR job.title ILIKE '%%' || %s || '%%' OR job.canonical_role ILIKE '%%' || %s || '%%')
           AND (%s = '' OR job.location ILIKE '%%' || %s || '%%')
@@ -1277,7 +1312,8 @@ def jobs(
         LIMIT %s
         """,
         (
-            days,
+            start_date,
+            end_date,
             company,
             company,
             title,
@@ -1682,7 +1718,6 @@ else:
 if start_date > end_date:
     st.sidebar.error("Start date must be before end date.")
     st.stop()
-days = max(1, min(90, (chicago_today - start_date).days + 1))
 tiers = {
     "P0 + P1": ("P0", "P1"),
     "P0 only": ("P0",),
@@ -1708,49 +1743,6 @@ if not tiers or not role_statuses or not app_statuses:
     st.stop()
 
 selected_tier_label = priority_choice.replace(" only", "").replace("All P tiers", "P0+P1+P2+P3")
-activity = daily_activity(tiers)
-completion = crawl_completion_summary(tiers)
-today_row = activity[activity["activity_date"] == chicago_today]
-today = today_row.iloc[0] if not today_row.empty else pd.Series(dtype="int64")
-
-metric_columns = st.columns(6)
-metrics = [
-    ("new_jobs", f"New jobs today · {selected_tier_label}", int(today.get("new_jobs", 0))),
-    ("new_target_jobs", "Target jobs today", int(today.get("new_target_jobs", 0))),
-    ("new_review_jobs", "New jobs pending classification", int(today.get("new_review_jobs", 0))),
-    ("closed_jobs", "Closed jobs today", int(today.get("closed_jobs", 0))),
-    ("crawl_runs", "Site crawl attempts", int(today.get("crawl_runs", 0))),
-    ("failed_runs", "Failed site attempts", int(today.get("failed_runs", 0))),
-]
-for column, (metric_key, label, value) in zip(metric_columns, metrics):
-    column.metric(label, f"{value:,}")
-st.caption(
-    f"Current tier filter: {selected_tier_label}. New jobs are first-seen active US postings; "
-    "closed jobs are postings that disappeared from a later same-scope snapshot."
-)
-if not completion.empty:
-    selected_completion = completion[completion["priority_tier"].isin(tiers)]
-    selected_companies = int(selected_completion["companies"].sum())
-    selected_enabled = int(selected_completion["companies_with_enabled_site"].sum())
-    selected_succeeded = int(selected_completion["companies_succeeded_ever"].sum())
-    selected_due = int(selected_completion["due_sites"].sum())
-    selected_attempted_today = int(selected_completion["companies_attempted_today"].sum())
-    latest_started = selected_completion["latest_started_at"].dropna().max()
-    completion_columns = st.columns(5)
-    completion_columns[0].metric(f"{selected_tier_label} companies", f"{selected_companies:,}")
-    completion_columns[1].metric("Can crawl now", f"{selected_enabled:,}", f"{(100 * selected_enabled / selected_companies):.1f}%" if selected_companies else None)
-    completion_columns[2].metric("Ever succeeded", f"{selected_succeeded:,}", f"{(100 * selected_succeeded / selected_companies):.1f}%" if selected_companies else None)
-    completion_columns[3].metric("Due / unfinished now", f"{selected_due:,}")
-    completion_columns[4].metric("Attempted today", f"{selected_attempted_today:,}")
-    if pd.notna(latest_started):
-        st.caption(f"Latest {selected_tier_label} crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
-
-def load_current_jobs() -> pd.DataFrame:
-    frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
-    if not frame.empty:
-        first_seen_dates = pd.to_datetime(frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
-        frame = frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
-    return frame
 
 PAGE_LABELS = [
     "Home",
@@ -1758,8 +1750,7 @@ PAGE_LABELS = [
     "Crawl monitor",
     "Title review",
     "Site review",
-    "Company lookup",
-    "Company priority",
+    "Companies",
     "Scoring rules",
     "Application status",
     "System logs",
@@ -1772,49 +1763,24 @@ selected_page = st.radio(
     key="dashboard_page",
 )
 
+def load_current_jobs() -> pd.DataFrame:
+    return jobs(start_date, end_date, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
+
 if selected_page == "Home":
-    left, right = st.columns([1.35, 1])
-    with left:
-        st.subheader("30-day job discovery")
-        chart = activity.sort_values("activity_date").set_index("activity_date")
-        st.line_chart(chart[["new_target_jobs", "new_review_jobs", "closed_jobs"]], height=330)
-    with right:
-        st.subheader("What needs attention")
-        alerts = query(
-            """
-            SELECT priority_tier, canonical_name, source_type, alert_type,
-                   consecutive_failures, last_crawled_at
-            FROM jobpush.crawl_site_alerts
-            ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
-                     canonical_name
-            LIMIT 30
-            """
-        )
-        if alerts.empty:
-            st.success("No active crawler alerts.")
-        else:
-            st.dataframe(alerts, hide_index=True, use_container_width=True, height=330)
-    st.subheader("Today’s crawl progress by tier")
-    progress_today = today_crawl_progress(tiers)
-    if progress_today.empty:
-        st.info("No crawl attempts have been recorded today yet.")
-    else:
-        st.dataframe(progress_today, hide_index=True, use_container_width=True)
-    home_left, home_right = st.columns([1, 1])
-    with home_left:
-        st.subheader("Top-rank crawl coverage")
-        rank_coverage = crawl_rank_coverage()
-        st.dataframe(rank_coverage, hide_index=True, use_container_width=True, height=180)
-    with home_right:
-        st.subheader("Site review coverage")
-        site_summary = review_workbench_summary(tiers)
-        st.dataframe(site_summary, hide_index=True, use_container_width=True, height=180)
-    st.subheader("Latest crawl runs")
-    latest_runs = recent_crawl_runs(tiers, limit=20)
-    if latest_runs.empty:
-        st.info("No crawl runs found for the current tier filter.")
-    else:
-        st.dataframe(latest_runs, hide_index=True, use_container_width=True, height=330)
+    summary = apply_job_summary(tiers)
+    summary_row = summary.iloc[0] if not summary.empty else pd.Series(dtype="int64")
+    metric_columns = st.columns(5)
+    metric_columns[0].metric(f"Open target jobs · {selected_tier_label}", f"{int(summary_row.get('open_target_jobs', 0)):,}")
+    metric_columns[1].metric("New target jobs today", f"{int(summary_row.get('new_target_jobs_today', 0)):,}")
+    metric_columns[2].metric("Companies", f"{int(summary_row.get('companies', 0)):,}")
+    metric_columns[3].metric("Chicago / IL", f"{int(summary_row.get('chicago_or_il_jobs', 0)):,}")
+    metric_columns[4].metric("Internships", f"{int(summary_row.get('internship_jobs', 0)):,}")
+    st.caption("Home only counts active US jobs classified as target and still open for application. Crawl health moved to Crawl monitor.")
+
+    activity = daily_activity(tiers)
+    st.subheader("30-day target job discovery")
+    chart = activity.sort_values("activity_date").set_index("activity_date")
+    st.line_chart(chart[["new_target_jobs", "closed_jobs"]], height=330)
 
 if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 / P3 company crawl rollout")
@@ -2459,7 +2425,7 @@ if selected_page == "Site review":
     else:
         st.info("Select at least one tier for site review export.")
 
-if selected_page == "Company lookup":
+if selected_page == "Companies":
     st.subheader("Company lookup")
     lookup = st.text_input("Open one company", value=company.strip(), placeholder="e.g. Pfizer, Google, StackAdapt")
     if lookup.strip():
@@ -2495,7 +2461,7 @@ if selected_page == "Company lookup":
             )
             st.dataframe(lca_role_frame, hide_index=True, use_container_width=True, height=460)
 
-if selected_page == "Company priority":
+if selected_page == "Companies":
     st.subheader("Company priority tables")
     st.caption("Company-level scoring table with tier rank. Default includes P0/P1/P2/P3; use tiers to narrow.")
     target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2", "P3"], default=["P0", "P1", "P2", "P3"], key="company-target-tiers"))
