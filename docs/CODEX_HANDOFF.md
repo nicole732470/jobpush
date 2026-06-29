@@ -109,15 +109,17 @@ priority_score =
 |---|---|
 | **P1** | `priority_score > 3`（3.25、4.0、5.25 等） |
 | **P2** | `priority_score IN (3.0, 2.5)` |
+| **P3** | `priority_score > 0` 且低于 P2；用于覆盖率/审核，默认不进日常 schedule |
 | **P0** | **仅手动**；写入 `crawl_priority_overrides`，refresh 不会覆盖 |
-| `NULL` | 其余（0、1、2、2.25 等） |
+| `NULL` | 0 分或 exclusion |
 
-生产占比（全表 68,957；2026-06-29 refresh 后）：
+生产占比（全表 68,957；migration 110 / 2026-06-29 refresh 后）：
 
 - **P0**：11（手动 override）
 - **P1**：4,630（6.71%）
-- **P2**：14,419（20.91%）
-- 未分档：49,897（72.36%）
+- **P2**：14,418（20.91%）
+- **P3**：21,981（31.88%）
+- 未分档：27,917（40.49%）
 
 `Chief Executives` (`11101100`) 已从目标 SOC 中剔除；若仍出现在队列，
 只能来自 `manual_override`，不是 `target_role_score`。

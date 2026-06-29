@@ -161,7 +161,7 @@ def coverage_by_tier() -> pd.DataFrame:
         WITH target_counts AS (
             SELECT priority_tier, COUNT(*) AS companies
             FROM jobpush.crawl_targets
-            WHERE enabled AND priority_tier IN ('P0','P1','P2')
+            WHERE enabled AND priority_tier IN ('P0','P1','P2','P3')
             GROUP BY priority_tier
         ), candidate_counts AS (
             SELECT target.priority_tier,
@@ -176,7 +176,7 @@ def coverage_by_tier() -> pd.DataFrame:
                    COUNT(*) FILTER (WHERE site.verification_status='verified' AND site.crawl_enabled) AS verified_enabled_sites
             FROM jobpush.career_sites site
             JOIN jobpush.crawl_targets target USING (consolidation_key)
-            WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+            WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2','P3')
             GROUP BY target.priority_tier
         ), schedule_counts AS (
             SELECT priority_tier,
@@ -200,7 +200,7 @@ def coverage_by_tier() -> pd.DataFrame:
         FROM target_counts
         LEFT JOIN candidate_counts USING (priority_tier)
         LEFT JOIN schedule_counts USING (priority_tier)
-        ORDER BY CASE target_counts.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        ORDER BY CASE target_counts.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END
         """
     )
 
@@ -254,12 +254,12 @@ def crawl_rank_coverage() -> pd.DataFrame:
         WITH ranked AS (
             SELECT target.*,
                    ROW_NUMBER() OVER (
-                       ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+                       ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END,
                                 priority_score DESC NULLS LAST,
                                 canonical_name
                    ) AS overall_rank
             FROM jobpush.crawl_targets target
-            WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+            WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2','P3')
         ), site_rollup AS (
             SELECT consolidation_key,
                    BOOL_OR(verification_status = 'verified') AS has_verified_site,
@@ -335,9 +335,9 @@ def crawl_rollout_by_tier() -> pd.DataFrame:
         FROM jobpush.crawl_targets target
         LEFT JOIN site_rollup site USING (consolidation_key)
         LEFT JOIN due USING (consolidation_key)
-        WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+        WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2','P3')
         GROUP BY target.priority_tier
-        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END
         """
     )
 
@@ -680,7 +680,7 @@ def current_failure_reasons() -> pd.DataFrame:
             WHERE site.verification_status = 'verified'
               AND site.crawl_enabled
               AND site.crawl_status = 'failed'
-              AND target.priority_tier IN ('P0','P1','P2')
+              AND target.priority_tier IN ('P0','P1','P2','P3')
         )
         SELECT failure_reason,
                priority_tier,
@@ -1661,7 +1661,7 @@ with st.sidebar.form("global_view_form"):
         min_value=chicago_today - timedelta(days=90),
         max_value=chicago_today,
     )
-    priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "All P tiers"])
+    priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "P3 only", "All P tiers"])
     st.form_submit_button("Apply global view", use_container_width=True)
 company = ""
 title = ""
@@ -1683,7 +1683,8 @@ tiers = {
     "P0 only": ("P0",),
     "P1 only": ("P1",),
     "P2 only": ("P2",),
-    "All P tiers": ("P0", "P1", "P2"),
+    "P3 only": ("P3",),
+    "All P tiers": ("P0", "P1", "P2", "P3"),
 }[priority_choice]
 role_statuses = {
     "target only": ("target",),
@@ -1701,7 +1702,7 @@ if not tiers or not role_statuses or not app_statuses:
     st.warning("Select at least one priority tier, role decision, and application status.")
     st.stop()
 
-selected_tier_label = priority_choice.replace(" only", "").replace("All P tiers", "P0+P1+P2")
+selected_tier_label = priority_choice.replace(" only", "").replace("All P tiers", "P0+P1+P2+P3")
 activity = daily_activity(tiers)
 completion = crawl_completion_summary(tiers)
 today_row = activity[activity["activity_date"] == chicago_today]
@@ -1808,7 +1809,7 @@ if selected_page == "Home":
         st.dataframe(latest_runs, hide_index=True, use_container_width=True, height=330)
 
 if selected_page == "Crawl monitor":
-    st.subheader("P0 / P1 / P2 company crawl rollout")
+    st.subheader("P0 / P1 / P2 / P3 company crawl rollout")
     st.caption(
         "这个 tab 回答三个问题：总共有多少公司、今天/目前跑了多少、没跑成功主要卡在哪里。"
     )
@@ -1852,7 +1853,7 @@ SELECT target.priority_tier,
        COUNT(*) FILTER (WHERE site_rollup.has_failed) AS failed_companies
 FROM jobpush.crawl_targets target
 LEFT JOIN site_rollup USING (consolidation_key)
-WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2')
+WHERE target.enabled AND target.priority_tier IN ('P0','P1','P2','P3')
 GROUP BY target.priority_tier
 ORDER BY target.priority_tier;
             """.strip(),
@@ -2239,7 +2240,7 @@ if selected_page == "Site review":
     )
     site_col1, site_col2, site_col3 = st.columns([1, 1, 1])
     site_limit = site_col1.select_slider("Site review batch size", options=[100, 250, 500, 1000], value=500)
-    site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2"], default=["P0", "P1"]))
+    site_tiers = tuple(site_col2.multiselect("Site review tiers", ["P0", "P1", "P2", "P3"], default=["P0", "P1"]))
     site_statuses = tuple(site_col3.multiselect(
         "Site statuses",
         ["REVIEW_CANDIDATES", "VERIFIED"],
@@ -2309,7 +2310,7 @@ if selected_page == "Site review":
                 st.markdown("##### Priority override")
                 new_tier = st.selectbox(
                     "Change this company to",
-                    ["Keep current", "P0", "P1", "P2", "Use computed / remove override"],
+                    ["Keep current", "P0", "P1", "P2", "P3", "Use computed / remove override"],
                     key=f"site-priority-tier-{selected_row['consolidation_key']}",
                 )
                 priority_reason = st.text_input(
@@ -2483,8 +2484,8 @@ if selected_page == "Company lookup":
 
 if selected_page == "Company priority":
     st.subheader("Company priority tables")
-    st.caption("Company-level scoring table with tier rank. Default includes P0/P1/P2; use tiers to narrow.")
-    target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2"], default=["P0", "P1", "P2"], key="company-target-tiers"))
+    st.caption("Company-level scoring table with tier rank. Default includes P0/P1/P2/P3; use tiers to narrow.")
+    target_tiers = tuple(st.multiselect("Company tiers", ["P0", "P1", "P2", "P3"], default=["P0", "P1", "P2", "P3"], key="company-target-tiers"))
     if not target_tiers:
         st.info("Select at least one P tier.")
     else:
@@ -2513,7 +2514,8 @@ if selected_page == "Scoring rules":
 | P0 | 人工 override | Nicole 明确指定最高优先级公司 |
 | P1 | `priority_score > 3` | 自动高优先级，优先找官网和爬取 |
 | P2 | `priority_score = 3.0` 或 `2.5` | 自动中优先级，排在 P1 后 |
-| NULL | 其他分数 | 暂不进入自动 crawl 队列 |
+| P3 | `priority_score > 0` 且未达到 P2/P1 | 有信号但低优先级；展示和审核，默认不进日常 crawl schedule |
+| NULL | `priority_score = 0` 或 high-executive-only exclusion | 暂不进入优先级池 |
 
 ### `priority_score`
 
@@ -2548,7 +2550,7 @@ priority_score =
         FROM jobpush.company_targets_consolidated
         GROUP BY 1, 2
         ORDER BY CASE COALESCE(crawl_priority_tier, 'NULL')
-                   WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END,
+                   WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  priority_score DESC
         """
     )
@@ -2725,16 +2727,17 @@ if selected_page == "Coverage":
     st.subheader("Company → scheduled crawl funnel")
     funnel_columns = st.columns(4)
     funnel_columns[0].metric("All companies", f"{int(funnel.all_companies):,}")
-    funnel_columns[1].metric("P0 / P1 / P2", f"{int(funnel.p0_companies + funnel.p1_companies + funnel.p2_companies):,}")
+    p_tier_total = int(funnel.p0_companies + funnel.p1_companies + funnel.p2_companies + funnel.p3_companies)
+    funnel_columns[1].metric("P0 / P1 / P2 / P3", f"{p_tier_total:,}")
     funnel_columns[2].metric("Verified sites", f"{int(funnel.companies_with_verified_site):,}")
     funnel_columns[3].metric("Schedulable sites", f"{int(funnel.schedulable_sites):,}")
     coverage = pd.DataFrame(
         {
-            "stage": ["All companies", "Target SOC", "P-tier", "Has candidates", "Verified", "US-ready", "Schedulable", "Due now"],
+            "stage": ["All companies", "Target SOC", "P-tier (P0-P3)", "Has candidates", "Verified", "US-ready", "Schedulable", "Due now"],
             "companies_or_sites": [
                 funnel.all_companies,
                 funnel.target_soc_companies,
-                funnel.p0_companies + funnel.p1_companies + funnel.p2_companies,
+                p_tier_total,
                 funnel.companies_with_candidates,
                 funnel.companies_with_verified_site,
                 funnel.us_ready_sites,
@@ -2745,17 +2748,20 @@ if selected_page == "Coverage":
     )
     st.dataframe(coverage, hide_index=True, use_container_width=True)
     st.caption("A verified site remains excluded until its adapter and safe US scope are known.")
+    st.markdown("**Tier thresholds:** P1 `> 3`; P2 `= 3.0 or 2.5`; P3 `> 0 and below P2`; NULL `= 0`.")
     st.subheader("Coverage by priority tier")
     st.dataframe(coverage_by_tier(), hide_index=True, use_container_width=True)
     st.subheader("All priority score bands")
     score_bands = query(
         """
-        SELECT priority_tier, priority_score, count(*) AS companies,
-               round(100.0 * count(*) / sum(count(*)) OVER (PARTITION BY priority_tier), 2) AS pct_within_tier
-        FROM jobpush.crawl_targets
-        WHERE enabled AND priority_tier IN ('P0','P1','P2')
-        GROUP BY priority_tier, priority_score
-        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+        SELECT COALESCE(crawl_priority_tier, 'NULL') AS priority_tier,
+               priority_score,
+               count(*) AS companies,
+               round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS pct_of_all_companies,
+               round(100.0 * count(*) / sum(count(*)) OVER (PARTITION BY COALESCE(crawl_priority_tier, 'NULL')), 2) AS pct_within_tier
+        FROM jobpush.company_targets_consolidated
+        GROUP BY 1, 2
+        ORDER BY CASE COALESCE(crawl_priority_tier, 'NULL') WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  priority_score DESC
         """
     )

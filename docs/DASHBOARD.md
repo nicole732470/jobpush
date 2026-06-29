@@ -57,13 +57,13 @@ Codex token.
   `crawl_status = 'pending'`. If `JOBPUSH_ENABLE_INLINE_CRAWL=1` is set on the
   dashboard host, the app also attempts a one-site due-crawl immediately;
   otherwise the scheduler/GitHub Action picks it up from `crawl_schedule_queue`;
-- **Scoring rules** page showing P0/P1/P2 definitions, score components, and
+- **Scoring rules** page showing P0/P1/P2/P3 definitions, score components, and
   the relationship between LCA/SOC target labels and `target_role_score`; SOC
   and raw-title review tables support multi-row selection and CSV export;
 - personal saved/apply-next/applied/dismissed workflow;
 - adapter health, recent run logs, failed run details, and active alerts;
-- full company-to-schedulable-site coverage funnel, P0/P1/P2 coverage by tier,
-  P0/P1/P2 company-level scoring tables, and all priority-score distributions;
+- full company-to-schedulable-site coverage funnel, P0/P1/P2/P3 coverage by tier,
+  P0/P1/P2/P3 company-level scoring tables, and all priority-score distributions;
 - separate human-verified and system-auto-trusted site coverage.
 
 The dashboard covers all monitored companies. `first_seen_at` and daily
