@@ -1666,7 +1666,7 @@ with st.sidebar.form("global_view_form"):
         max_value=chicago_today,
     )
     priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "P3 only", "All P tiers"])
-    row_limit = st.selectbox("Rows to load", [5000, 20000, 50000, 100000], index=2)
+    row_limit = st.selectbox("Rows to load", [5000, 20000, 50000, 100000], index=0)
     st.form_submit_button("Apply global view", use_container_width=True)
 company = ""
 title = ""
@@ -1745,10 +1745,13 @@ if not completion.empty:
     if pd.notna(latest_started):
         st.caption(f"Latest {selected_tier_label} crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
 
-job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
-if not job_frame.empty:
-    first_seen_dates = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
-    job_frame = job_frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
+def load_current_jobs() -> pd.DataFrame:
+    frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
+    if not frame.empty:
+        first_seen_dates = pd.to_datetime(frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
+        frame = frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
+    return frame
+
 PAGE_LABELS = [
     "Home",
     "Jobs to apply",
@@ -1918,6 +1921,7 @@ ORDER BY target.priority_tier;
             st.dataframe(classifier_status, hide_index=True, use_container_width=True, height=260)
 
 if selected_page == "Jobs to apply":
+    job_frame = load_current_jobs()
     st.subheader(f"{len(job_frame):,} active US jobs in this view")
     st.caption(
         "核心用途：看选定日期范围内新发现/仍 active 的岗位，然后点 apply link。默认只显示 target；"
@@ -2661,6 +2665,7 @@ priority_score =
         st.info("Select at least one SOC status for raw job search.")
 
 if selected_page == "Application status":
+    job_frame = load_current_jobs()
     actionable = job_frame[job_frame["role_status"] == "target"].copy()
     st.subheader("Target roles to review and apply")
     with st.expander("What do new / saved / apply_next / applied / dismissed mean?"):
