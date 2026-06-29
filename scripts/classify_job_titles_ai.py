@@ -47,7 +47,7 @@ Avoid / non-target:
 - Accounting, tax, audit, payroll, bookkeeping.
 - Warehouse, retail, in-store, cashier, merchandiser, Xfinity/store/front-line sales, call center/customer service rep.
 - Manufacturing/factory/plant/operator/assembler/technician/production floor roles.
-- Non-English/non-US obvious titles, especially Chinese/Japanese/Korean job titles.
+- Required non-English/non-Chinese language roles and obvious non-US titles. Chinese/Mandarin requirements are allowed.
 
 Seniority nuance:
 - Senior/Sr is always a hard avoid signal for the current search.

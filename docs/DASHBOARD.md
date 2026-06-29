@@ -29,6 +29,8 @@ Codex token.
   and failures;
 - **Jobs to apply**: selected-tier active US `target` job list with direct
   links, sorted newest first and controlled by the selected date range;
+- the global row limit is selectable (default 50,000) so the page is not capped
+  at the old 5,000-row preview during larger crawls;
 - selected-period role summaries by track, role family, internship/full-time,
   location, seniority, company, and direct apply-link filters/downloads;
 - SQL expanders on the job and crawl-rollout pages so Nicole can see the core
@@ -36,8 +38,9 @@ Codex token.
 - CSV download for the current filtered job view, segmented job view, track
   summary, and one-company job list;
 - downloadable 100/250/500/1,000/2,000-title classifier-improvement batches;
-- a small global sidebar for date range and P-tier only. Company/title/location
-  filtering lives inside the pages that need it, especially **Jobs to apply**;
+- a small global sidebar for date range, P-tier, and row limit only.
+  Company/title/location filtering lives inside the pages that need it,
+  especially **Jobs to apply**;
 - one-company lookup for networking/application planning, including active
   official-site jobs, LCA sponsorship role aggregates, CSV download, and a
   LinkedIn company-search shortcut;

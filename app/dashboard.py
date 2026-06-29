@@ -1105,6 +1105,7 @@ def jobs(
     tiers: tuple[str, ...],
     role_statuses: tuple[str, ...],
     app_statuses: tuple[str, ...],
+    row_limit: int,
 ) -> pd.DataFrame:
     return query(
         """
@@ -1150,6 +1151,7 @@ def jobs(
                        normalized_title LIKE '%%sales%%'
                        OR normalized_title LIKE '%%marketing%%'
                        OR normalized_title LIKE '%%business%%development%%'
+                       OR canonical_role = 'candidate_profile_track: marketing automation'
                    ) THEN 'stack_3_gtm'
                    WHEN role_status = 'target' THEN 'stack_3_target_roles'
                    WHEN role_status = 'review' THEN 'needs_review'
@@ -1163,6 +1165,7 @@ def jobs(
                    WHEN canonical_role = 'candidate_profile_track: solutions/systems' THEN 'systems_engineering'
                    WHEN canonical_role = 'candidate_profile_track: applied_ai' THEN 'applied_ai'
                    WHEN canonical_role = 'candidate_profile_track: customer_success' THEN 'customer_success'
+                   WHEN canonical_role = 'candidate_profile_track: marketing automation' THEN 'marketing'
                    WHEN canonical_role = 'candidate_profile_track: software/data'
                         AND (normalized_title LIKE '%%data%%engineer%%'
                              OR normalized_title LIKE '%%analytics%%engineer%%'
@@ -1271,7 +1274,7 @@ def jobs(
           AND job.role_status = ANY(%s)
           AND job.application_status = ANY(%s)
         ORDER BY job.first_seen_at DESC, job.canonical_name, job.title
-        LIMIT 5000
+        LIMIT %s
         """,
         (
             days,
@@ -1285,6 +1288,7 @@ def jobs(
             list(tiers),
             list(role_statuses),
             list(app_statuses),
+            int(row_limit),
         ),
     )
 
@@ -1662,6 +1666,7 @@ with st.sidebar.form("global_view_form"):
         max_value=chicago_today,
     )
     priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "P3 only", "All P tiers"])
+    row_limit = st.selectbox("Rows to load", [5000, 20000, 50000, 100000], index=2)
     st.form_submit_button("Apply global view", use_container_width=True)
 company = ""
 title = ""
@@ -1740,7 +1745,7 @@ if not completion.empty:
     if pd.notna(latest_started):
         st.caption(f"Latest {selected_tier_label} crawl started at {pd.to_datetime(latest_started, utc=True).tz_convert('America/Chicago'):%Y-%m-%d %I:%M %p CT}.")
 
-job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses)
+job_frame = jobs(days, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
 if not job_frame.empty:
     first_seen_dates = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
     job_frame = job_frame[(first_seen_dates >= start_date) & (first_seen_dates <= end_date)].copy()
@@ -1956,9 +1961,13 @@ if selected_page == "Jobs to apply":
         segment_metrics[5].metric("Data Eng.", f"{int((segmented['role_family'] == 'data_engineering').sum()):,}")
 
         filter_left, filter_mid, filter_right = st.columns(3)
-        track_choice = filter_left.selectbox(
+        track_choice = filter_left.multiselect(
             "Track",
-            ["All tracks"] + TRACK_OPTIONS,
+            TRACK_OPTIONS,
+            default=[
+                "Track 1 · Business / Product / Data",
+                "Track 2 · Software / Systems",
+            ],
         )
         role_family_choice = filter_mid.selectbox(
             "Role family",
@@ -1968,7 +1977,7 @@ if selected_page == "Jobs to apply":
             "Intern / full-time",
             ["All employment types"] + EMPLOYMENT_BUCKET_OPTIONS,
         )
-        selected_tracks = TRACK_OPTIONS if track_choice == "All tracks" else [track_choice]
+        selected_tracks = track_choice or TRACK_OPTIONS
         selected_role_families = ROLE_FAMILY_OPTIONS if role_family_choice == "All role families" else [role_family_choice]
         selected_employment = EMPLOYMENT_BUCKET_OPTIONS if employment_choice == "All employment types" else [employment_choice]
         filtered_jobs = segmented[
@@ -2080,7 +2089,7 @@ WHERE first_seen_at >= now() - make_interval(days => :days)
   AND role_status = ANY(:role_statuses)
   AND application_status = ANY(:app_statuses)
 ORDER BY first_seen_at DESC, canonical_name, title
-LIMIT 5000;
+LIMIT :row_limit;
                 """.strip(),
                 language="sql",
             )

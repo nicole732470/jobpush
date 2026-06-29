@@ -99,6 +99,11 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
   predictions. A weak-supervision v2 challenger using trusted hard-rule labels
   was tested but did not pass the manual holdout gate, so it is documented as a
   probe rather than a production classifier.
+- 2026-06-29 shared profile sync: Chinese/Mandarin requirements are explicitly
+  allowed. Required Spanish/Japanese/Korean/German/French/Portuguese title
+  signals are non-target. The same sync added AI/technical product, presales
+  engineering, GTM engineering, marketing automation, pure Java/C++/C#/Go SDE,
+  naval/aerospace, and `leader` rules from the JobLens YAML.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
@@ -129,8 +134,8 @@ all logic in one SQL function:
   mechanical/electrical, embedded/firmware/chip/CAD/EDA, ML-model roles,
   healthcare/clinical roles, legal roles, teaching/education roles,
   skilled-trade roles, any Senior/Sr title, and over-senior titles -> non-target;
-- CJK/Korean language signals are marked non-target and any active postings
-  with those title signals are excluded from the US business surface.
+- Japanese/Korean script or required non-English/non-Chinese language signals
+  are marked non-target. Chinese/Mandarin requirements are allowed.
 
 This deterministic classifier fixes repeated obvious cases. Semantic AI is now
 available as an audited batch layer through

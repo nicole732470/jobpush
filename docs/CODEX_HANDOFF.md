@@ -1,8 +1,8 @@
 # JobPush → Codex 交接说明
 
-最后更新：2026-06-28
+最后更新：2026-06-29
 仓库：`https://github.com/nicole732470/jobpush.git`，分支 **`main`**  
-生产 RDS 已部署 migration **001–108**；另外有 repeatable ops scripts for
+生产 RDS 已部署 migration **001–112**；另外有 repeatable ops scripts for
 Tavily quota reset / career-site auto-trust / ATS URL guessing / usage checks。
 
 Tavily discovery expansion must be credit-conservative: normal runs search only
@@ -123,6 +123,11 @@ priority_score =
 
 `Chief Executives` (`11101100`) 已从目标 SOC 中剔除；若仍出现在队列，
 只能来自 `manual_override`，不是 `target_role_score`。
+
+2026-06-29 profile YAML sync 已部署：中文/普通话要求允许；西语/日语/韩语/
+德语/法语/葡语等“必须/流利/双语”要求排除；新增 AI/technical product、
+presales、GTM engineering、marketing automation、pure Java/C++/C#/Go SDE、
+naval/aerospace、leader 等 title 规则。
 
 手动override：
 
