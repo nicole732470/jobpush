@@ -472,6 +472,7 @@ template and implement parsers only for the largest repeatable groups.
 | Amazon Jobs / Cognizant Jobs | Expanded in migration 115 | Company-specific adapters with explicit US server filters. Migration 116 disables duplicate same-company/same-adapter sites after one canonical site succeeds. |
 | SuccessFactors | Sample first | Do not build a broad adapter yet. First inspect 3–5 high-priority examples and confirm the company-specific API/HTML shape is stable; many retained candidates are generic root/login/CDN URLs. |
 | UKG / UltiPro | Sample first | Do not build a broad adapter yet. First inspect 3–5 `recruiting.ultipro.com` examples and confirm URL token + HTML/API stability. |
+| Phenom / TalentBrew / BrassRing | Identify only | Classify these out of `generic_html` for review/cluster visibility. Do not auto-enable until an adapter exists and a small sample proves stable. |
 | TriNet Hire | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 | Comeet | Backlog | Reclassified out of `generic_html`; adapter not yet implemented. |
 
@@ -571,6 +572,27 @@ generic pool right now. The cheap ATS misses are mostly exhausted. Next useful
 work is either (a) page-template clustering for recurring official corporate
 career pages, or (b) focused manual/automated review of the highest-score
 companies whose generic page may link to a hidden ATS behind JavaScript.
+
+2026-06-29 P1 expansion checkpoint:
+
+- Current Tavily key usage is `994/1000`, so the 211 genuinely unsearched P1
+  companies must not be run on that key. Use a fresh key or next-month reset;
+  otherwise cap the run at the remaining safe credits.
+- P1 top-1000 blockers are no longer primarily a Tavily problem: 619 are
+  successfully crawled, 308 are `generic_html` resolution, 13 have structured
+  candidates not enabled, and 38 were searched with no usable candidate.
+- SuccessFactors sample still lacks company-specific job-board identifiers:
+  sampled URLs are generic `career4/career8.successfactors.com/career` shell
+  pages, plus static JS noise. Keep these in review until discovery finds a
+  real company career search URL.
+- UKG / UltiPro sample still returned 404 for simple public `JobBoard` URLs.
+  Do not write a broad adapter until a stable API/page pattern is confirmed.
+- URL classification now recognizes Phenom, TalentBrew, and BrassRing so they
+  stop hiding as `generic_html`; this is discovery/review visibility only, not
+  crawl support.
+- The generic ATS link resolver ignores static assets such as `.js`, `.css`,
+  images, fonts, and maps so CDN/script links do not become false career-site
+  candidates.
 
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the

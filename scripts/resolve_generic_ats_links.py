@@ -41,7 +41,11 @@ SUPPORTED_ATS_LINKS = {
     "jobvite",
     "paylocity",
     "rippling",
+    "phenom",
+    "talentbrew",
+    "brassring",
 }
+STATIC_ASSET_RE = re.compile(r"\.(?:js|css|png|jpe?g|gif|svg|ico|woff2?|map)(?:[?#]|$)", re.I)
 
 
 class LinkParser(HTMLParser):
@@ -92,6 +96,8 @@ def fetch_html(url: str, timeout: int) -> tuple[str, int]:
 def score_candidate(company_name: str, source_url: str, href: str, anchor_text: str) -> dict | None:
     absolute_url = urljoin(source_url, href)
     if not absolute_url.startswith(("http://", "https://")):
+        return None
+    if STATIC_ASSET_RE.search(absolute_url):
         return None
     canonical_url, host, site_kind, source_type, source_key = classify_url(absolute_url)
     if not host or excluded(host) or source_type == "generic_html":

@@ -955,6 +955,12 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         source_type, source_key, site_kind = "icims", host, "ats_feed"
     elif host.endswith("successfactors.com"):
         source_type, source_key, site_kind = "successfactors", host, "ats_feed"
+    elif host.endswith("phenompeople.com") or host.endswith("phenom.com"):
+        source_type, source_key, site_kind = "phenom", host, "ats_feed"
+    elif host.endswith("talentbrew.com"):
+        source_type, source_key, site_kind = "talentbrew", host, "ats_feed"
+    elif host == "sjobs.brassring.com" or host.endswith(".brassring.com"):
+        source_type, source_key, site_kind = "brassring", host, "ats_feed"
     elif host.endswith("oraclecloud.com") and "CandidateExperience" in parsed.path and "/sites/" in parsed.path:
         site_index = path_parts.index("sites") if "sites" in path_parts else -1
         source_key = path_parts[site_index + 1] if site_index >= 0 and site_index + 1 < len(path_parts) else host
