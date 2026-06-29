@@ -12,13 +12,16 @@ from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
+from market_scope import classify_market_scope
+
 
 FIELDS = ["external_job_id", "title", "normalized_title", "location", "category",
           "job_url", "description_snippet", "market_scope", "posted_text", "employment_type"]
 
 
 def clean(value: object) -> str:
-    return re.sub(r"\s+", " ", "" if value is None else str(value)).strip()
+    value = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", " ", "" if value is None else str(value))
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def normalize(value: str) -> str:
@@ -65,15 +68,15 @@ def main() -> int:
     requests_count = 1
     locations = result_item(discovery).get("locationsFacet") or []
     us_location = next((item for item in locations if clean(item.get("Name")).casefold() == "united states"), None)
-    if not us_location:
-        raise RuntimeError("Oracle site did not expose a United States location facet")
+    selected_location_id = us_location["Id"] if us_location else None
 
     rows: dict[str, dict[str, str]] = {}
     offset = 0
     total = 1
     while offset < total:
-        finder = (f"findReqs;siteNumber={site_number},limit={args.page_size},offset={offset},"
-                  f"selectedLocationsFacet={us_location['Id']}")
+        finder = f"findReqs;siteNumber={site_number},limit={args.page_size},offset={offset}"
+        if selected_location_id:
+            finder += f",selectedLocationsFacet={selected_location_id}"
         payload, last_status = get_json(api, {
             "onlyData": "true",
             "expand": "requisitionList.secondaryLocations",
@@ -85,15 +88,16 @@ def main() -> int:
         postings = item.get("requisitionList") or []
         for job in postings:
             external_id = clean(job.get("Id"))
+            location = clean(job.get("PrimaryLocation"))
             rows[external_id] = {
                 "external_job_id": external_id,
                 "title": clean(job.get("Title")),
                 "normalized_title": normalize(clean(job.get("Title"))),
-                "location": clean(job.get("PrimaryLocation")),
+                "location": location,
                 "category": clean(job.get("JobFamily") or job.get("JobFunction")),
                 "job_url": f"{site_base_url}/job/{external_id}",
                 "description_snippet": clean(job.get("ShortDescriptionStr"))[:1000],
-                "market_scope": args.default_market,
+                "market_scope": args.default_market if selected_location_id else classify_market_scope(location, "unknown"),
                 "posted_text": clean(job.get("PostedDate")),
                 "employment_type": clean(job.get("WorkerType") or job.get("JobSchedule")),
             }

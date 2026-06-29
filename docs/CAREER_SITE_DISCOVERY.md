@@ -500,6 +500,14 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
   failed Workday sites in the first retry; remaining Workday failures are bad
   root URLs or forbidden boards and should be handled by better site discovery,
   not adapter guessing.
+- Oracle Cloud sites without a United States facet now fall back to per-posting
+  local market classification instead of failing the whole site. Oracle payload
+  text also strips control characters before CSV export because Postgres `COPY`
+  rejects NUL bytes. This cleared the remaining Oracle failed sites in the P1
+  retry.
+- Obvious bad failed URLs are rejected instead of retried: Eightfold privacy /
+  error collector pages, `jobs.workable.com/company`, Workday root URLs, and
+  Workday URLs polluted with serialized JSON suffixes.
 
 Scheduled crawls must pass `site_id` into the adapter runner; without this,
 companies with multiple same-platform candidates could repeatedly crawl the
