@@ -55,14 +55,20 @@ public ATS adapters use the same batch/run/posting loader:
 - `workday-cxs`: Grubhub is the representative Workday site.
 - `oracle-cloud-rest`: JPMorgan is the representative Oracle Recruiting Cloud
   site; the adapter discovers and applies the United States location facet.
+  It defaults to at most 300 parsed jobs per crawl to avoid noisy mega-boards.
 - `apple-jobs-api`: Apple uses its own public search API. It is already limited
-  to the United States, fetches search summaries only, and uses four workers
-  because Apple fixes the response size at 20 jobs per page.
+  to the United States, fetches search summaries only, defaults to 10 pages,
+  and uses four workers because Apple fixes the response size at 20 jobs per
+  page.
 - `lever-api`: Lever public postings API, with local US market classification.
 - `ashby-posting-api`: Ashby public job-board API, including compensation when
   the board exposes it.
 - `smartrecruiters-api`: SmartRecruiters public company-postings API with
   paginated normalization.
+- `eightfold-embedded`: Eightfold embedded/API postings parser. It preserves
+  URL query filters such as location and job function, then caps parsed jobs at
+  300 by default because retail boards can otherwise return tens of thousands
+  of postings.
 - `ats-url-guess`: zero-credit discovery helper, not a crawler adapter. It
   probes public Greenhouse, Lever, Ashby, and SmartRecruiters APIs with
   conservative company/domain slugs, stores candidates as

@@ -50,6 +50,7 @@ def main() -> int:
     ap.add_argument("--output", required=True, type=Path)
     ap.add_argument("--default-market", choices=("US", "non-US", "unknown"), default="US")
     ap.add_argument("--page-size", type=int, default=200)
+    ap.add_argument("--max-jobs", type=int, default=300)
     args = ap.parse_args()
 
     started = time.monotonic()
@@ -73,8 +74,9 @@ def main() -> int:
     rows: dict[str, dict[str, str]] = {}
     offset = 0
     total = 1
-    while offset < total:
-        finder = f"findReqs;siteNumber={site_number},limit={args.page_size},offset={offset}"
+    while offset < total and len(rows) < args.max_jobs:
+        limit = min(args.page_size, args.max_jobs - len(rows))
+        finder = f"findReqs;siteNumber={site_number},limit={limit},offset={offset}"
         if selected_location_id:
             finder += f",selectedLocationsFacet={selected_location_id}"
         payload, last_status = get_json(api, {

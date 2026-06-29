@@ -42,6 +42,12 @@ or model training.
 | Closed `target` postings | Keep for now; revisit after application workflow stabilizes. |
 | Huge boards such as Eightfold / Apple | Prefer source-side filters before storage. Do not crawl/store whole retail boards when URL/API filters can limit country/function/query. |
 
+Before storage, the shared adapter loader drops postings that are clearly
+outside the application pool: non-US rows and description snippets that
+explicitly say the employer will not sponsor visas. This keeps obvious noise
+out of `job_postings`; a richer sponsorship flag can be added later only for
+already-target/review jobs that justify full description fetching.
+
 This is intentionally conservative: it reduces obvious bloat without risking
 the application queue or crawl diff logic.
 
@@ -61,4 +67,3 @@ APPLY_RETENTION_DELETE=true bash db/deploy_via_ssm.sh db/run_prune_job_postings_
 
 The prune script prints candidate counts before deleting. Keep it manual until
 we see stable daily crawler behavior.
-

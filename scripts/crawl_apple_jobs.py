@@ -85,6 +85,7 @@ def main() -> int:
     ap.add_argument("--default-market", choices=("US",), default="US")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--timeout", type=int, default=30)
+    ap.add_argument("--max-pages", type=int, default=10)
     args = ap.parse_args()
 
     started = time.monotonic()
@@ -94,7 +95,7 @@ def main() -> int:
     _, first, last_status = fetch_page(endpoint, 1, args.timeout)
     total = int(first.get("totalRecords") or 0)
     page_size = len(first.get("searchResults") or []) or 20
-    total_pages = max(1, math.ceil(total / page_size))
+    total_pages = min(max(1, math.ceil(total / page_size)), args.max_pages)
     pages = {1: first}
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:

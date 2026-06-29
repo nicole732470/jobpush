@@ -80,6 +80,7 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--default-market", choices=("US", "unknown"), default="US")
     parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--max-jobs", type=int, default=300)
     args = parser.parse_args()
 
     started = time.monotonic()
@@ -99,7 +100,7 @@ def main() -> int:
         positions = []
         start = 0
         total = 1
-        while start < total:
+        while start < total and len(positions) < args.max_jobs:
             params = {
                 "domain": domain,
                 "query": filters.get("query") or filters.get("base_query", ""),
@@ -116,7 +117,7 @@ def main() -> int:
             data = payload.get("data") or {}
             current = data.get("positions") or []
             total = int(data.get("count") or 0)
-            positions.extend(current)
+            positions.extend(current[: max(0, args.max_jobs - len(positions))])
             if not current:
                 break
             start += len(current)

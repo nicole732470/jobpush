@@ -101,6 +101,12 @@ CREATE TEMP TABLE crawl_stage (
 ) ON COMMIT DROP;
 \copy crawl_stage FROM '$JOBS_CSV' WITH (FORMAT csv, HEADER true)
 
+-- ponytail: coarse pre-storage filter; add a real sponsorship flag only after
+-- target/review description fetching exists.
+DELETE FROM crawl_stage
+WHERE market_scope IS DISTINCT FROM 'US'
+   OR COALESCE(description_snippet, '') ~* '(no|not).{0,50}(visa|h-?1b|sponsor|sponsorship)|without.{0,60}sponsorship|authorized.{0,80}without.{0,40}sponsorship|will not.{0,50}sponsor';
+
 WITH counts AS (
   SELECT count(*) FILTER (WHERE p.external_job_id IS NULL) new_count,
          count(*) FILTER (WHERE p.external_job_id IS NOT NULL) updated_count
