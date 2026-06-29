@@ -137,15 +137,13 @@ They may fill only unresolved `review` titles; manual labels and hard profile
 rules remain authoritative. This path uses no paid API and never sends title or
 profile data outside the database host.
 
-2026-06-28 update: production remains the manual-label-only
-`local-title-ml-v1` baseline because it is the only local model that currently
-passes the 98% holdout precision gate for high-confidence `non_target`
-predictions. A weak-supervision challenger (`local-title-ml-v2`) was tested
-with manual labels plus capped trusted hard-rule labels, including cleaning,
-warehouse, seniority, and other avoid clusters. It did **not** pass the manual
-holdout gate, even with a minimum holdout count of one, so it is kept as a probe
-only and must not auto-apply labels until later manual review data improves its
-holdout precision. Do not lower the gate just to reduce review volume.
+2026-06-29 update: production uses `local-title-ml-v4`, a dependency-free
+manual-label model with stemmed features and a balanced prior. Dashboard title
+reviews written as `manual-v1` are part of the same training set as imported
+workbook labels. The latest retrain used 1,540 manual labels and safely applied
+410 additional high-confidence `non_target` labels. Target auto-labeling is
+still disabled because target holdout precision does not pass the 98% gate. Do
+not lower the gate just to reduce review volume.
 
 ## Current TODO
 
@@ -156,6 +154,7 @@ holdout precision. Do not lower the gate just to reduce review volume.
 | Codex | 2026-06-28 | Reduce high-volume title-review noise using existing labels and review-volume audit | Manual-only local ML safely applied 609 high-confidence non-target titles; migration 107 added retail/grocery/frontline/technician/non-US hard avoids and moved 5,024 more titles out of review |
 | Codex | 2026-06-28 | Optimize local title model variant without adding dependencies | Production local model moved from baseline/observed `local-title-ml-v1` to stemmed features with balanced prior `local-title-ml-v3`; holdout non-target precision gate remains 98%+ and target auto-labeling remains disabled |
 | Codex | 2026-06-28 | Optimize local model threshold selection | `local-title-ml-v4` now chooses the lowest threshold that still passes the 98% holdout precision gate, maximizing safe review reduction without enabling target auto-labeling |
+| Codex | 2026-06-29 | Re-run title model after Streamlit reviews | Completed: 1,540 manual labels trained; 410 review titles moved to non-target by `local-title-ml-v4`; 30 high-volume exact review-noise titles moved by migration 126 |
 | Codex | 2026-06-30 | Build the first holdout report from the 171 HIGH labels; propose rules without activating them | Pending |
 | Nicole | Ongoing | Review `career_site_review_workbench`, starting with P0 then potential-P0 signals | In progress |
 | Codex | 2026-06-30 | Report website precision by source type and candidate rank | Pending |

@@ -104,6 +104,15 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
   signals are non-target. The same sync added AI/technical product, presales
   engineering, GTM engineering, marketing automation, pure Java/C++/C#/Go SDE,
   naval/aerospace, and `leader` rules from the JobLens YAML.
+- 2026-06-29 dashboard manual reviews are included in training through
+  `manual-v1`. The latest local retrain used 1,540 manual labels
+  (`non_target` 1,225; `target` 315). `local-title-ml-v4` still passes the
+  98% precision gate only for high-confidence `non_target`, so target
+  auto-labeling remains disabled. It moved 410 more review titles to
+  non-target; migration 126 then moved 30 high-volume exact noise titles out
+  of review and added narrow future rules for trainer/admin staffing/retail
+  ops/procurement/territory-medical sales/clinical technologist/Prime Air
+  frontline/hospitality operation titles.
 - The private dashboard can export a fresh review batch without Codex.
 
 The export query is `db/analysis/export_job_title_review.sql`.
