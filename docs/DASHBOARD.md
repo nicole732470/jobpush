@@ -109,7 +109,8 @@ Application status is a personal workflow, not a classifier. The active queue
 states are `apply_next`, `referred`, `applied`, and `dismissed`; `new` means no
 decision yet and `saved` is legacy data kept for backwards compatibility. The
 old Jobs/Application Status split is now one Application queue: filter jobs,
-pick the current row, update one status, then move to the next.
+select a row in the table, update one status, then move to the next. Pulse also
+shows the current application-status mix for open target jobs.
 
 `role_stack` / `role_family` are dashboard-level convenience groupings derived
 from `job_title_labels.classification_status`, `canonical_role`, and title text.

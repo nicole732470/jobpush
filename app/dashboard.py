@@ -138,6 +138,35 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def application_status_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH counts AS (
+            SELECT application_status, count(*) AS jobs
+            FROM jobpush.dashboard_jobs
+            WHERE priority_tier = ANY(%s)
+              AND role_status = 'target'
+            GROUP BY application_status
+        )
+        SELECT application_status,
+               jobs,
+               ROUND(100.0 * jobs / NULLIF(SUM(jobs) OVER (), 0), 1) AS pct
+        FROM counts
+        ORDER BY CASE application_status
+            WHEN 'new' THEN 0
+            WHEN 'apply_next' THEN 1
+            WHEN 'referred' THEN 2
+            WHEN 'applied' THEN 3
+            WHEN 'dismissed' THEN 4
+            WHEN 'saved' THEN 5
+            ELSE 6
+        END
+        """,
+        (list(tiers),),
+    )
+
+
+@st.cache_data(ttl=60)
 def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -1836,6 +1865,22 @@ if selected_page == "Pulse":
     metric_columns[4].metric("Companies", f"{int(summary_row.get('companies', 0)):,}")
     st.caption("Home counts active US target jobs that are still open for application. “Newly discovered” means JobPush first saw the posting today, not necessarily the employer posted it today.")
 
+    status_summary = application_status_summary(tiers)
+    if not status_summary.empty:
+        st.subheader("Application status mix")
+        status_labels = {
+            "new": "New",
+            "apply_next": "Apply Next",
+            "referred": "Referred",
+            "applied": "Applied",
+            "dismissed": "Dismiss",
+            "saved": "Saved legacy",
+        }
+        status_cards = st.columns(min(6, len(status_summary)))
+        for column, row in zip(status_cards, status_summary.itertuples()):
+            label = status_labels.get(row.application_status, row.application_status)
+            column.metric(label, f"{int(row.jobs):,}", f"{float(row.pct or 0):.1f}%")
+
     activity = daily_activity(tiers)
     st.subheader("30-day target job discovery")
     chart = activity.sort_values("activity_date").set_index("activity_date")
@@ -2019,21 +2064,29 @@ if selected_page == "Jobs to apply":
             job_frame = job_frame[job_frame["employment_bucket"] == employment_choice]
         job_frame = job_frame[job_frame["track_label"].isin(selected_tracks)].sort_values("first_seen_at", ascending=False)
 
-        st.caption(f"Showing {len(job_frame):,} rows after page filters. Increase “Rows to load” only when you need a bigger export.")
-        queue_frame = job_frame[job_frame["role_status"] == "target"].copy()
-        if not queue_frame.empty:
+        display_columns = [
+            "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
+            "priority_rank_in_tier", "title", "location",
+            "role_family_label", "track_label", "employment_bucket", "seniority_bucket",
+            "application_status", "job_url",
+        ]
+        st.caption("Select one row in the table, then update its application status below.")
+        table_event = st.dataframe(
+            job_frame[display_columns],
+            hide_index=True,
+            use_container_width=True,
+            height=620,
+            column_config={"job_url": st.column_config.LinkColumn("Apply link", display_text="Open ↗")},
+            on_select="rerun",
+            selection_mode="single-row",
+            key="jobs-to-apply-table",
+        )
+        selected_rows = table_event.selection.rows if table_event and table_event.selection else []
+        if selected_rows:
+            selected_job = job_frame.iloc[int(selected_rows[0])]
             st.markdown("#### Update selected job")
-            selected_job_index = st.selectbox(
-                "Current job",
-                queue_frame.index.tolist(),
-                format_func=lambda index: (
-                    f"{queue_frame.loc[index, 'canonical_name']} · "
-                    f"{queue_frame.loc[index, 'title']} · "
-                    f"{queue_frame.loc[index, 'location'] or 'Location not listed'}"
-                )[:240],
-            )
-            selected_job = queue_frame.loc[selected_job_index]
             st.caption(
+                f"{selected_job['canonical_name']} · {selected_job['title']} · "
                 f"Current status: `{selected_job['application_status']}` · "
                 f"[Open application link]({selected_job['job_url']})"
             )
@@ -2059,26 +2112,14 @@ if selected_page == "Jobs to apply":
                     )
                     jobs.clear()
                     apply_job_summary.clear()
+                    application_status_summary.clear()
                     st.success(f"Saved as {status}.")
                     st.rerun()
-        display_columns = [
-            "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
-            "priority_rank_in_tier", "title", "location",
-            "role_family_label", "track_label", "employment_bucket", "seniority_bucket",
-            "application_status", "job_url",
-        ]
         st.download_button(
             "Download current job table (CSV)",
             csv_bytes(job_frame),
             file_name=f"jobpush_jobs_to_apply_{chicago_today}.csv",
             mime="text/csv",
-        )
-        st.dataframe(
-            job_frame[display_columns],
-            hide_index=True,
-            use_container_width=True,
-            height=720,
-            column_config={"job_url": st.column_config.LinkColumn("Apply link", display_text="Open ↗")},
         )
 
 if selected_page == "Title review":
