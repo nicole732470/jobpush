@@ -27,12 +27,11 @@ Codex token.
   and latest crawl start time;
 - today's active-US new target / needs-review jobs, US closed jobs, crawl runs,
   and failures;
-- **Jobs to apply**: selected-tier active US `target` job list with direct
-  links, sorted newest first and controlled by the selected date range;
-- the global row limit is selectable (default 50,000) so the page is not capped
-  at the old 5,000-row preview during larger crawls;
-- selected-period role summaries by track, role family, internship/full-time,
-  location, seniority, company, and direct apply-link filters/downloads;
+- **Jobs to apply**: fast selected-tier active US `target` job list with direct
+  links, sorted newest first and controlled by date/company/title/location,
+  track, role family, and employment filters;
+- the global row limit is selectable (default 1,000; raise only for export) so
+  the main application page does not freeze on large crawl days;
 - SQL expanders on the job and crawl-rollout pages so Nicole can see the core
   read queries without opening the repo;
 - CSV download for the current filtered job view, segmented job view, track
@@ -60,13 +59,14 @@ Codex token.
   `crawl_status = 'pending'`. If `JOBPUSH_ENABLE_INLINE_CRAWL=1` is set on the
   dashboard host, the app also attempts a one-site due-crawl immediately;
   otherwise the scheduler/GitHub Action picks it up from `crawl_schedule_queue`;
-- **Scoring rules** page showing P0/P1/P2/P3 definitions, score components, and
-  the relationship between LCA/SOC target labels and `target_role_score`; SOC
-  and raw-title review tables support multi-row selection and CSV export;
+- **Scoring rules** page showing P0/P1/P2/P3 definitions, score components, the
+  company-to-schedulable-site coverage funnel, score distributions, and the
+  relationship between LCA/SOC target labels and `target_role_score`; SOC and
+  raw-title review tables support multi-row selection and CSV export;
 - personal saved/apply-next/applied/dismissed workflow;
-- adapter health, recent run logs, failed run details, and active alerts;
-- full company-to-schedulable-site coverage funnel, P0/P1/P2/P3 coverage by tier,
-  P0/P1/P2/P3 company-level scoring tables, and all priority-score distributions;
+- **Crawl monitor** includes rollout coverage, blocker distributions, adapter
+  health, recent run logs, failed run details, and active alerts;
+- P0/P1/P2/P3 company-level scoring tables and all priority-score distributions;
 - separate human-verified and system-auto-trusted site coverage.
 
 The dashboard covers all monitored companies. `first_seen_at` and daily
@@ -79,6 +79,15 @@ The top-line job metrics use `jobpush.job_postings_us`, so non-US title-language
 signals and inactive/closed postings do not inflate Nicole's daily recommendation
 counts. If you want to audit the classifier, include `Needs review` in the
 sidebar; the default recommendation view intentionally shows `target` only.
+
+Home vocabulary:
+
+- `Open target jobs`: active US jobs currently classified as target and still
+  in `new`, `saved`, or `apply_next` application states.
+- `Newly discovered today`: postings JobPush first inserted today. This is not
+  necessarily the employer's posting date, so it can spike after a large crawl
+  or classifier reclassification.
+- `Closed today`: postings that disappeared from a later crawl snapshot today.
 
 Dashboard vocabulary:
 

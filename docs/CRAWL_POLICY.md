@@ -92,6 +92,11 @@ more companies only after a representative site passes a second idempotent run.
   batches.
 - Company-specific adapters with explicit US server filters, such as Amazon
   Jobs and Cognizant Jobs, can be auto-enabled when no verified site exists.
+- High-volume career platforms such as Eightfold and Apple must keep any
+  verified URL's country/function/query filters when crawling. Example:
+  Starbucks Eightfold URLs should preserve `location=United States` and
+  `filter_job_function=Project/Product/Program Management,Business Systems,Application Development`
+  so store-service roles do not dominate crawl cost or the application queue.
 - When one company has multiple enabled sites for the same company-specific
   adapter, keep one canonical site and disable the duplicate sites so jobs are
   not repeated in the dashboard.

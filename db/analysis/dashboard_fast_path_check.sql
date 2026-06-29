@@ -3,16 +3,32 @@
 \echo '=== Home apply summary fast path ==='
 WITH chicago_day AS (
     SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+), open_jobs AS (
+    SELECT *
+    FROM jobpush.dashboard_jobs
+    WHERE priority_tier = ANY(ARRAY['P0','P1'])
+      AND role_status = 'target'
+      AND application_status IN ('new','saved','apply_next')
+), closed_today AS (
+    SELECT count(*) AS closed_jobs_today
+    FROM jobpush.job_postings posting
+    JOIN jobpush.crawl_targets target USING (consolidation_key)
+    CROSS JOIN chicago_day
+    WHERE target.priority_tier = ANY(ARRAY['P0','P1'])
+      AND posting.closed_at >= chicago_day.start_at
 )
 SELECT
     count(*) AS open_target_jobs,
     count(DISTINCT consolidation_key) AS companies,
-    count(*) FILTER (WHERE first_seen_at >= chicago_day.start_at) AS new_target_jobs_today
-FROM jobpush.dashboard_jobs
+    count(*) FILTER (WHERE first_seen_at >= chicago_day.start_at) AS newly_discovered_today,
+    (SELECT closed_jobs_today FROM closed_today) AS closed_jobs_today,
+    count(*) FILTER (
+        WHERE canonical_role = 'candidate_profile_track: product'
+           OR normalized_title LIKE '%product%manager%'
+    ) AS product_manager_jobs
+FROM open_jobs
 CROSS JOIN chicago_day
-WHERE priority_tier = ANY(ARRAY['P0','P1'])
-  AND role_status = 'target'
-  AND application_status IN ('new', 'saved', 'apply_next');
+;
 
 \echo '=== Jobs to apply fast path ==='
 SELECT site_id, external_job_id, canonical_name, title, first_seen_at, job_url

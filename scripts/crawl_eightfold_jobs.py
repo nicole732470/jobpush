@@ -10,7 +10,7 @@ import json
 import re
 import time
 from pathlib import Path
-from urllib.parse import urlencode, urljoin
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from market_scope import classify_market_scope
@@ -31,6 +31,30 @@ def normalize(value: str) -> str:
     value = clean(value).casefold()
     value = re.sub(r"[^\w+#./-]+", " ", value, flags=re.UNICODE)
     return re.sub(r"\s+", " ", value).strip()
+
+
+def source_filters(url: str) -> dict[str, str]:
+    values = parse_qs(urlparse(url).query)
+    filters = {}
+    for key in ("filter_job_function", "filter_include_remote", "sort_by", "base_query", "query"):
+        if values.get(key):
+            filters[key] = values[key][0]
+    if values.get("location"):
+        filters["location"] = values["location"][0]
+    elif values.get("loc_query"):
+        filters["location"] = values["loc_query"][0]
+    return filters
+
+
+def matches_job_function_filter(job: dict, filters: dict[str, str]) -> bool:
+    raw_functions = filters.get("filter_job_function", "")
+    if not raw_functions:
+        return True
+    category = normalize(" ".join(clean(job.get(key)) for key in ("department", "business_unit", "category", "job_function")))
+    if not category:
+        return True
+    wanted = [normalize(part) for part in raw_functions.split(",") if normalize(part)]
+    return any(part in category or category in part for part in wanted)
 
 
 def fetch_text(url: str, timeout: int) -> tuple[str, int]:
@@ -62,6 +86,7 @@ def main() -> int:
     if re.fullmatch(r"https?://[^/]+/?", args.url):
         args.url = args.url.rstrip("/") + "/careers"
     body, last_status = fetch_text(args.url, args.timeout)
+    filters = source_filters(args.url)
     match = re.search(r'<code id="smartApplyData"[^>]*>(.*?)</code>', body, re.S)
 
     rows = []
@@ -75,7 +100,16 @@ def main() -> int:
         start = 0
         total = 1
         while start < total:
-            params = urlencode({"domain": domain, "query": "", "location": "", "start": str(start)})
+            params = {
+                "domain": domain,
+                "query": filters.get("query") or filters.get("base_query", ""),
+                "location": filters.get("location", ""),
+                "start": str(start),
+            }
+            for key in ("filter_job_function", "filter_include_remote", "sort_by"):
+                if filters.get(key):
+                    params[key] = filters[key]
+            params = urlencode(params)
             api_body, last_status = fetch_text(urljoin(args.url, f"/api/pcsx/search?{params}"), args.timeout)
             requests_count += 1
             payload = json.loads(api_body)
@@ -88,6 +122,8 @@ def main() -> int:
             start += len(current)
 
     for job in positions:
+        if not matches_job_function_filter(job, filters):
+            continue
         title = clean(job.get("posting_name") or job.get("name"))
         external_id = clean(job.get("ats_job_id") or job.get("atsJobId") or job.get("displayJobId") or job.get("id"))
         if not title or not external_id:

@@ -93,29 +93,38 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
         """
         WITH chicago_day AS (
             SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), open_jobs AS (
+            SELECT *
+            FROM jobpush.dashboard_jobs
+            WHERE priority_tier = ANY(%s)
+              AND role_status = 'target'
+              AND application_status IN ('new', 'saved', 'apply_next')
+        ), closed_today AS (
+            SELECT count(*) AS closed_jobs_today
+            FROM jobpush.job_postings posting
+            JOIN jobpush.crawl_targets target USING (consolidation_key)
+            CROSS JOIN chicago_day
+            WHERE target.priority_tier = ANY(%s)
+              AND posting.closed_at >= chicago_day.start_at
         )
         SELECT
             count(*) AS open_target_jobs,
             count(DISTINCT consolidation_key) AS companies,
             count(*) FILTER (WHERE first_seen_at >= chicago_day.start_at) AS new_target_jobs_today,
+            (SELECT closed_jobs_today FROM closed_today) AS closed_jobs_today,
             count(*) FILTER (
                 WHERE COALESCE(location, '') ILIKE '%%chicago%%'
                    OR COALESCE(location, '') ILIKE '%%illinois%%'
                    OR COALESCE(location, '') ~* '(^|[,/ -])IL($|[,/ -])'
             ) AS chicago_or_il_jobs,
             count(*) FILTER (
-                WHERE normalized_title LIKE '%%intern%%'
-                   OR normalized_title LIKE '%%internship%%'
-                   OR normalized_title LIKE '%%co op%%'
-                   OR normalized_title LIKE '%%co-op%%'
-            ) AS internship_jobs
-        FROM jobpush.dashboard_jobs
+                WHERE canonical_role = 'candidate_profile_track: product'
+                   OR normalized_title LIKE '%%product%%manager%%'
+            ) AS product_manager_jobs
+        FROM open_jobs
         CROSS JOIN chicago_day
-        WHERE priority_tier = ANY(%s)
-          AND role_status = 'target'
-          AND application_status IN ('new', 'saved', 'apply_next')
         """,
-        (list(tiers),),
+        (list(tiers), list(tiers)),
     )
 
 
@@ -1702,7 +1711,7 @@ with st.sidebar.form("global_view_form"):
         max_value=chicago_today,
     )
     priority_choice = st.selectbox("Priority tier", ["P0 + P1", "P0 only", "P1 only", "P2 only", "P3 only", "All P tiers"])
-    row_limit = st.selectbox("Rows to load", [5000, 20000, 50000, 100000], index=0)
+    row_limit = st.selectbox("Rows to load", [1000, 2000, 5000, 20000], index=0)
     st.form_submit_button("Apply global view", use_container_width=True)
 company = ""
 title = ""
@@ -1753,8 +1762,6 @@ PAGE_LABELS = [
     "Companies",
     "Scoring rules",
     "Application status",
-    "System logs",
-    "Coverage",
 ]
 selected_page = st.radio(
     "Dashboard page",
@@ -1771,11 +1778,11 @@ if selected_page == "Home":
     summary_row = summary.iloc[0] if not summary.empty else pd.Series(dtype="int64")
     metric_columns = st.columns(5)
     metric_columns[0].metric(f"Open target jobs · {selected_tier_label}", f"{int(summary_row.get('open_target_jobs', 0)):,}")
-    metric_columns[1].metric("New target jobs today", f"{int(summary_row.get('new_target_jobs_today', 0)):,}")
-    metric_columns[2].metric("Companies", f"{int(summary_row.get('companies', 0)):,}")
-    metric_columns[3].metric("Chicago / IL", f"{int(summary_row.get('chicago_or_il_jobs', 0)):,}")
-    metric_columns[4].metric("Internships", f"{int(summary_row.get('internship_jobs', 0)):,}")
-    st.caption("Home only counts active US jobs classified as target and still open for application. Crawl health moved to Crawl monitor.")
+    metric_columns[1].metric("Newly discovered today", f"{int(summary_row.get('new_target_jobs_today', 0)):,}")
+    metric_columns[2].metric("Closed today", f"{int(summary_row.get('closed_jobs_today', 0)):,}")
+    metric_columns[3].metric("Product Manager", f"{int(summary_row.get('product_manager_jobs', 0)):,}")
+    metric_columns[4].metric("Companies", f"{int(summary_row.get('companies', 0)):,}")
+    st.caption("Home counts active US target jobs that are still open for application. “Newly discovered” means JobPush first saw the posting today, not necessarily the employer posted it today.")
 
     activity = daily_activity(tiers)
     st.subheader("30-day target job discovery")
@@ -1887,148 +1894,52 @@ ORDER BY target.priority_tier;
             st.dataframe(classifier_status, hide_index=True, use_container_width=True, height=260)
 
 if selected_page == "Jobs to apply":
-    job_frame = load_current_jobs()
-    st.subheader(f"{len(job_frame):,} active US jobs in this view")
+    st.subheader("Jobs to apply")
     st.caption(
-        "核心用途：看选定日期范围内新发现/仍 active 的岗位，然后点 apply link。默认只显示 target；"
-        "只有在抽查分类器时才把 Needs review 加进来。"
+        "Fast path: this page only loads the job table and filters. Summary charts live on Home; crawl health lives in Crawl monitor."
+    )
+    filter_cols = st.columns(6)
+    job_company_filter = filter_cols[0].text_input("Company", key="jobs-company-filter")
+    job_title_filter = filter_cols[1].text_input("Title / role", key="jobs-title-filter")
+    job_location_filter = filter_cols[2].text_input("Location", key="jobs-location-filter")
+    track_choice = filter_cols[3].multiselect(
+        "Track",
+        TRACK_OPTIONS,
+        default=[
+            "Track 1 · Business / Product / Data",
+            "Track 2 · Software / Systems",
+        ],
+    )
+    role_family_choice = filter_cols[4].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
+    employment_choice = filter_cols[5].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
+
+    job_frame = jobs(
+        start_date,
+        end_date,
+        job_company_filter.strip(),
+        job_title_filter.strip(),
+        job_location_filter.strip(),
+        tiers,
+        role_statuses,
+        app_statuses,
+        row_limit,
     )
     if job_frame.empty:
         st.info("No jobs match the current filters.")
     else:
-        segmented = job_frame.copy()
-        segmented["first_seen_date"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.date
-        segmented["first_seen_ct"] = pd.to_datetime(segmented["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
-        segmented["track_label"] = segmented["role_stack"].map(TRACK_LABELS).fillna(segmented["role_stack"].fillna("Unlabeled"))
-        segmented["role_family_label"] = segmented["role_family"].map(ROLE_FAMILY_LABELS).fillna(segmented["role_family"].fillna("Other"))
-        quick_filter_cols = st.columns(3)
-        job_company_filter = quick_filter_cols[0].text_input("Filter company in this table", key="jobs-company-filter")
-        job_title_filter = quick_filter_cols[1].text_input("Filter title in this table", key="jobs-title-filter")
-        job_location_filter = quick_filter_cols[2].text_input("Filter location in this table", key="jobs-location-filter")
-        if job_company_filter:
-            segmented = segmented[
-                segmented["canonical_name"].fillna("").str.contains(job_company_filter, case=False, regex=False)
-            ]
-        if job_title_filter:
-            segmented = segmented[
-                segmented["title"].fillna("").str.contains(job_title_filter, case=False, regex=False)
-            ]
-        if job_location_filter:
-            segmented = segmented[
-                segmented["location"].fillna("").str.contains(job_location_filter, case=False, regex=False)
-            ]
-        selected_period_segment = segmented[
-            (segmented["first_seen_date"] >= start_date) & (segmented["first_seen_date"] <= end_date)
-        ]
-        period_label = f"{start_date:%Y-%m-%d} to {end_date:%Y-%m-%d}" if start_date != end_date else f"{start_date:%Y-%m-%d}"
+        job_frame = job_frame.copy()
+        job_frame["first_seen_ct"] = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
+        job_frame["track_label"] = job_frame["role_stack"].map(TRACK_LABELS).fillna(job_frame["role_stack"].fillna("Unlabeled"))
+        job_frame["role_family_label"] = job_frame["role_family"].map(ROLE_FAMILY_LABELS).fillna(job_frame["role_family"].fillna("Other"))
 
-        segment_metrics = st.columns(6)
-        segment_metrics[0].metric("Jobs in view", f"{len(segmented):,}")
-        segment_metrics[1].metric("Selected period", f"{len(selected_period_segment):,}")
-        segment_metrics[2].metric("Internship", f"{int((segmented['employment_bucket'] == 'internship').sum()):,}")
-        segment_metrics[3].metric("Chicago / IL", f"{int((segmented['location_bucket'] == 'chicago_or_illinois').sum()):,}")
-        segment_metrics[4].metric("Product Manager", f"{int((segmented['role_family'] == 'product_manager').sum()):,}")
-        segment_metrics[5].metric("Data Eng.", f"{int((segmented['role_family'] == 'data_engineering').sum()):,}")
-
-        filter_left, filter_mid, filter_right = st.columns(3)
-        track_choice = filter_left.multiselect(
-            "Track",
-            TRACK_OPTIONS,
-            default=[
-                "Track 1 · Business / Product / Data",
-                "Track 2 · Software / Systems",
-            ],
-        )
-        role_family_choice = filter_mid.selectbox(
-            "Role family",
-            ["All role families"] + ROLE_FAMILY_OPTIONS,
-        )
-        employment_choice = filter_right.selectbox(
-            "Intern / full-time",
-            ["All employment types"] + EMPLOYMENT_BUCKET_OPTIONS,
-        )
         selected_tracks = track_choice or TRACK_OPTIONS
-        selected_role_families = ROLE_FAMILY_OPTIONS if role_family_choice == "All role families" else [role_family_choice]
-        selected_employment = EMPLOYMENT_BUCKET_OPTIONS if employment_choice == "All employment types" else [employment_choice]
-        filtered_jobs = segmented[
-            segmented["track_label"].isin(selected_tracks)
-            & segmented["role_family_label"].isin(selected_role_families)
-            & segmented["employment_bucket"].isin(selected_employment)
-        ].sort_values("first_seen_at", ascending=False)
+        if role_family_choice != "All":
+            job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
+        if employment_choice != "All":
+            job_frame = job_frame[job_frame["employment_bucket"] == employment_choice]
+        job_frame = job_frame[job_frame["track_label"].isin(selected_tracks)].sort_values("first_seen_at", ascending=False)
 
-        segment_dimension_label = st.selectbox("Summary by", list(SEGMENT_DIMENSIONS.keys()), index=1)
-        segment_dimension = SEGMENT_DIMENSIONS[segment_dimension_label]
-        daily_summary = (
-            filtered_jobs.groupby([segment_dimension, "first_seen_date"], dropna=False)
-            .size()
-            .reset_index(name="jobs")
-            .pivot(index=segment_dimension, columns="first_seen_date", values="jobs")
-            .fillna(0)
-        )
-        if daily_summary.empty:
-            st.info("No jobs match the track / role / employment filters.")
-        else:
-            daily_summary["Total"] = daily_summary.sum(axis=1)
-            daily_summary = daily_summary.sort_values("Total", ascending=False)
-            ordered_columns = ["Total"] + [column for column in daily_summary.columns if column != "Total"]
-            st.dataframe(
-                daily_summary[ordered_columns].reset_index(),
-                hide_index=True,
-                use_container_width=True,
-                height=min(520, 72 + 36 * len(daily_summary)),
-            )
-
-        left, right = st.columns(2)
-        with left:
-            st.subheader(f"{period_label} by track / role")
-            period_roles = (
-                selected_period_segment.groupby(["track_label", "role_family_label"], dropna=False)
-                .size()
-                .reset_index(name="jobs")
-                .sort_values(["jobs", "track_label", "role_family_label"], ascending=[False, True, True])
-            )
-            st.dataframe(period_roles, hide_index=True, use_container_width=True, height=330)
-        with right:
-            st.subheader(f"{period_label} by location / employment")
-            period_market = (
-                selected_period_segment.groupby(["location_bucket", "employment_bucket", "seniority_bucket"], dropna=False)
-                .size()
-                .reset_index(name="jobs")
-                .sort_values(["jobs", "location_bucket"], ascending=[False, True])
-            )
-            st.dataframe(period_market, hide_index=True, use_container_width=True, height=330)
-
-        st.subheader(f"{period_label} target track summary")
-        period_track_summary = (
-            selected_period_segment.groupby("track_label", dropna=False)
-            .agg(
-                jobs=("external_job_id", "count"),
-                companies=("canonical_name", "nunique"),
-                internships=("employment_bucket", lambda values: int((values == "internship").sum())),
-                full_time_or_unknown=("employment_bucket", lambda values: int((values == "full_time_or_unknown").sum())),
-                chicago_or_il=("location_bucket", lambda values: int((values == "chicago_or_illinois").sum())),
-            )
-            .reset_index()
-            .sort_values("jobs", ascending=False)
-        )
-        st.dataframe(period_track_summary, hide_index=True, use_container_width=True, height=220)
-
-        st.subheader("All matching jobs · track × role family summary")
-        track_summary = (
-            segmented.groupby(["track_label", "role_family_label"], dropna=False)
-            .agg(
-                jobs=("external_job_id", "count"),
-                companies=("canonical_name", "nunique"),
-                chicago_or_il=("location_bucket", lambda values: int((values == "chicago_or_illinois").sum())),
-                internships=("employment_bucket", lambda values: int((values == "internship").sum())),
-                full_time_or_unknown=("employment_bucket", lambda values: int((values == "full_time_or_unknown").sum())),
-            )
-            .reset_index()
-            .sort_values(["track_label", "jobs"], ascending=[True, False])
-        )
-        st.dataframe(track_summary, hide_index=True, use_container_width=True, height=420)
-
-        st.subheader("Filtered job list · newest first")
+        st.caption(f"Showing {len(job_frame):,} rows after page filters. Increase “Rows to load” only when you need a bigger export.")
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
             "priority_rank_in_tier", "title", "location",
@@ -2036,44 +1947,17 @@ if selected_page == "Jobs to apply":
             "application_status", "job_url",
         ]
         st.download_button(
-            "Download filtered jobs (CSV)",
-            csv_bytes(filtered_jobs),
-            file_name=f"jobpush_jobs_filtered_{chicago_today}.csv",
+            "Download current job table (CSV)",
+            csv_bytes(job_frame),
+            file_name=f"jobpush_jobs_to_apply_{chicago_today}.csv",
             mime="text/csv",
         )
         st.dataframe(
-            filtered_jobs[display_columns],
+            job_frame[display_columns],
             hide_index=True,
             use_container_width=True,
-            height=620,
+            height=720,
             column_config={"job_url": st.column_config.LinkColumn("Apply link", display_text="Open ↗")},
-        )
-
-        with st.expander("SQL behind this job view"):
-            st.code(
-                """
-SELECT *
-FROM jobpush.dashboard_jobs
-WHERE first_seen_at >= now() - make_interval(days => :days)
-  AND priority_tier = ANY(:tiers)
-  AND role_status = ANY(:role_statuses)
-  AND application_status = ANY(:app_statuses)
-ORDER BY first_seen_at DESC, canonical_name, title
-LIMIT :row_limit;
-                """.strip(),
-                language="sql",
-            )
-        st.download_button(
-            "Download segmented jobs (CSV)",
-            csv_bytes(segmented),
-            file_name=f"jobpush_segmented_jobs_{chicago_today}.csv",
-            mime="text/csv",
-        )
-        st.download_button(
-            "Download track summary (CSV)",
-            csv_bytes(track_summary),
-            file_name=f"jobpush_track_summary_{chicago_today}.csv",
-            mime="text/csv",
         )
 
 if selected_page == "Title review":
@@ -2670,7 +2554,9 @@ if selected_page == "Application status":
                 st.rerun()
         dataframe(actionable, height=410)
 
-if selected_page == "System logs":
+if selected_page == "Crawl monitor":
+    st.divider()
+    st.subheader("System logs")
     adapter_health = query("SELECT * FROM jobpush.crawl_adapter_health ORDER BY source_type")
     st.subheader("Adapter health · trailing 7 days")
     st.dataframe(adapter_health, hide_index=True, use_container_width=True)
@@ -2702,7 +2588,9 @@ if selected_page == "System logs":
             column_config={"site_url": st.column_config.LinkColumn("Site", display_text="Open ↗")},
         )
 
-if selected_page == "Coverage":
+if selected_page == "Scoring rules":
+    st.divider()
+    st.subheader("Coverage")
     funnel = crawl_funnel().iloc[0]
     st.subheader("Company → scheduled crawl funnel")
     funnel_columns = st.columns(4)
