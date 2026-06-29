@@ -6,7 +6,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${GENERIC_JSONLD_LIMIT:-1000}"
-TIERS="${GENERIC_JSONLD_TIERS:-P0,P1}"
+TIERS="${GENERIC_JSONLD_TIERS:-P0,P1,P2,P3}"
 TIER_ARRAY="ARRAY[$(
   printf "%s" "$TIERS" | tr ',' '\n' | awk 'NF {gsub(/'\''/, ""); printf "%s'\''%s'\''", sep, $1; sep=","}'
 )]"

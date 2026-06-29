@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GENERIC_RESOLVE_LIMIT=1000 bash "$SCRIPT_DIR/run_resolve_generic_html_ats_links.sh"
+GENERIC_RESOLVE_TIERS=P0,P1,P2,P3 GENERIC_RESOLVE_LIMIT=1000 bash "$SCRIPT_DIR/run_resolve_generic_html_ats_links.sh"

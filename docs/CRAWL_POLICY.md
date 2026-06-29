@@ -101,10 +101,12 @@ more companies only after a representative site passes a second idempotent run.
 - Big-board adapters also have hard safety caps. Oracle Cloud and Eightfold
   default to 300 parsed jobs per crawl; Apple defaults to 10 API pages. Raise
   those only after a board proves its source-side filters are tight enough.
-- P2/P3 expansion order is cost-first: existing supported ATS candidates,
-  generic-page hidden ATS resolver, deterministic ATS URL guessing, then
-  search-provider discovery. If a tier has no retained site candidates, parser
-  work alone cannot expand it.
+- Expansion work is template/platform-first, not tier-first. P0/P1/P2/P3 only
+  decide ordering and crawl frequency; parser work should target the same
+  website family across the whole pool. Cost-first order: existing supported
+  ATS candidates, generic-page hidden ATS resolver, deterministic ATS URL
+  guessing, then search-provider discovery. If a company has no retained site
+  candidates, parser work alone cannot expand it.
 - When one company has multiple enabled sites for the same company-specific
   adapter, keep one canonical site and disable the duplicate sites so jobs are
   not repeated in the dashboard.

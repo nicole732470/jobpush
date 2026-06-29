@@ -9,7 +9,7 @@ LIMIT="${GENERIC_RESOLVE_LIMIT:-50}"
 RETRY_ATTEMPTED="${GENERIC_RESOLVE_RETRY:-0}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "GENERIC_RESOLVE_LIMIT must be a positive integer" >&2; exit 2; }
 [[ "$RETRY_ATTEMPTED" =~ ^[01]$ ]] || { echo "GENERIC_RESOLVE_RETRY must be 0 or 1" >&2; exit 2; }
-TIERS="${GENERIC_RESOLVE_TIERS:-P0,P1}"
+TIERS="${GENERIC_RESOLVE_TIERS:-P0,P1,P2,P3}"
 TIER_ARRAY="ARRAY[$(
   printf "%s" "$TIERS" | tr ',' '\n' | awk 'NF {gsub(/'\''/, ""); printf "%s'\''%s'\''", sep, $1; sep=","}'
 )]"
