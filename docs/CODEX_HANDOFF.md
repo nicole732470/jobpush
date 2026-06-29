@@ -109,15 +109,17 @@ priority_score =
 |---|---|
 | **P1** | `priority_score > 3`（3.25、4.0、5.25 等） |
 | **P2** | `priority_score IN (3.0, 2.5)` |
-| **P3** | `priority_score > 0` 且低于 P2；用于覆盖率/审核，默认不进日常 schedule |
+| **P3** | `priority_score > 1` 且低于 P2；用于覆盖率/审核，默认不进日常 schedule |
 | **P0** | **仅手动**；写入 `crawl_priority_overrides`，refresh 不会覆盖 |
-| `NULL` | 0 分或 exclusion |
+| `NULL` | `priority_score <= 1` 或 exclusion；只有一条目标 SOC LCA 的薄证据公司不进 P3 |
 
 生产占比（全表 68,957；migration 110 / 2026-06-29 refresh 后）：
 
-- **P0**：11（手动 override）
-- **P1**：4,630（6.71%）
-- **P2**：14,418（20.91%）
+- **P0**：12（手动 override）
+- **P1**：4,629
+- **P2**：14,418
+- **P3**：17,352
+- **NULL**：32,546
 - **P3**：21,981（31.88%）
 - 未分档：27,917（40.49%）
 

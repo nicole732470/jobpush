@@ -2416,8 +2416,8 @@ if selected_page == "Scoring rules":
 | P0 | 人工 override | Nicole 明确指定最高优先级公司 |
 | P1 | `priority_score > 3` | 自动高优先级，优先找官网和爬取 |
 | P2 | `priority_score = 3.0` 或 `2.5` | 自动中优先级，排在 P1 后 |
-| P3 | `priority_score > 0` 且未达到 P2/P1 | 有信号但低优先级；展示和审核，默认不进日常 crawl schedule |
-| NULL | `priority_score = 0` 或 high-executive-only exclusion | 暂不进入优先级池 |
+| P3 | `priority_score > 1` 且未达到 P2/P1 | 有额外信号但低优先级；展示和审核，默认不进日常 crawl schedule |
+| NULL | `priority_score <= 1` 或 high-executive-only exclusion | 暂不进入优先级池；只有一条目标 SOC LCA 的薄证据公司也在这里 |
 
 ### `priority_score`
 
@@ -2665,7 +2665,7 @@ if selected_page == "Scoring rules":
     )
     st.dataframe(coverage, hide_index=True, use_container_width=True)
     st.caption("A verified site remains excluded until its adapter and safe US scope are known.")
-    st.markdown("**Tier thresholds:** P1 `> 3`; P2 `= 3.0 or 2.5`; P3 `> 0 and below P2`; NULL `= 0`.")
+    st.markdown("**Tier thresholds:** P1 `> 3`; P2 `= 3.0 or 2.5`; P3 `> 1 and below P2`; NULL `<= 1`.")
     st.subheader("Coverage by priority tier")
     st.dataframe(coverage_by_tier(), hide_index=True, use_container_width=True)
     st.subheader("All priority score bands")

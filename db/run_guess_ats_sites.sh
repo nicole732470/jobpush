@@ -7,6 +7,10 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${ATS_GUESS_LIMIT:-100}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "ATS_GUESS_LIMIT must be a positive integer" >&2; exit 2; }
+TIERS="${ATS_GUESS_TIERS:-P0,P1}"
+TIER_ARRAY="ARRAY[$(
+  printf "%s" "$TIERS" | tr ',' '\n' | awk 'NF {gsub(/'\''/, ""); printf "%s'\''%s'\''", sep, $1; sep=","}'
+)]"
 
 RUN_ID="ats-url-guess-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 WORK_DIR="$(mktemp -d -t jobpush-ats-guess.XXXXXX)"
@@ -28,7 +32,7 @@ RESULTS="$WORK_DIR/results.csv"
   FROM jobpush.career_sites site
   JOIN jobpush.crawl_targets target USING (consolidation_key)
   WHERE target.enabled
-    AND target.priority_tier IN ('P0','P1')
+    AND target.priority_tier = ANY($TIER_ARRAY)
     AND site.source_type = 'generic_html'
     AND site.verification_status = 'unverified'
     AND site.crawl_enabled = FALSE

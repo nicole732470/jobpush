@@ -93,6 +93,30 @@ narrow structured-ATS segment after it has enough reviewed examples and at
 least 98% observed precision. Generic HTML and conflicting candidates remain
 manual.
 
+## Expansion order and cost
+
+Use the cheapest reliable path first. Tavily is not the default expansion path.
+
+| Step | Cost | Best for | Current read |
+|---|---:|---|---|
+| Existing verified / retained structured candidates | none | Companies already discovered by prior runs or Nicole | Highest yield; crawl immediately if adapter-supported |
+| Direct ATS guessing | none | Greenhouse, Lever, Ashby, SmartRecruiters slugs | Fast and cheap, but poor for companies whose real site is Workday/Oracle/iCIMS/custom |
+| Hidden ATS resolver from generic pages | none | Generic career pages that link to real ATS in HTML/JS | Better than blind guessing for stubborn generic blockers |
+| Generic JSON-LD parser | none | Corporate pages exposing `schema.org/JobPosting` | Conservative; useful but low coverage |
+| DuckDuckGo HTML search | free but noisy | Later P2/P3 discovery when no candidate exists | Use small batches; parse links through normal URL classifier |
+| Bing Search API | quota-based | High-score companies with no candidate | Use only after checking current free quota |
+| Tavily | paid credits | Last-resort search | Pause while P1/P2/P3 have cheaper paths |
+
+The practical rule is "get a usable official site first, then improve it." Human
+site review is the gold standard, but it is an override/calibration mechanism,
+not a prerequisite for every company.
+
+2026-06-29 P2/P3 expansion note: after redefining P3 as `priority_score > 1`,
+direct ATS guessing found 15 candidates from 160 remaining P2/P3 generic
+candidates. Rank-1 supported structured ATS auto-trust was widened to P2/P3;
+the first due crawl succeeded for 47 P2 sites. P3 had no enabled structured
+sites in that batch.
+
 ## Effective-tier expansion (2026-06-23)
 
 The first expansion searched 150 never-searched P-tier companies, with manual

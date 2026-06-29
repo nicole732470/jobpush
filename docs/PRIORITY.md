@@ -36,19 +36,20 @@ Automated tiers on `jobpush.company_targets_consolidated`:
 |---|---|---|
 | **P1** | `priority_score > 3` | Above 3.0 (e.g. 3.25, 4.0, 5.25) |
 | **P2** | `priority_score IN (3.0, 2.5)` | Exactly 3.0 or 2.5 |
-| **P3** | `priority_score > 0` below P2 | Has some signal, but lower priority |
+| **P3** | `priority_score > 1` below P2 | Has target-role evidence plus at least one extra signal, but lower priority |
 | **P0** | Manual only | Stored in `crawl_priority_overrides`; preserved across refresh |
-| *(null)* | `priority_score = 0` or exclusion | Not in priority bands |
+| *(null)* | `priority_score <= 1` or exclusion | Not in priority bands; includes one-target-LCA-only thin evidence |
 
 `computed_crawl_priority_tier` stores the rule result. `crawl_priority_tier` is
 the effective tier after applying an active manual override. Manual overrides
 may promote or downgrade a company to P0, P1, P2, or P3.
 
 P3 is tracked for coverage/review, but the production daily crawl schedule still
-defaults to P0/P1/P2 unless a runner explicitly includes P3.
+defaults to P0/P1/P2 unless a runner explicitly includes P3. Companies with only
+`target_role_score = 1` and no extra signals are intentionally outside P3.
 
-As of the migration 110 refresh on 2026-06-29: P0 **11**, P1 **4,630**,
-P2 **14,418**, P3 **21,981**, null **27,917**.
+As of the 2026-06-29 refresh after the P3 threshold update: P0 **12**,
+P1 **4,629**, P2 **14,418**, P3 **17,352**, null **32,546**.
 
 Manual override example:
 

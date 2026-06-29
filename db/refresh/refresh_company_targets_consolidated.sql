@@ -201,7 +201,7 @@ WITH dataset_window AS (
             WHEN executive_only_excluded THEN NULL
             WHEN priority_score > 3 THEN 'P1'
             WHEN priority_score IN (3.0, 2.5) THEN 'P2'
-            WHEN priority_score > 0 THEN 'P3'
+            WHEN priority_score > 1 THEN 'P3'
             ELSE NULL
         END AS computed_crawl_priority_tier
     FROM totaled

@@ -136,9 +136,9 @@ crawl output quality is checked; generic pages are messy and should not be
 mass-enabled just because they return HTTP 200.
 
 Migration 068 adds `career_site_selection_candidates`, which exposes every
-site-selection score and decision. Rank-1 P0/P1 Lever, Ashby, and
-SmartRecruiters candidates may be auto-trusted only when no verified site
-already exists. Human verified/rejected decisions remain authoritative, and
+site-selection score and decision. Rank-1 supported structured ATS candidates
+may be auto-trusted across P0/P1/P2/P3 only when no verified site already
+exists. Human verified/rejected decisions remain authoritative, and
 404/entity-mismatch failures must be rolled back during rollout.
 
 Greenhouse URLs may contain `offices[]` filters. The public jobs API ignores
