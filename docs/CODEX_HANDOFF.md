@@ -120,8 +120,6 @@ priority_score =
 - **P2**：14,418
 - **P3**：17,352
 - **NULL**：32,546
-- **P3**：21,981（31.88%）
-- 未分档：27,917（40.49%）
 
 `Chief Executives` (`11101100`) 已从目标 SOC 中剔除；若仍出现在队列，
 只能来自 `manual_override`，不是 `target_role_score`。
