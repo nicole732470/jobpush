@@ -155,6 +155,7 @@ holdout precision. Do not lower the gate just to reduce review volume.
 | Codex | 2026-06-28 | Track and fix title-review leakage after P1 expansion: leader/cleaner/merchant/non-US market markers should not reach human review | Migrations 089–090 added; audit reduced monitored leakage from 452 suspect review titles to 1 conservative exception |
 | Codex | 2026-06-28 | Reduce high-volume title-review noise using existing labels and review-volume audit | Manual-only local ML safely applied 609 high-confidence non-target titles; migration 107 added retail/grocery/frontline/technician/non-US hard avoids and moved 5,024 more titles out of review |
 | Codex | 2026-06-28 | Optimize local title model variant without adding dependencies | Production local model moved from baseline/observed `local-title-ml-v1` to stemmed features with balanced prior `local-title-ml-v3`; holdout non-target precision gate remains 98%+ and target auto-labeling remains disabled |
+| Codex | 2026-06-28 | Optimize local model threshold selection | `local-title-ml-v4` now chooses the lowest threshold that still passes the 98% holdout precision gate, maximizing safe review reduction without enabling target auto-labeling |
 | Codex | 2026-06-30 | Build the first holdout report from the 171 HIGH labels; propose rules without activating them | Pending |
 | Nicole | Ongoing | Review `career_site_review_workbench`, starting with P0 then potential-P0 signals | In progress |
 | Codex | 2026-06-30 | Report website precision by source type and candidate rank | Pending |

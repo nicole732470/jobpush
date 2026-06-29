@@ -172,14 +172,15 @@ def is_specific_exclusive_feature(feature: str, counts: dict[str, Counter]) -> b
 
 
 def choose_threshold(results: list[tuple[str, str, float]], label: str, gate: float, minimum: int) -> tuple[float, float, int]:
+    best = (1.001, 0.0, 0)
     for threshold in (0.995, 0.99, 0.98, 0.95, 0.90, 0.85):
         selected = [row for row in results if row[1] == label and row[2] >= threshold]
         if len(selected) < minimum:
             continue
         precision = sum(actual == label for actual, _, _ in selected) / len(selected)
         if precision >= gate:
-            return threshold, precision, len(selected)
-    return 1.001, 0.0, 0
+            best = (threshold, precision, len(selected))
+    return best
 
 
 def sql_literal(value: object) -> str:
