@@ -500,6 +500,9 @@ The scheduler was also corrected to pass `site_id` into the adapter runner;
   failed Workday sites in the first retry; remaining Workday failures are bad
   root URLs or forbidden boards and should be handled by better site discovery,
   not adapter guessing.
+- Workday path parsing only strips locale prefixes like `en-US`; two-letter
+  site slugs such as `/hc` are valid and must be kept. This recovered the
+  BCBSNJ Workday board.
 - Oracle Cloud sites without a United States facet now fall back to per-posting
   local market classification instead of failing the whole site. Oracle payload
   text also strips control characters before CSV export because Postgres `COPY`

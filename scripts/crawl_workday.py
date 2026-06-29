@@ -60,7 +60,7 @@ def workday_site_from_path(path: str) -> str | None:
     parts = [part for part in path.split("/") if part]
     if not parts:
         return None
-    if re.fullmatch(r"[a-z]{2}(?:-[A-Z]{2})?", parts[0]):
+    if re.fullmatch(r"[a-z]{2}-[A-Z]{2}", parts[0]):
         parts = parts[1:]
     if not parts:
         return None
