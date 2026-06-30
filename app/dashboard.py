@@ -201,14 +201,18 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR canonical_role ILIKE '%%financial and investment%%'
                          OR canonical_role ILIKE '%%market research%%'
                     THEN 'stack_1_business_product_data'
-                    WHEN canonical_role IN (
-                        'candidate_profile_track: software/data',
-                        'candidate_profile_track: solutions/systems',
-                        'candidate_profile_track: applied_ai'
-                    )
-                         OR normalized_title LIKE '%%software%%'
+                    WHEN canonical_role IN ('candidate_profile_track: solutions/systems', 'candidate_profile_track: applied_ai')
+                         OR (canonical_role = 'candidate_profile_track: software/data'
+                             AND (normalized_title LIKE '%%data%%engineer%%'
+                                  OR normalized_title LIKE '%%analytics%%engineer%%'
+                                  OR normalized_title LIKE '%%data%%architect%%'
+                                  OR normalized_title LIKE '%%database%%administrator%%'
+                                  OR normalized_title LIKE '%%database%%admin%%'))
                          OR normalized_title LIKE '%%systems%%analyst%%'
                          OR normalized_title LIKE '%%information%%system%%'
+                    THEN 'stack_2_ai_solutions_systems_data'
+                    WHEN canonical_role = 'candidate_profile_track: software/data'
+                         OR normalized_title LIKE '%%software%%'
                          OR normalized_title LIKE '%%quality%%assurance%%'
                          OR normalized_title LIKE '%% qa %%'
                          OR normalized_title LIKE '%%test engineer%%'
@@ -221,7 +225,7 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR normalized_title LIKE '%%cyber%%'
                          OR canonical_role ILIKE '%%network%%'
                          OR canonical_role ILIKE '%%systems administrator%%'
-                    THEN 'stack_2_software_systems'
+                    THEN 'stack_4_sde'
                     WHEN canonical_role = 'candidate_profile_track: customer_success'
                          OR normalized_title LIKE '%%customer%%success%%'
                          OR normalized_title LIKE '%%technical%%account%%'
@@ -236,7 +240,7 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR normalized_title LIKE '%%marketing%%'
                          OR normalized_title LIKE '%%business%%development%%'
                     THEN 'stack_3_gtm'
-                    ELSE 'stack_3_additional_targets'
+                    ELSE 'stack_5_possible_target'
                 END AS role_stack,
                 CASE
                     WHEN canonical_role = 'candidate_profile_track: product' THEN 'product_manager'
@@ -322,7 +326,7 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
         ), segments AS (
             SELECT 'track' AS dimension,
                    CASE
-                       WHEN role_stack = 'stack_3_additional_targets' THEN CONCAT('track_family:', role_family)
+                       WHEN role_stack = 'stack_5_possible_target' THEN CONCAT('track_family:', role_family)
                        ELSE role_stack
                    END AS segment_key,
                    first_seen_at
@@ -1470,14 +1474,22 @@ def jobs(
                        OR canonical_role ILIKE '%%market research%%'
                    ) THEN 'stack_1_business_product_data'
                    WHEN role_status = 'target' AND canonical_role IN (
-                       'candidate_profile_track: software/data',
                        'candidate_profile_track: solutions/systems',
                        'candidate_profile_track: applied_ai'
-                   ) THEN 'stack_2_software_systems'
+                   ) THEN 'stack_2_ai_solutions_systems_data'
+                   WHEN role_status = 'target'
+                        AND canonical_role = 'candidate_profile_track: software/data'
+                        AND (normalized_title LIKE '%%data%%engineer%%'
+                             OR normalized_title LIKE '%%analytics%%engineer%%'
+                             OR normalized_title LIKE '%%data%%architect%%'
+                             OR normalized_title LIKE '%%database%%administrator%%'
+                             OR normalized_title LIKE '%%database%%admin%%') THEN 'stack_2_ai_solutions_systems_data'
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%%systems%%analyst%%'
+                       OR normalized_title LIKE '%%information%%system%%'
+                   ) THEN 'stack_2_ai_solutions_systems_data'
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%software%%'
-                       OR normalized_title LIKE '%%systems%%analyst%%'
-                       OR normalized_title LIKE '%%information%%system%%'
                        OR normalized_title LIKE '%%quality%%assurance%%'
                        OR normalized_title LIKE '%% qa %%'
                        OR normalized_title LIKE '%%test engineer%%'
@@ -1490,7 +1502,8 @@ def jobs(
                        OR normalized_title LIKE '%%cyber%%'
                        OR canonical_role ILIKE '%%network%%'
                        OR canonical_role ILIKE '%%systems administrator%%'
-                   ) THEN 'stack_2_software_systems'
+                       OR canonical_role = 'candidate_profile_track: software/data'
+                   ) THEN 'stack_4_sde'
                    WHEN role_status = 'target' AND canonical_role = 'candidate_profile_track: customer_success' THEN 'stack_3_customer_success'
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%customer%%success%%'
@@ -1507,7 +1520,7 @@ def jobs(
                        OR normalized_title LIKE '%%business%%development%%'
                        OR canonical_role = 'candidate_profile_track: marketing automation'
                    ) THEN 'stack_3_gtm'
-                   WHEN role_status = 'target' THEN 'stack_3_additional_targets'
+                   WHEN role_status = 'target' THEN 'stack_5_possible_target'
                    WHEN role_status = 'review' THEN 'needs_review'
                    ELSE 'excluded_non_target'
                END AS role_stack,
@@ -1906,11 +1919,14 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
 
 TRACK_LABELS = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
-    "stack_2_software_systems": "Track 2 · Software / Systems",
+    "stack_2_ai_solutions_systems_data": "Track 2 · AI / Solutions / Systems / Data",
+    "stack_2_software_systems": "Track 2 · AI / Solutions / Systems / Data",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
-    "stack_3_additional_targets": "Track 3 · Unclassified target title",
-    "stack_3_target_roles": "Track 3 · Unclassified target title",
+    "stack_4_sde": "Track 4 · SDE / Software Engineering",
+    "stack_5_possible_target": "Track 5 · Possible Target / Unclassified",
+    "stack_3_additional_targets": "Track 5 · Possible Target / Unclassified",
+    "stack_3_target_roles": "Track 5 · Possible Target / Unclassified",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "review": "Needs review",
@@ -1950,26 +1966,30 @@ ROLE_FAMILY_LABELS = {
 
 TRACK_OPTIONS = [
     "Track 1 · Business / Product / Data",
-    "Track 2 · Software / Systems",
+    "Track 2 · AI / Solutions / Systems / Data",
     "Track 3 · Customer Success / Technical Account",
     "Track 3 · GTM / Sales / Marketing",
-    "Track 3 · Unclassified target title",
+    "Track 4 · SDE / Software Engineering",
+    "Track 5 · Possible Target / Unclassified",
     "Needs review",
     "Excluded / non-target",
 ]
 
 TRACK_VALUE_TO_LABEL = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
-    "stack_2_software_systems": "Track 2 · Software / Systems",
+    "stack_2_ai_solutions_systems_data": "Track 2 · AI / Solutions / Systems / Data",
+    "stack_2_software_systems": "Track 2 · AI / Solutions / Systems / Data",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
-    "stack_3_additional_targets": "Track 3 · Unclassified target title",
-    "stack_3_target_roles": "Track 3 · Unclassified target title",
+    "stack_4_sde": "Track 4 · SDE / Software Engineering",
+    "stack_5_possible_target": "Track 5 · Possible Target / Unclassified",
+    "stack_3_additional_targets": "Track 5 · Possible Target / Unclassified",
+    "stack_3_target_roles": "Track 5 · Possible Target / Unclassified",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
 }
 TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.items()}
-TRACK_LABEL_TO_VALUE["Track 3 · Unclassified target title"] = "stack_3_additional_targets"
+TRACK_LABEL_TO_VALUE["Track 5 · Possible Target / Unclassified"] = "stack_5_possible_target"
 
 
 def role_family_label(value: str | None) -> str:
@@ -1984,8 +2004,24 @@ def track_label(value: str | None) -> str:
     if not value:
         return "Unclassified target title"
     if value.startswith("track_family:"):
-        return f"Track 3 · {role_family_label(value.removeprefix('track_family:'))}"
+        return f"Track 5 · {role_family_label(value.removeprefix('track_family:'))}"
     return TRACK_LABELS.get(value, value)
+
+
+def track_sort_rank(label: str | None) -> int:
+    if not label:
+        return 99
+    if label.startswith("Track 1"):
+        return 1
+    if label.startswith("Track 2"):
+        return 2
+    if label.startswith("Track 3"):
+        return 3
+    if label.startswith("Track 4"):
+        return 4
+    if label.startswith("Track 5"):
+        return 5
+    return 90
 
 
 ROLE_FAMILY_OPTIONS = [
@@ -2156,7 +2192,8 @@ if selected_page == "Pulse":
             lambda row: f"{int(row['new_today_jobs']):,} ({float(row['today_pct'] or 0):.1f}%)",
             axis=1,
         )
-        track_mix = mix_summary[mix_summary["dimension"] == "track"].sort_values("current_open_jobs", ascending=False)
+        mix_summary["track_sort"] = mix_summary["label"].apply(track_sort_rank)
+        track_mix = mix_summary[mix_summary["dimension"] == "track"].sort_values(["track_sort", "current_open_jobs"], ascending=[True, False])
         role_mix = mix_summary[mix_summary["dimension"] == "role_family"].sort_values("current_open_jobs", ascending=False).head(15)
         track_col, role_col = st.columns(2)
         with track_col:
@@ -2326,7 +2363,9 @@ if selected_page == "Jobs to apply":
         TRACK_OPTIONS,
         default=[
             "Track 1 · Business / Product / Data",
-            "Track 2 · Software / Systems",
+            "Track 2 · AI / Solutions / Systems / Data",
+            "Track 3 · Customer Success / Technical Account",
+            "Track 3 · GTM / Sales / Marketing",
         ],
     )
     role_family_choice = filter_cols[4].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
@@ -2356,20 +2395,21 @@ if selected_page == "Jobs to apply":
         job_frame["first_seen_ct"] = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
         job_frame["role_family_label"] = job_frame["role_family"].apply(role_family_label)
         job_frame["track_label"] = job_frame.apply(
-            lambda row: f"Track 3 · {row['role_family_label']}" if row["role_stack"] == "stack_3_additional_targets" else track_label(row["role_stack"]),
+            lambda row: f"Track 5 · {row['role_family_label']}" if row["role_stack"] == "stack_5_possible_target" else track_label(row["role_stack"]),
             axis=1,
         )
+        job_frame["track_sort"] = job_frame["track_label"].apply(track_sort_rank)
 
         selected_tracks = track_choice or TRACK_OPTIONS
         if role_family_choice != "All":
             job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
         if employment_choice != "All":
             job_frame = job_frame[job_frame["employment_bucket"] == employment_choice]
-        fallback_selected = "Track 3 · Unclassified target title" in selected_tracks
+        fallback_selected = "Track 5 · Possible Target / Unclassified" in selected_tracks
         track_mask = job_frame["track_label"].isin(selected_tracks)
         if fallback_selected:
-            track_mask = track_mask | (job_frame["role_stack"] == "stack_3_additional_targets")
-        job_frame = job_frame[track_mask].sort_values("first_seen_at", ascending=False)
+            track_mask = track_mask | (job_frame["role_stack"] == "stack_5_possible_target")
+        job_frame = job_frame[track_mask].sort_values(["track_sort", "first_seen_at"], ascending=[True, False])
 
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",

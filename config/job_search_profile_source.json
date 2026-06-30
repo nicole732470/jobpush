@@ -1,8 +1,8 @@
 {
   "canonical_repository": "https://github.com/nicole732470/joblens",
   "canonical_path": "evals/golden_set/candidate_profile.yaml",
-  "source_commit": "202f920",
-  "profile_version": "2026-06-30-draft-3",
+  "source_commit": "fc5820e",
+  "profile_version": "2026-06-30-draft-4",
   "profile_status": "draft",
   "jobpush_enforcement": "profile_title_rules_v2 + manual labels + local ML",
   "note": "Do not hand-edit a second profile copy in JobPush. Update the JobLens YAML, validate, publish a versioned snapshot, then update this pointer."
