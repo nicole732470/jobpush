@@ -69,7 +69,18 @@ while IFS= read -r referenced; do
     mkdir -p "$STAGING/db/$(dirname "$nested")"
     cp "$REPO_DIR/db/$nested" "$STAGING/db/$nested"
   done < <(extract_matches "$DB_REF_PATTERN" "$REPO_DIR/db/$referenced" | sort -u)
+  while IFS= read -r nested_runner; do
+    [[ -n "$nested_runner" && -f "$REPO_DIR/db/$nested_runner" ]] || continue
+    cp "$REPO_DIR/db/$nested_runner" "$STAGING/db/$nested_runner"
+    chmod +x "$STAGING/db/$nested_runner"
+  done < <(extract_matches "$RUN_REF_PATTERN" "$REPO_DIR/db/$referenced" | sort -u)
 done < <(extract_matches "$RUN_REF_PATTERN" "$REPO_DIR/$RUN_SCRIPT" | sort -u)
+
+for common_runner in run_post_crawl_title_classification.sh run_local_title_ml.sh; do
+  [[ -f "$REPO_DIR/db/$common_runner" ]] || continue
+  cp "$REPO_DIR/db/$common_runner" "$STAGING/db/$common_runner"
+  chmod +x "$STAGING/db/$common_runner"
+done
 
 for extra in "$@"; do
   dest="$STAGING/$extra"
