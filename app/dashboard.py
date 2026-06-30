@@ -316,11 +316,17 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                     WHEN canonical_role ILIKE '%%network%%'
                          OR canonical_role ILIKE '%%systems administrator%%' THEN 'systems_engineering'
                     WHEN canonical_role ILIKE '%%software developer%%' THEN 'software_engineering'
-                    ELSE COALESCE(NULLIF(canonical_role, ''), 'other')
+                    ELSE CONCAT('title:', COALESCE(NULLIF(normalized_title, ''), NULLIF(canonical_role, ''), 'unclassified target title'))
                 END AS role_family
             FROM base
         ), segments AS (
-            SELECT 'track' AS dimension, role_stack AS segment_key, first_seen_at FROM classified
+            SELECT 'track' AS dimension,
+                   CASE
+                       WHEN role_stack = 'stack_3_additional_targets' THEN CONCAT('track_family:', role_family)
+                       ELSE role_stack
+                   END AS segment_key,
+                   first_seen_at
+            FROM classified
             UNION ALL
             SELECT 'role_family' AS dimension, role_family AS segment_key, first_seen_at FROM classified
         ), counts AS (
@@ -1569,7 +1575,7 @@ def jobs(
                    WHEN canonical_role ILIKE '%%network%%'
                         OR canonical_role ILIKE '%%systems administrator%%' THEN 'systems_engineering'
                    WHEN canonical_role ILIKE '%%software developer%%' THEN 'software_engineering'
-                   ELSE COALESCE(NULLIF(canonical_role, ''), 'other')
+                   ELSE CONCAT('title:', COALESCE(NULLIF(normalized_title, ''), NULLIF(canonical_role, ''), 'unclassified target title'))
                END AS role_family,
                CASE
                    WHEN normalized_title LIKE '%%intern%%'
@@ -1903,8 +1909,8 @@ TRACK_LABELS = {
     "stack_2_software_systems": "Track 2 · Software / Systems",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
-    "stack_3_additional_targets": "Track 3 · Additional Target Roles",
-    "stack_3_target_roles": "Track 3 · Additional Target Roles",
+    "stack_3_additional_targets": "Track 3 · Unclassified target title",
+    "stack_3_target_roles": "Track 3 · Unclassified target title",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "review": "Needs review",
@@ -1939,7 +1945,7 @@ ROLE_FAMILY_LABELS = {
     "business_operations": "Business Operations / Coordinator",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
-    "other": "Other",
+    "other": "Unclassified target title",
 }
 
 TRACK_OPTIONS = [
@@ -1947,7 +1953,7 @@ TRACK_OPTIONS = [
     "Track 2 · Software / Systems",
     "Track 3 · Customer Success / Technical Account",
     "Track 3 · GTM / Sales / Marketing",
-    "Track 3 · Additional Target Roles",
+    "Track 3 · Unclassified target title",
     "Needs review",
     "Excluded / non-target",
 ]
@@ -1957,13 +1963,30 @@ TRACK_VALUE_TO_LABEL = {
     "stack_2_software_systems": "Track 2 · Software / Systems",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
-    "stack_3_additional_targets": "Track 3 · Additional Target Roles",
-    "stack_3_target_roles": "Track 3 · Additional Target Roles",
+    "stack_3_additional_targets": "Track 3 · Unclassified target title",
+    "stack_3_target_roles": "Track 3 · Unclassified target title",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
 }
 TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.items()}
-TRACK_LABEL_TO_VALUE["Track 3 · Additional Target Roles"] = "stack_3_additional_targets"
+TRACK_LABEL_TO_VALUE["Track 3 · Unclassified target title"] = "stack_3_additional_targets"
+
+
+def role_family_label(value: str | None) -> str:
+    if not value:
+        return "Unclassified target title"
+    if value.startswith("title:"):
+        return value.removeprefix("title:").replace("_", " ").strip().title()
+    return ROLE_FAMILY_LABELS.get(value, value)
+
+
+def track_label(value: str | None) -> str:
+    if not value:
+        return "Unclassified target title"
+    if value.startswith("track_family:"):
+        return f"Track 3 · {role_family_label(value.removeprefix('track_family:'))}"
+    return TRACK_LABELS.get(value, value)
+
 
 ROLE_FAMILY_OPTIONS = [
     "Internship",
@@ -1986,7 +2009,7 @@ ROLE_FAMILY_OPTIONS = [
     "Financial Analyst",
     "Needs review",
     "Excluded / non-target",
-    "Other",
+    "Unclassified target title",
 ]
 
 EMPLOYMENT_BUCKET_OPTIONS = ["internship", "entry_level", "full_time_or_unknown", "full_time", "part_time", "contract"]
@@ -2122,11 +2145,7 @@ if selected_page == "Pulse":
         st.caption("Current open target jobs and jobs first seen today, grouped by your track and role family.")
         mix_summary = mix_summary.copy()
         mix_summary["label"] = mix_summary.apply(
-            lambda row: (
-                TRACK_LABELS.get(row["segment_key"], row["segment_key"])
-                if row["dimension"] == "track"
-                else ROLE_FAMILY_LABELS.get(row["segment_key"], row["segment_key"])
-            ),
+            lambda row: track_label(row["segment_key"]) if row["dimension"] == "track" else role_family_label(row["segment_key"]),
             axis=1,
         )
         mix_summary["Current"] = mix_summary.apply(
@@ -2152,7 +2171,7 @@ if selected_page == "Pulse":
                 st.bar_chart(track_mix.set_index("label")["current_open_jobs"], height=220)
         with role_col:
             st.markdown("##### Role family distribution")
-            st.caption("Other = target jobs that still do not match any named family after the lightweight clusters.")
+            st.caption("Unclassified rows are expanded by normalized title instead of being grouped into one fallback bucket.")
             st.dataframe(
                 role_mix[["label", "Current", "New today"]].rename(columns={"label": "Role family"}),
                 hide_index=True,
@@ -2335,15 +2354,22 @@ if selected_page == "Jobs to apply":
     else:
         job_frame = job_frame.copy()
         job_frame["first_seen_ct"] = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
-        job_frame["track_label"] = job_frame["role_stack"].map(TRACK_LABELS).fillna(job_frame["role_stack"].fillna("Unlabeled"))
-        job_frame["role_family_label"] = job_frame["role_family"].map(ROLE_FAMILY_LABELS).fillna(job_frame["role_family"].fillna("Other"))
+        job_frame["role_family_label"] = job_frame["role_family"].apply(role_family_label)
+        job_frame["track_label"] = job_frame.apply(
+            lambda row: f"Track 3 · {row['role_family_label']}" if row["role_stack"] == "stack_3_additional_targets" else track_label(row["role_stack"]),
+            axis=1,
+        )
 
         selected_tracks = track_choice or TRACK_OPTIONS
         if role_family_choice != "All":
             job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
         if employment_choice != "All":
             job_frame = job_frame[job_frame["employment_bucket"] == employment_choice]
-        job_frame = job_frame[job_frame["track_label"].isin(selected_tracks)].sort_values("first_seen_at", ascending=False)
+        fallback_selected = "Track 3 · Unclassified target title" in selected_tracks
+        track_mask = job_frame["track_label"].isin(selected_tracks)
+        if fallback_selected:
+            track_mask = track_mask | (job_frame["role_stack"] == "stack_3_additional_targets")
+        job_frame = job_frame[track_mask].sort_values("first_seen_at", ascending=False)
 
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
