@@ -21,6 +21,10 @@ WITH supported AS (
           site.source_type = 'workday'
           AND site.site_url ~* 'myworkdayjobs\.com/.*/job/'
       )
+      AND NOT (
+          site.source_type = 'amazon_jobs'
+          AND site.site_url ~* 'amazon\.jobs/.*/jobs/[0-9]+/'
+      )
       AND (
           site.source_type IN ('amazon_jobs', 'greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters', 'oracle_cloud')
           OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
