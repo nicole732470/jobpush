@@ -1800,7 +1800,7 @@ with st.sidebar.form("global_view_form"):
         "Priority tier",
         ["All P tiers", "P0 only", "P1 only", "P2 only", "P3 only", "P0 + P1"],
     )
-    row_limit = st.selectbox("Rows to load", [1000, 2000, 5000, 20000], index=0)
+    row_limit = st.selectbox("Rows to load", [300, 1000, 2000, 5000], index=0)
     st.form_submit_button("Apply global view", use_container_width=True)
 company = ""
 title = ""

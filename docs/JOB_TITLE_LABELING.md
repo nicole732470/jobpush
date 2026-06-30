@@ -115,6 +115,26 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
   frontline/hospitality operation titles.
 - The private dashboard can export a fresh review batch without Codex.
 
+## Crawl-time automation
+
+After each successful due-crawl batch, `db/run_due_crawl_batch.sh` now calls
+`db/run_post_crawl_title_classification.sh`.
+
+That post-crawl hook:
+
+1. retrains the local title classifier from current manual dashboard labels;
+2. applies only high-confidence `local-title-ml-v4` predictions that pass the
+   existing precision gate;
+3. refreshes recent crawl-run `target_job_count` / `review_job_count` so the
+   dashboard reflects the latest title decisions.
+
+This means newly crawled titles should not wait for a separate Codex cleanup
+step. Manual review is still used as training data, not as the daily way to
+decide every job.
+
+Set `SKIP_POST_CRAWL_TITLE_ML=1` only for emergency/debug crawls where speed is
+more important than fresh title classification.
+
 The export query is `db/analysis/export_job_title_review.sql`.
 The private dashboard can also export a fresh review batch without Codex.
 

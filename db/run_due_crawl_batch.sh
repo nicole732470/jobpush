@@ -105,3 +105,7 @@ fi
 if [[ "$failures" -gt 0 ]]; then
   echo "Some due-site crawls failed; failures are recorded in crawl_runs and career_sites." >&2
 fi
+
+if [[ "${SKIP_POST_CRAWL_TITLE_ML:-0}" != "1" ]]; then
+  bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
+fi
