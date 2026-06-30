@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import os
+from pathlib import Path
 import subprocess
 from urllib.parse import parse_qs, quote_plus, urlparse, urlunparse
+from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -52,6 +54,7 @@ APPLICATION_STATUS_OPTIONS = {
     "Saved (legacy)": "saved",
 }
 OPEN_APPLICATION_STATUSES = ("new", "saved", "apply_next", "referred")
+PROFILE_YAML_URL = "https://raw.githubusercontent.com/nicole732470/joblens/main/evals/golden_set/candidate_profile.yaml"
 
 
 st.set_page_config(page_title="JobPush Ops", page_icon="↗", layout="wide")
@@ -259,8 +262,35 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                     WHEN normalized_title LIKE '%%customer%%success%%'
                          OR normalized_title LIKE '%%technical%%account%%'
                          OR normalized_title LIKE '%%relationship%%manager%%' THEN 'customer_success'
+                    WHEN normalized_title LIKE '%%quality%%assurance%%'
+                         OR normalized_title LIKE '%% qa %%'
+                         OR normalized_title LIKE '%%test engineer%%'
+                         OR normalized_title LIKE '%%tester%%' THEN 'qa_testing'
+                    WHEN normalized_title LIKE '%%devops%%'
+                         OR normalized_title LIKE '%%cloud%%'
+                         OR normalized_title LIKE '%%site reliability%%'
+                         OR normalized_title LIKE '%%sre%%' THEN 'cloud_devops'
+                    WHEN normalized_title LIKE '%%security%%'
+                         OR normalized_title LIKE '%%cyber%%' THEN 'security'
+                    WHEN normalized_title LIKE '%%implementation%%'
+                         OR normalized_title LIKE '%%consultant%%'
+                         OR normalized_title LIKE '%%consulting%%' THEN 'implementation_consulting'
+                    WHEN normalized_title LIKE '%%support%%'
+                         OR normalized_title LIKE '%%specialist%%'
+                         OR normalized_title LIKE '%%administrator%%'
+                         OR normalized_title LIKE '%%admin%%' THEN 'it_support_admin'
+                    WHEN normalized_title LIKE '%%operations%%'
+                         OR normalized_title LIKE '%%coordinator%%' THEN 'business_operations'
                     WHEN normalized_title LIKE '%%marketing%%' THEN 'marketing'
                     WHEN normalized_title LIKE '%%sales%%' THEN 'sales'
+                    WHEN canonical_role ILIKE '%%market research%%' THEN 'marketing'
+                    WHEN canonical_role ILIKE '%%financial%%analyst%%'
+                         OR canonical_role ILIKE '%%financial and investment%%' THEN 'financial_analyst'
+                    WHEN canonical_role ILIKE '%%statistic%%' THEN 'data_analytics_bi'
+                    WHEN canonical_role ILIKE '%%information technology project manager%%' THEN 'project_manager'
+                    WHEN canonical_role ILIKE '%%network%%'
+                         OR canonical_role ILIKE '%%systems administrator%%' THEN 'systems_engineering'
+                    WHEN canonical_role ILIKE '%%software developer%%' THEN 'software_engineering'
                     ELSE COALESCE(NULLIF(canonical_role, ''), 'other')
                 END AS role_family
             FROM base
@@ -290,6 +320,19 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
         """,
         (list(tiers), list(app_statuses)),
     )
+
+
+@st.cache_data(ttl=300)
+def candidate_profile_yaml() -> tuple[str, str]:
+    paths = [
+        os.environ.get("JOBPUSH_PROFILE_YAML_PATH"),
+        str(Path(__file__).resolve().parents[2] / "joblens/evals/golden_set/candidate_profile.yaml"),
+    ]
+    for path in paths:
+        if path and Path(path).exists():
+            return path, Path(path).read_text(encoding="utf-8")
+    with urlopen(PROFILE_YAML_URL, timeout=5) as response:
+        return PROFILE_YAML_URL, response.read().decode("utf-8")
 
 
 @st.cache_data(ttl=60)
@@ -1837,6 +1880,12 @@ ROLE_FAMILY_LABELS = {
     "technical_support": "Technical Support / Specialist",
     "applied_ai": "Applied AI / GTM Engineering",
     "financial_analyst": "Financial Analyst",
+    "qa_testing": "QA / Testing",
+    "cloud_devops": "Cloud / DevOps / SRE",
+    "security": "Security / Cybersecurity",
+    "implementation_consulting": "Implementation / Consulting",
+    "it_support_admin": "IT Support / Admin",
+    "business_operations": "Business Operations / Coordinator",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "other": "Other",
@@ -2050,6 +2099,7 @@ if selected_page == "Pulse":
                 st.bar_chart(track_mix.set_index("label")["current_open_jobs"], height=220)
         with role_col:
             st.markdown("##### Role family distribution")
+            st.caption("Other = target jobs that still do not match any named family after the lightweight clusters.")
             st.dataframe(
                 role_mix[["label", "Current", "New today"]].rename(columns={"label": "Role family"}),
                 hide_index=True,
@@ -2717,6 +2767,13 @@ if selected_page == "Companies":
 if selected_page == "Scoring rules":
     st.subheader("Company priority and role-labeling rules")
     st.caption("这个区域展示公司 P 档从哪里来，以及 LCA/SOC 初始职业标注如何影响 target_role_score。")
+    try:
+        profile_source, profile_yaml = candidate_profile_yaml()
+        st.subheader("Current candidate profile YAML")
+        st.caption(f"Source: `{profile_source}`")
+        st.code(profile_yaml, language="yaml")
+    except Exception as exc:
+        st.warning(f"Could not load candidate profile YAML: {exc}")
     st.markdown(
         """
 ### P 档定义
