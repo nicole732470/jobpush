@@ -49,14 +49,22 @@ unset APP_SECRET
 [[ -n "$TAVILY_API_KEY" ]] || { echo "TAVILY_API_KEY is not configured" >&2; exit 1; }
 export TAVILY_API_KEY
 
+set +e
 python3 "$REPO_DIR/scripts/discover_career_sites.py" \
   "$TARGETS" "$CANDIDATES" "$RESULTS" --run-id "$RUN_ID"
+DISCOVERY_STATUS=$?
+set -e
 unset TAVILY_API_KEY
 
-"${PSQL[@]}" -c "\copy jobpush.career_site_discovery_stage FROM '$CANDIDATES' WITH (FORMAT csv, HEADER true)"
-"${PSQL[@]}" -c "\copy jobpush.career_site_discovery_result_stage FROM '$RESULTS' WITH (FORMAT csv, HEADER true)"
-"${PSQL[@]}" -v run_id="$RUN_ID" -v cohort="$COHORT" \
-  -f "$SCRIPT_DIR/load/finalize_career_site_discovery.sql"
+RESULT_COUNT=$(( $(wc -l < "$RESULTS") - 1 ))
+if [[ "$RESULT_COUNT" -gt 0 ]]; then
+  "${PSQL[@]}" -c "\copy jobpush.career_site_discovery_stage FROM '$CANDIDATES' WITH (FORMAT csv, HEADER true)"
+  "${PSQL[@]}" -c "\copy jobpush.career_site_discovery_result_stage FROM '$RESULTS' WITH (FORMAT csv, HEADER true)"
+  "${PSQL[@]}" -v run_id="$RUN_ID" -v cohort="$COHORT" \
+    -f "$SCRIPT_DIR/load/finalize_career_site_discovery.sql"
+else
+  echo "No discovery results were produced; nothing to finalize." >&2
+fi
 
 "${PSQL[@]}" -P pager=off -c \
   "SELECT run_id, cohort, target_count, candidate_count, error_count, estimated_credits, status
@@ -65,3 +73,5 @@ unset TAVILY_API_KEY
    FROM jobpush.career_site_review_workbench
    WHERE priority_tier = 'P2'
    GROUP BY priority_tier, action_status ORDER BY action_status;"
+
+exit "$DISCOVERY_STATUS"

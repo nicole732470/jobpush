@@ -25,5 +25,7 @@ data = json.load(sys.stdin)
 account = data.get("account") or {}
 print("plan=" + str(account.get("current_plan")))
 print("usage=" + str(account.get("plan_usage")) + "/" + str(account.get("plan_limit")))
+for key in ("search_usage", "crawl_usage", "extract_usage", "map_usage", "research_usage", "paygo_usage", "paygo_limit"):
+    print(f"{key}={account.get(key)}")
 print("raw_keys=" + ",".join(sorted(account.keys())))
 ' <<< "$USAGE_JSON"
