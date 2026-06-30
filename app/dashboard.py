@@ -167,6 +167,132 @@ def application_status_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]) -> pd.DataFrame:
+    return query(
+        """
+        WITH chicago_day AS (
+            SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), base AS (
+            SELECT canonical_role, normalized_title, first_seen_at
+            FROM jobpush.dashboard_jobs
+            WHERE priority_tier = ANY(%s)
+              AND role_status = 'target'
+              AND application_status = ANY(%s)
+        ), classified AS (
+            SELECT
+                first_seen_at,
+                CASE
+                    WHEN canonical_role IN ('candidate_profile_track: product', 'candidate_profile_track: analyst/bi')
+                         OR normalized_title LIKE '%%product%%manager%%'
+                         OR normalized_title LIKE '%%business%%analyst%%'
+                         OR normalized_title LIKE '%%data%%analyst%%'
+                         OR normalized_title LIKE '%%strategy%%analyst%%'
+                         OR normalized_title LIKE '%%operations%%analyst%%'
+                    THEN 'stack_1_business_product_data'
+                    WHEN canonical_role IN (
+                        'candidate_profile_track: software/data',
+                        'candidate_profile_track: solutions/systems',
+                        'candidate_profile_track: applied_ai'
+                    )
+                         OR normalized_title LIKE '%%software%%'
+                         OR normalized_title LIKE '%%systems%%analyst%%'
+                         OR normalized_title LIKE '%%information%%system%%'
+                    THEN 'stack_2_software_systems'
+                    WHEN canonical_role = 'candidate_profile_track: customer_success'
+                         OR normalized_title LIKE '%%customer%%success%%'
+                         OR normalized_title LIKE '%%technical%%account%%'
+                         OR normalized_title LIKE '%%relationship%%manager%%'
+                    THEN 'stack_3_customer_success'
+                    WHEN canonical_role = 'candidate_profile_track: marketing automation'
+                         OR normalized_title LIKE '%%sales%%'
+                         OR normalized_title LIKE '%%marketing%%'
+                         OR normalized_title LIKE '%%business%%development%%'
+                    THEN 'stack_3_gtm'
+                    ELSE 'stack_3_target_roles'
+                END AS role_stack,
+                CASE
+                    WHEN canonical_role = 'candidate_profile_track: product' THEN 'product_manager'
+                    WHEN canonical_role = 'candidate_profile_track: analyst/bi' THEN 'data_analytics_bi'
+                    WHEN canonical_role = 'candidate_profile_track: solutions/systems' THEN 'systems_engineering'
+                    WHEN canonical_role = 'candidate_profile_track: applied_ai' THEN 'applied_ai'
+                    WHEN canonical_role = 'candidate_profile_track: customer_success' THEN 'customer_success'
+                    WHEN canonical_role = 'candidate_profile_track: marketing automation' THEN 'marketing'
+                    WHEN canonical_role = 'candidate_profile_track: software/data'
+                         AND (normalized_title LIKE '%%data%%engineer%%'
+                              OR normalized_title LIKE '%%analytics%%engineer%%'
+                              OR normalized_title LIKE '%%data%%architect%%') THEN 'data_engineering'
+                    WHEN canonical_role = 'candidate_profile_track: software/data' THEN 'software_engineering'
+                    WHEN normalized_title LIKE '%%intern%%'
+                         OR normalized_title LIKE '%%internship%%'
+                         OR normalized_title LIKE '%%co op%%'
+                         OR normalized_title LIKE '%%co-op%%' THEN 'internship'
+                    WHEN normalized_title LIKE '%%forward deployed engineer%%'
+                         OR normalized_title LIKE '%%forward-deployed engineer%%' THEN 'forward_deployed_engineer'
+                    WHEN normalized_title LIKE '%%ai full stack%%'
+                         OR normalized_title LIKE '%%ai engineer%%'
+                         OR normalized_title LIKE '%%gtm engineer%%' THEN 'applied_ai'
+                    WHEN normalized_title LIKE '%%product%%manager%%' THEN 'product_manager'
+                    WHEN normalized_title LIKE '%%program%%manager%%' THEN 'program_manager'
+                    WHEN normalized_title LIKE '%%project%%manager%%' THEN 'project_manager'
+                    WHEN normalized_title LIKE '%%system%%engineer%%'
+                         OR normalized_title LIKE '%%systems%%engineer%%'
+                         OR normalized_title LIKE '%%systems%%analyst%%'
+                         OR normalized_title LIKE '%%information%%system%%' THEN 'systems_engineering'
+                    WHEN normalized_title LIKE '%%software%%engineer%%'
+                         OR normalized_title LIKE '%%software%%developer%%'
+                         OR normalized_title LIKE '%%fullstack%%'
+                         OR normalized_title LIKE '%%full stack%%' THEN 'software_engineering'
+                    WHEN normalized_title LIKE '%%data%%scientist%%'
+                         OR normalized_title LIKE '%%machine%%learning%%'
+                         OR normalized_title LIKE '%%ml engineer%%' THEN 'data_science_ml'
+                    WHEN normalized_title LIKE '%%data%%engineer%%'
+                         OR normalized_title LIKE '%%analytics%%engineer%%'
+                         OR normalized_title LIKE '%%data%%architect%%'
+                         OR normalized_title LIKE '%%database%%administrator%%'
+                         OR normalized_title LIKE '%%database%%admin%%' THEN 'data_engineering'
+                    WHEN normalized_title LIKE '%%data%%analyst%%'
+                         OR normalized_title LIKE '%%business intelligence%%'
+                         OR normalized_title LIKE '%%bi analyst%%' THEN 'data_analytics_bi'
+                    WHEN normalized_title LIKE '%%business%%analyst%%' THEN 'business_analyst'
+                    WHEN normalized_title LIKE '%%operations%%analyst%%'
+                         OR normalized_title LIKE '%%strategy%%analyst%%' THEN 'strategy_operations'
+                    WHEN normalized_title LIKE '%%customer%%success%%'
+                         OR normalized_title LIKE '%%technical%%account%%'
+                         OR normalized_title LIKE '%%relationship%%manager%%' THEN 'customer_success'
+                    WHEN normalized_title LIKE '%%marketing%%' THEN 'marketing'
+                    WHEN normalized_title LIKE '%%sales%%' THEN 'sales'
+                    ELSE COALESCE(NULLIF(canonical_role, ''), 'other')
+                END AS role_family
+            FROM base
+        ), segments AS (
+            SELECT 'track' AS dimension, role_stack AS segment_key, first_seen_at FROM classified
+            UNION ALL
+            SELECT 'role_family' AS dimension, role_family AS segment_key, first_seen_at FROM classified
+        ), counts AS (
+            SELECT
+                dimension,
+                segment_key,
+                count(*) AS current_open_jobs,
+                count(*) FILTER (WHERE first_seen_at >= chicago_day.start_at) AS new_today_jobs
+            FROM segments
+            CROSS JOIN chicago_day
+            GROUP BY dimension, segment_key
+        )
+        SELECT
+            dimension,
+            segment_key,
+            current_open_jobs,
+            ROUND(100.0 * current_open_jobs / NULLIF(SUM(current_open_jobs) OVER (PARTITION BY dimension), 0), 1) AS current_pct,
+            new_today_jobs,
+            ROUND(100.0 * new_today_jobs / NULLIF(SUM(new_today_jobs) OVER (PARTITION BY dimension), 0), 1) AS today_pct
+        FROM counts
+        ORDER BY dimension, current_open_jobs DESC, segment_key
+        """,
+        (list(tiers), list(app_statuses)),
+    )
+
+
+@st.cache_data(ttl=60)
 def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -1887,6 +2013,51 @@ if selected_page == "Pulse":
         for column, row in zip(status_cards, status_summary.itertuples()):
             label = status_labels.get(row.application_status, row.application_status)
             column.metric(label, f"{int(row.jobs):,}", f"{float(row.pct or 0):.1f}%")
+
+    mix_summary = target_job_mix_summary(tiers, OPEN_APPLICATION_STATUSES)
+    if not mix_summary.empty:
+        st.subheader("Target job mix")
+        st.caption("Current open target jobs and jobs first seen today, grouped by your track and role family.")
+        mix_summary = mix_summary.copy()
+        mix_summary["label"] = mix_summary.apply(
+            lambda row: (
+                TRACK_LABELS.get(row["segment_key"], row["segment_key"])
+                if row["dimension"] == "track"
+                else ROLE_FAMILY_LABELS.get(row["segment_key"], row["segment_key"])
+            ),
+            axis=1,
+        )
+        mix_summary["Current"] = mix_summary.apply(
+            lambda row: f"{int(row['current_open_jobs']):,} ({float(row['current_pct'] or 0):.1f}%)",
+            axis=1,
+        )
+        mix_summary["New today"] = mix_summary.apply(
+            lambda row: f"{int(row['new_today_jobs']):,} ({float(row['today_pct'] or 0):.1f}%)",
+            axis=1,
+        )
+        track_mix = mix_summary[mix_summary["dimension"] == "track"].sort_values("current_open_jobs", ascending=False)
+        role_mix = mix_summary[mix_summary["dimension"] == "role_family"].sort_values("current_open_jobs", ascending=False).head(15)
+        track_col, role_col = st.columns(2)
+        with track_col:
+            st.markdown("##### Track distribution")
+            st.dataframe(
+                track_mix[["label", "Current", "New today"]].rename(columns={"label": "Track"}),
+                hide_index=True,
+                use_container_width=True,
+                height=220,
+            )
+            if track_mix["current_open_jobs"].sum() > 0:
+                st.bar_chart(track_mix.set_index("label")["current_open_jobs"], height=220)
+        with role_col:
+            st.markdown("##### Role family distribution")
+            st.dataframe(
+                role_mix[["label", "Current", "New today"]].rename(columns={"label": "Role family"}),
+                hide_index=True,
+                use_container_width=True,
+                height=220,
+            )
+            if role_mix["current_open_jobs"].sum() > 0:
+                st.bar_chart(role_mix.set_index("label")["current_open_jobs"], height=220)
 
     activity = daily_activity(tiers)
     st.subheader("30-day target job discovery")
