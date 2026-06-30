@@ -191,6 +191,15 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR normalized_title LIKE '%%data%%analyst%%'
                          OR normalized_title LIKE '%%strategy%%analyst%%'
                          OR normalized_title LIKE '%%operations%%analyst%%'
+                         OR normalized_title LIKE '%%program%%manager%%'
+                         OR normalized_title LIKE '%%project%%manager%%'
+                         OR normalized_title LIKE '%%implementation%%'
+                         OR normalized_title LIKE '%%consultant%%'
+                         OR normalized_title LIKE '%%consulting%%'
+                         OR normalized_title LIKE '%%coordinator%%'
+                         OR canonical_role ILIKE '%%financial%%analyst%%'
+                         OR canonical_role ILIKE '%%financial and investment%%'
+                         OR canonical_role ILIKE '%%market research%%'
                     THEN 'stack_1_business_product_data'
                     WHEN canonical_role IN (
                         'candidate_profile_track: software/data',
@@ -200,18 +209,34 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR normalized_title LIKE '%%software%%'
                          OR normalized_title LIKE '%%systems%%analyst%%'
                          OR normalized_title LIKE '%%information%%system%%'
+                         OR normalized_title LIKE '%%quality%%assurance%%'
+                         OR normalized_title LIKE '%% qa %%'
+                         OR normalized_title LIKE '%%test engineer%%'
+                         OR normalized_title LIKE '%%tester%%'
+                         OR normalized_title LIKE '%%devops%%'
+                         OR normalized_title LIKE '%%cloud%%'
+                         OR normalized_title LIKE '%%site reliability%%'
+                         OR normalized_title LIKE '%%sre%%'
+                         OR normalized_title LIKE '%%security%%'
+                         OR normalized_title LIKE '%%cyber%%'
+                         OR canonical_role ILIKE '%%network%%'
+                         OR canonical_role ILIKE '%%systems administrator%%'
                     THEN 'stack_2_software_systems'
                     WHEN canonical_role = 'candidate_profile_track: customer_success'
                          OR normalized_title LIKE '%%customer%%success%%'
                          OR normalized_title LIKE '%%technical%%account%%'
                          OR normalized_title LIKE '%%relationship%%manager%%'
+                         OR normalized_title LIKE '%%support%%'
+                         OR normalized_title LIKE '%%specialist%%'
+                         OR normalized_title LIKE '%%administrator%%'
+                         OR normalized_title LIKE '%%admin%%'
                     THEN 'stack_3_customer_success'
                     WHEN canonical_role = 'candidate_profile_track: marketing automation'
                          OR normalized_title LIKE '%%sales%%'
                          OR normalized_title LIKE '%%marketing%%'
                          OR normalized_title LIKE '%%business%%development%%'
                     THEN 'stack_3_gtm'
-                    ELSE 'stack_3_target_roles'
+                    ELSE 'stack_3_additional_targets'
                 END AS role_stack,
                 CASE
                     WHEN canonical_role = 'candidate_profile_track: product' THEN 'product_manager'
@@ -1428,6 +1453,15 @@ def jobs(
                        OR normalized_title LIKE '%%data%%analyst%%'
                        OR normalized_title LIKE '%%strategy%%analyst%%'
                        OR normalized_title LIKE '%%operations%%analyst%%'
+                       OR normalized_title LIKE '%%program%%manager%%'
+                       OR normalized_title LIKE '%%project%%manager%%'
+                       OR normalized_title LIKE '%%implementation%%'
+                       OR normalized_title LIKE '%%consultant%%'
+                       OR normalized_title LIKE '%%consulting%%'
+                       OR normalized_title LIKE '%%coordinator%%'
+                       OR canonical_role ILIKE '%%financial%%analyst%%'
+                       OR canonical_role ILIKE '%%financial and investment%%'
+                       OR canonical_role ILIKE '%%market research%%'
                    ) THEN 'stack_1_business_product_data'
                    WHEN role_status = 'target' AND canonical_role IN (
                        'candidate_profile_track: software/data',
@@ -1438,12 +1472,28 @@ def jobs(
                        normalized_title LIKE '%%software%%'
                        OR normalized_title LIKE '%%systems%%analyst%%'
                        OR normalized_title LIKE '%%information%%system%%'
+                       OR normalized_title LIKE '%%quality%%assurance%%'
+                       OR normalized_title LIKE '%% qa %%'
+                       OR normalized_title LIKE '%%test engineer%%'
+                       OR normalized_title LIKE '%%tester%%'
+                       OR normalized_title LIKE '%%devops%%'
+                       OR normalized_title LIKE '%%cloud%%'
+                       OR normalized_title LIKE '%%site reliability%%'
+                       OR normalized_title LIKE '%%sre%%'
+                       OR normalized_title LIKE '%%security%%'
+                       OR normalized_title LIKE '%%cyber%%'
+                       OR canonical_role ILIKE '%%network%%'
+                       OR canonical_role ILIKE '%%systems administrator%%'
                    ) THEN 'stack_2_software_systems'
                    WHEN role_status = 'target' AND canonical_role = 'candidate_profile_track: customer_success' THEN 'stack_3_customer_success'
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%customer%%success%%'
                        OR normalized_title LIKE '%%technical%%account%%'
                        OR normalized_title LIKE '%%relationship%%manager%%'
+                       OR normalized_title LIKE '%%support%%'
+                       OR normalized_title LIKE '%%specialist%%'
+                       OR normalized_title LIKE '%%administrator%%'
+                       OR normalized_title LIKE '%%admin%%'
                    ) THEN 'stack_3_customer_success'
                    WHEN role_status = 'target' AND (
                        normalized_title LIKE '%%sales%%'
@@ -1451,7 +1501,7 @@ def jobs(
                        OR normalized_title LIKE '%%business%%development%%'
                        OR canonical_role = 'candidate_profile_track: marketing automation'
                    ) THEN 'stack_3_gtm'
-                   WHEN role_status = 'target' THEN 'stack_3_target_roles'
+                   WHEN role_status = 'target' THEN 'stack_3_additional_targets'
                    WHEN role_status = 'review' THEN 'needs_review'
                    ELSE 'excluded_non_target'
                END AS role_stack,
@@ -1853,7 +1903,8 @@ TRACK_LABELS = {
     "stack_2_software_systems": "Track 2 · Software / Systems",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
-    "stack_3_target_roles": "Track 3 · Other Target Roles",
+    "stack_3_additional_targets": "Track 3 · Additional Target Roles",
+    "stack_3_target_roles": "Track 3 · Additional Target Roles",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
     "review": "Needs review",
@@ -1896,7 +1947,7 @@ TRACK_OPTIONS = [
     "Track 2 · Software / Systems",
     "Track 3 · Customer Success / Technical Account",
     "Track 3 · GTM / Sales / Marketing",
-    "Track 3 · Other Target Roles",
+    "Track 3 · Additional Target Roles",
     "Needs review",
     "Excluded / non-target",
 ]
@@ -1906,11 +1957,13 @@ TRACK_VALUE_TO_LABEL = {
     "stack_2_software_systems": "Track 2 · Software / Systems",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
-    "stack_3_target_roles": "Track 3 · Other Target Roles",
+    "stack_3_additional_targets": "Track 3 · Additional Target Roles",
+    "stack_3_target_roles": "Track 3 · Additional Target Roles",
     "needs_review": "Needs review",
     "excluded_non_target": "Excluded / non-target",
 }
 TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.items()}
+TRACK_LABEL_TO_VALUE["Track 3 · Additional Target Roles"] = "stack_3_additional_targets"
 
 ROLE_FAMILY_OPTIONS = [
     "Internship",
