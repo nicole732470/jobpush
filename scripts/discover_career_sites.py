@@ -149,7 +149,7 @@ def classify_url(raw_url):
         source_type, source_key, site_kind = "google_jobs", host, "ats_feed"
     elif host == "careers.cognizant.com" and "/jobs" in parsed.path:
         source_type, source_key, site_kind = "cognizant_jobs", host, "ats_feed"
-    elif host.endswith("eightfold.ai") or host == "portal.careers.hsbc.com":
+    elif host.endswith("eightfold.ai") or host in {"portal.careers.hsbc.com", "jobs.ericsson.com"}:
         source_type, source_key, site_kind = "eightfold", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"

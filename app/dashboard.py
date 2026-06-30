@@ -1018,7 +1018,7 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         source_type, source_key, site_kind = "google_jobs", host, "ats_feed"
     elif host == "careers.cognizant.com" and "/jobs" in parsed.path:
         source_type, source_key, site_kind = "cognizant_jobs", host, "ats_feed"
-    elif host.endswith("eightfold.ai") or "portal.careers.hsbc.com" == host:
+    elif host.endswith("eightfold.ai") or host in {"portal.careers.hsbc.com", "jobs.ericsson.com"}:
         source_type, source_key, site_kind = "eightfold", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
