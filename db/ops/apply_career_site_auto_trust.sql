@@ -16,6 +16,11 @@ WITH supported AS (
     WHERE target.enabled
       AND target.priority_tier IN ('P0', 'P1', 'P2', 'P3')
       AND site.verification_status = 'unverified'
+      -- ponytail: job-detail URLs are not crawl boards; reject/promote a board URL instead.
+      AND NOT (
+          site.source_type = 'workday'
+          AND site.site_url ~* 'myworkdayjobs\.com/.*/job/'
+      )
       AND (
           site.source_type IN ('amazon_jobs', 'greenhouse', 'workday', 'lever', 'ashby', 'smartrecruiters', 'oracle_cloud')
           OR (site.source_type = 'workable' AND site.normalized_domain = 'apply.workable.com')
