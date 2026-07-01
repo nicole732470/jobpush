@@ -45,6 +45,8 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="google-careers-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_google_jobs.py" ;;
     cognizant_jobs)
       adapter_name="cognizant-careers-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_cognizant_jobs.py" ;;
+    uber_jobs)
+      adapter_name="uber-jobs-search-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_uber_jobs.py" ;;
     eightfold)
       adapter_name="eightfold-embedded"; adapter_version="0.1.0"; adapter_script="scripts/crawl_eightfold_jobs.py" ;;
     generic_html)

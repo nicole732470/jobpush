@@ -34,7 +34,7 @@ mkdir -p "$STAGING/db/lib" "$STAGING/db/migrations" "$STAGING/db/refresh"
 if [[ -d "$REPO_DIR/scripts" ]]; then
   mkdir -p "$STAGING/scripts"
   for script in \
-    crawl_amazon_jobs.py crawl_apple_jobs.py crawl_cognizant_jobs.py crawl_eightfold_jobs.py crawl_google_jobs.py crawl_greenhouse.py crawl_icims.py \
+    crawl_amazon_jobs.py crawl_apple_jobs.py crawl_cognizant_jobs.py crawl_eightfold_jobs.py crawl_google_jobs.py crawl_uber_jobs.py crawl_greenhouse.py crawl_icims.py \
     crawl_oracle_cloud.py crawl_workday.py crawl_lever.py crawl_ashby.py crawl_jobvite.py crawl_paylocity.py crawl_rippling.py \
     crawl_smartrecruiters.py crawl_workable.py crawl_generic_jsonld.py discover_career_sites.py \
     resolve_generic_ats_links.py \
