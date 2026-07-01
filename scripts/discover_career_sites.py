@@ -323,12 +323,14 @@ def main():
             })
             print(f"[{index}/{len(targets)}] {name}: {len(found)} candidates", flush=True)
             if consecutive_fatal_errors >= args.fatal_error_threshold:
-                raise SystemExit(
+                print(
                     "Aborting Tavily discovery after "
                     f"{consecutive_fatal_errors} consecutive fatal HTTP errors. "
-                    "Check TAVILY_API_KEY quota/status before running another batch. "
-                    f"Last error: {error_message}"
+                    "Finalizing completed rows before stopping. "
+                    f"Last error: {error_message}",
+                    flush=True,
                 )
+                break
             if index < len(targets) and args.delay:
                 time.sleep(args.delay)
 
