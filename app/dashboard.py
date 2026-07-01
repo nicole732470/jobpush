@@ -116,8 +116,10 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
             SELECT count(*) AS closed_jobs_today
             FROM jobpush.job_postings posting
             JOIN jobpush.crawl_targets target USING (consolidation_key)
+            JOIN jobpush.job_title_labels label USING (normalized_title)
             CROSS JOIN chicago_day
             WHERE target.priority_tier = ANY(%s)
+              AND label.classification_status = 'target'
               AND posting.closed_at >= chicago_day.start_at
         )
         SELECT
@@ -396,8 +398,10 @@ def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
                 count(*) AS closed_jobs
             FROM jobpush.job_postings posting
             JOIN jobpush.crawl_targets target USING (consolidation_key)
+            JOIN jobpush.job_title_labels label USING (normalized_title)
             WHERE posting.closed_at IS NOT NULL
               AND target.priority_tier = ANY(%s)
+              AND label.classification_status = 'target'
             GROUP BY 1
         ), runs AS (
             SELECT

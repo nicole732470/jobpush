@@ -46,6 +46,10 @@ Codex token.
 - one-company lookup for networking/application planning, including active
   official-site jobs, LCA sponsorship role aggregates, CSV download, and a
   LinkedIn company-search shortcut;
+- `Closed today` means jobs that were previously active for a crawled site but
+  disappeared from the latest successful crawl. Dashboard closed counts are
+  target-only; lower-level crawl run counts may still record all closed US jobs
+  for crawler diagnostics.
 - **Title review**: selectable review table. One or more selected rows can be
   labeled as `target`, `non_target`, or `review` through
   `jobpush.apply_manual_job_title_label(...)`; every write keeps history. A
