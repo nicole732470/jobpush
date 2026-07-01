@@ -2390,6 +2390,7 @@ if selected_page == "Jobs to apply":
     )
     filter_cols = st.columns(4)
     job_search_filter = filter_cols[0].text_input("Search this page", value=global_search, key="jobs-global-search")
+    effective_job_search = job_search_filter.strip() or global_search.strip()
     track_choice = filter_cols[1].multiselect(
         "Track",
         TRACK_OPTIONS,
@@ -2412,7 +2413,7 @@ if selected_page == "Jobs to apply":
     job_frame = jobs(
         start_date,
         end_date,
-        job_search_filter.strip(),
+        effective_job_search,
         tiers,
         role_statuses,
         job_app_statuses,
