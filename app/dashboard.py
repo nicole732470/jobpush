@@ -1055,7 +1055,7 @@ def site_review_queue(
     statuses: tuple[str, ...] = ("REVIEW_CANDIDATES", "VERIFIED"),
     company_search: str = "",
 ) -> pd.DataFrame:
-    company_search = normalize_company_query(company_search)
+    company_search = normalize_search_query(company_search)
     return query(
         """
         SELECT review_rank, consolidation_key, priority_tier, priority_score,
@@ -1076,8 +1076,14 @@ def site_review_queue(
           AND action_status = ANY(%s)
           AND (
               %s = ''
-              OR canonical_name ILIKE '%%' || %s || '%%'
-              OR consolidation_key ILIKE '%%' || %s || '%%'
+              OR concat_ws(' ', canonical_name, consolidation_key, priority_tier,
+                           action_status, discovery_status, employer_city, employer_state,
+                           candidate_1_url, candidate_2_url, candidate_3_url, verified_url)
+                 ILIKE ALL (ARRAY(
+                     SELECT '%%' || term || '%%'
+                     FROM regexp_split_to_table(%s, '\\s+') AS term
+                     WHERE term <> ''
+                 ))
           )
         ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
                  CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
@@ -1085,7 +1091,7 @@ def site_review_queue(
                  review_rank
         LIMIT %s
         """,
-        (list(tiers), list(statuses), company_search, company_search, company_search, limit),
+        (list(tiers), list(statuses), company_search, company_search, limit),
     )
 
 
@@ -1145,6 +1151,10 @@ def csv_bytes(frame: pd.DataFrame) -> bytes:
 
 
 def normalize_company_query(value: str) -> str:
+    return " ".join((value or "").strip().split())
+
+
+def normalize_search_query(value: str) -> str:
     return " ".join((value or "").strip().split())
 
 
@@ -1432,14 +1442,13 @@ def trigger_inline_site_crawl(site_id: int | None) -> tuple[bool, str]:
 def jobs(
     start_date,
     end_date,
-    company: str,
-    title: str,
-    location: str,
+    search: str,
     tiers: tuple[str, ...],
     role_statuses: tuple[str, ...],
     app_statuses: tuple[str, ...],
     row_limit: int,
 ) -> pd.DataFrame:
+    search = normalize_search_query(search)
     return query(
         """
         WITH ranked_targets AS (
@@ -1635,9 +1644,17 @@ def jobs(
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
         WHERE job.first_seen_at >= (%s::date AT TIME ZONE 'America/Chicago')
           AND job.first_seen_at < ((%s::date + 1) AT TIME ZONE 'America/Chicago')
-          AND (%s = '' OR job.canonical_name ILIKE '%%' || %s || '%%')
-          AND (%s = '' OR job.title ILIKE '%%' || %s || '%%' OR job.canonical_role ILIKE '%%' || %s || '%%')
-          AND (%s = '' OR job.location ILIKE '%%' || %s || '%%')
+          AND (
+              %s = ''
+              OR concat_ws(' ', job.canonical_name, job.title, job.canonical_role,
+                           job.location, job.category, job.employment_type,
+                           job.priority_tier, job.job_url)
+                 ILIKE ALL (ARRAY(
+                     SELECT '%%' || term || '%%'
+                     FROM regexp_split_to_table(%s, '\\s+') AS term
+                     WHERE term <> ''
+                 ))
+          )
           AND job.priority_tier = ANY(%s)
           AND job.role_status = ANY(%s)
           AND job.application_status = ANY(%s)
@@ -1647,13 +1664,8 @@ def jobs(
         (
             start_date,
             end_date,
-            company,
-            company,
-            title,
-            title,
-            title,
-            location,
-            location,
+            search,
+            search,
             list(tiers),
             list(role_statuses),
             list(app_statuses),
@@ -1664,6 +1676,7 @@ def jobs(
 
 @st.cache_data(ttl=60)
 def company_jobs(company: str) -> pd.DataFrame:
+    company = normalize_search_query(company)
     return query(
         """
         WITH ranked_targets AS (
@@ -1682,7 +1695,14 @@ def company_jobs(company: str) -> pd.DataFrame:
                job.first_seen_at, job.last_seen_at, job.job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
-        WHERE %s <> '' AND job.canonical_name ILIKE '%%' || %s || '%%'
+        WHERE %s <> ''
+          AND concat_ws(' ', job.canonical_name, job.title, job.canonical_role,
+                        job.location, job.priority_tier, job.job_url)
+              ILIKE ALL (ARRAY(
+                  SELECT '%%' || term || '%%'
+                  FROM regexp_split_to_table(%s, '\\s+') AS term
+                  WHERE term <> ''
+              ))
         ORDER BY CASE role_status WHEN 'target' THEN 0 WHEN 'review' THEN 1 ELSE 2 END,
                  first_seen_at DESC, title
         LIMIT 1000
@@ -1693,7 +1713,7 @@ def company_jobs(company: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=60)
 def company_lookup_options(company: str, limit: int = 25) -> pd.DataFrame:
-    company = normalize_company_query(company)
+    company = normalize_search_query(company)
     if not company:
         return pd.DataFrame()
     return query(
@@ -1704,7 +1724,14 @@ def company_lookup_options(company: str, limit: int = 25) -> pd.DataFrame:
                consolidated.employer_city, consolidated.employer_state
         FROM jobpush.crawl_targets target
         JOIN jobpush.company_targets_consolidated consolidated USING (consolidation_key)
-        WHERE target.canonical_name ILIKE '%%' || %s || '%%'
+        WHERE concat_ws(' ', target.canonical_name, target.consolidation_key,
+                        target.priority_tier, consolidated.employer_city,
+                        consolidated.employer_state)
+              ILIKE ALL (ARRAY(
+                  SELECT '%%' || term || '%%'
+                  FROM regexp_split_to_table(%s, '\\s+') AS term
+                  WHERE term <> ''
+              ))
         ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END,
                  target.priority_score DESC NULLS LAST,
                  target.canonical_name
@@ -2075,8 +2102,12 @@ st.markdown(
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
 
 st.sidebar.header("Global view")
-st.sidebar.caption("Global date range and tier filter. Company, title, and location search live inside the relevant pages.")
+st.sidebar.caption("Global date range, tier filter, and fuzzy search.")
 with st.sidebar.form("global_view_form"):
+    global_search = st.text_input(
+        "Global search",
+        placeholder="Company, title, role, location, tier, URL...",
+    )
     date_window = st.date_input(
         "First seen date range",
         value=(chicago_today - timedelta(days=6), chicago_today),
@@ -2089,7 +2120,7 @@ with st.sidebar.form("global_view_form"):
     )
     row_limit = st.selectbox("Rows to load", [300, 1000, 2000, 5000], index=0)
     st.form_submit_button("Apply global view", use_container_width=True)
-company = ""
+company = normalize_search_query(global_search)
 title = ""
 location = ""
 role_choice = "target only"
@@ -2146,7 +2177,7 @@ selected_page = st.radio(
 )
 
 def load_current_jobs() -> pd.DataFrame:
-    return jobs(start_date, end_date, company.strip(), title.strip(), location.strip(), tiers, role_statuses, app_statuses, row_limit)
+    return jobs(start_date, end_date, company.strip(), tiers, role_statuses, app_statuses, row_limit)
 
 if selected_page == "Pulse":
     summary = apply_job_summary(tiers)
@@ -2354,11 +2385,9 @@ if selected_page == "Jobs to apply":
     st.caption(
         "Review target jobs, update application status, and open application links from one page."
     )
-    filter_cols = st.columns(6)
-    job_company_filter = filter_cols[0].text_input("Company", key="jobs-company-filter")
-    job_title_filter = filter_cols[1].text_input("Title / role", key="jobs-title-filter")
-    job_location_filter = filter_cols[2].text_input("Location", key="jobs-location-filter")
-    track_choice = filter_cols[3].multiselect(
+    filter_cols = st.columns(4)
+    job_search_filter = filter_cols[0].text_input("Search this page", value=global_search, key="jobs-global-search")
+    track_choice = filter_cols[1].multiselect(
         "Track",
         TRACK_OPTIONS,
         default=[
@@ -2368,8 +2397,8 @@ if selected_page == "Jobs to apply":
             "Track 3 · GTM / Sales / Marketing",
         ],
     )
-    role_family_choice = filter_cols[4].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
-    employment_choice = filter_cols[5].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
+    role_family_choice = filter_cols[2].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
+    employment_choice = filter_cols[3].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
     selected_status_labels = st.multiselect(
         "Application status",
         list(APPLICATION_STATUS_OPTIONS.keys()),
@@ -2380,9 +2409,7 @@ if selected_page == "Jobs to apply":
     job_frame = jobs(
         start_date,
         end_date,
-        job_company_filter.strip(),
-        job_title_filter.strip(),
-        job_location_filter.strip(),
+        job_search_filter.strip(),
         tiers,
         role_statuses,
         job_app_statuses,
@@ -2619,7 +2646,8 @@ if selected_page == "Site review":
         default=["REVIEW_CANDIDATES", "VERIFIED"],
     ))
     site_company_search = site_col4.text_input(
-        "Find company in site review",
+        "Search site review",
+        value=global_search,
         placeholder="Uber, Google, Pfizer...",
     )
     if site_tiers:
@@ -2829,7 +2857,7 @@ if selected_page == "Site review":
 
 if selected_page == "Companies":
     st.subheader("Company lookup")
-    lookup = st.text_input("Open one company", value=company.strip(), placeholder="e.g. Pfizer, Google, StackAdapt")
+    lookup = st.text_input("Search company / jobs", value=global_search, placeholder="e.g. Pfizer Chicago product")
     if lookup.strip():
         st.link_button("Open LinkedIn company search", linkedin_company_search_url(lookup.strip()))
     company_frame = company_jobs(lookup.strip()) if lookup.strip() else pd.DataFrame()

@@ -31,7 +31,7 @@ Return strict JSON only. No markdown.
 Goal: recommend only jobs Nicole should plausibly apply to. Human review is for rare ambiguous cases, not for obvious no/yes decisions.
 
 Target tracks:
-- Product / technical product / product owner / product analyst / product marketing.
+- Product / technical product / product owner / product analyst / product marketing, including Senior/Sr Product Manager titles.
 - Solutions engineer / solution architect / systems engineer when software/product/customer implementation oriented.
 - Applied AI / LLM application / AI developer / forward deployed engineer / agentic AI builder.
 - Customer success / technical account roles.
@@ -39,8 +39,8 @@ Target tracks:
 - Data analyst, business analyst, BI analyst/engineer, consultant, marketing analyst/specialist.
 
 Avoid / non-target:
-- Too senior: senior, sr, lead, staff, principal, director, executive director, VP, head, chief, distinguished, fellow.
-- All Senior/Sr roles are non_target, even if the base role family is otherwise target: Senior Product Manager, Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Sr Customer Success Manager, etc.
+- Too senior: lead, staff, principal, director, executive director, VP, head, chief, distinguished, fellow.
+- Senior/Sr roles are non_target except PM-family titles such as Senior Product Manager, Sr Technical Product Manager, Senior Product Owner, Senior Program Manager, or Senior Project Manager.
 - ML model development/research, applied scientist, research scientist/engineer.
 - Mechanical, electrical, CAD/EDA, embedded, firmware, RF, antenna, circuit, ASIC, RTL, semiconductor, chip, CPU/GPU/SoC, hardware roles.
 - HR, recruiter, talent acquisition, people operations.
@@ -50,7 +50,7 @@ Avoid / non-target:
 - Required non-English/non-Chinese language roles and obvious non-US titles. Chinese/Mandarin requirements are allowed.
 
 Seniority nuance:
-- Senior/Sr is always a hard avoid signal for the current search.
+- Senior/Sr is a hard avoid signal except PM-family titles.
 - Manager is not automatically senior if it means Product Manager, Program Manager, Account Manager, Customer Success Manager, etc.
 - If a title has both a target family and a hard avoid/seniority/domain signal, choose non_target.
 

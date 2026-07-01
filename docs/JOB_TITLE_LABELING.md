@@ -44,7 +44,9 @@ Manual decisions use a `manual-*` rule version and append an immutable row to
 `job_title_label_history`. The 2026-06-27 round-1 import uses
 `manual-title-review-2026-06-27`; the round-2 import uses
 `manual-title-review-round2-2026-06-27`. Target rows that conflict with hard
-profile exclusions, such as any Senior/Sr title, are kept non-target.
+profile exclusions are kept non-target. Senior/Sr is still excluded by default,
+with a 2026-07-01 exception for PM-family titles such as Senior Product Manager,
+Senior Product Owner, Senior Program Manager, and Senior Project Manager.
 
 ## Current production snapshot
 
@@ -62,10 +64,12 @@ profile exclusions, such as any Senior/Sr title, are kept non-target.
   mental-health / therapy roles, lab / specimen / clinical-support roles,
   retail stylist / beauty / selling-floor roles, and non-technical sales roles.
   This removes repeated obvious misses from future review batches.
-- 2026-06-27 profile update `profile-title-rules-v2`: all Senior/Sr titles are
-  a hard `non_target` exclusion across every track. This supersedes the earlier
-  narrower senior-SDE-only rule and intentionally overrides older manual target
-  labels if the normalized title contains `senior`, `sr`, or `sr.`.
+- 2026-06-27 profile update `profile-title-rules-v2`: Senior/Sr titles became
+  a hard `non_target` exclusion across every track.
+- 2026-07-01 exception: PM-family Senior/Sr titles remain eligible target roles
+  (`Senior Product Manager`, `Sr Technical Product Manager`, `Senior Product Owner`,
+  `Senior Program Manager`, `Senior Project Manager`). Senior Software/Data/
+  Engineering titles remain non-target.
 - 2026-06-27 local supervised title model retrain after round 3 used 1,346
   manual labels. Baseline Naive Bayes met the 98% precision gate only for
   `non_target` at threshold 0.995 and applied 457 additional high-confidence
@@ -193,10 +197,11 @@ Confidence gates:
 - non-target applies at confidence ≥ 0.84;
 - lower-confidence output remains `review`.
 
-2026-06-27 profile update: Senior/Sr titles are non-target across all tracks
-even when the base role family would otherwise be target. Examples include
-Senior Software Engineer, Sr Backend Engineer, Senior Data Engineer, Senior
-Product Manager, Senior Business Analyst, and Sr Customer Success Manager.
+2026-07-01 profile update: Senior/Sr titles are non-target except PM-family
+titles. Examples still excluded: Senior Software Engineer, Sr Backend Engineer,
+Senior Data Engineer, Senior Business Analyst, and Sr Customer Success Manager.
+Examples allowed: Senior Product Manager, Sr Technical Product Manager, Senior
+Product Owner, Senior Program Manager, and Senior Project Manager.
 
 The AI table records model, prompt version, profile version, input hash,
 rationale, and raw JSON response for debugging.

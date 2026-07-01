@@ -39,9 +39,10 @@ Codex token.
 - CSV download for the current filtered job view, segmented job view, track
   summary, and one-company job list;
 - downloadable 100/250/500/1,000/2,000-title classifier-improvement batches;
-- a small global sidebar for date range, P-tier, and row limit only.
-  Company/title/location filtering lives inside the pages that need it,
-  especially **Jobs to apply**;
+- a small global sidebar for date range, P-tier, row limit, and fuzzy global
+  search. The same search defaults into **Jobs to apply**, **Site review**, and
+  **Companies** and matches multiple words across company, title/role, location,
+  tier, and URLs;
 - one-company lookup for networking/application planning, including active
   official-site jobs, LCA sponsorship role aggregates, CSV download, and a
   LinkedIn company-search shortcut;
