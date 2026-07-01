@@ -1063,37 +1063,39 @@ def site_review_queue(
     company_search = normalize_search_query(company_search)
     return query(
         """
-        SELECT review_rank, consolidation_key, priority_tier, priority_score,
+        SELECT review.review_rank, review.consolidation_key, review.priority_tier, review.priority_score,
                row_number() OVER (
-                   PARTITION BY priority_tier
-                   ORDER BY priority_score DESC NULLS LAST, canonical_name
+                   PARTITION BY review.priority_tier
+                   ORDER BY review.priority_score DESC NULLS LAST, review.canonical_name
                ) AS priority_rank_in_tier,
-               canonical_name, action_status, potential_p0_signal,
-               candidate_count,
-               candidate_1_site_id, candidate_1_source, candidate_1_url,
-               candidate_2_site_id, candidate_2_source, candidate_2_url,
-               candidate_3_site_id, candidate_3_source, candidate_3_url,
-               verified_site_id, verified_source, verified_url,
-               discovery_status, employer_city, employer_state,
-               lca_count, target_role_lca_count
-        FROM jobpush.career_site_review_workbench
-        WHERE priority_tier = ANY(%s)
-          AND action_status = ANY(%s)
+               review.canonical_name, review.action_status, review.potential_p0_signal,
+               review.candidate_count,
+               review.candidate_1_site_id, review.candidate_1_source, review.candidate_1_url,
+               review.candidate_2_site_id, review.candidate_2_source, review.candidate_2_url,
+               review.candidate_3_site_id, review.candidate_3_source, review.candidate_3_url,
+               review.verified_site_id, review.verified_source, review.verified_url,
+               review.discovery_status, review.employer_city, review.employer_state,
+               review.lca_count, review.target_role_lca_count
+        FROM jobpush.career_site_review_workbench review
+        LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
+        WHERE review.priority_tier = ANY(%s)
+          AND review.action_status = ANY(%s)
           AND (
               %s = ''
-              OR concat_ws(' ', canonical_name, consolidation_key, priority_tier,
-                           action_status, discovery_status, employer_city, employer_state,
-                           candidate_1_url, candidate_2_url, candidate_3_url, verified_url)
+              OR concat_ws(' ', review.canonical_name, review.consolidation_key, review.priority_tier,
+                           review.action_status, review.discovery_status, review.employer_city, review.employer_state,
+                           review.candidate_1_url, review.candidate_2_url, review.candidate_3_url, review.verified_url,
+                           identity.search_text)
                  ILIKE ALL (ARRAY(
                      SELECT '%%' || term || '%%'
                      FROM regexp_split_to_table(%s, '\\s+') AS term
                      WHERE term <> ''
                  ))
           )
-        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
-                 CASE action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
-                 priority_score DESC NULLS LAST,
-                 review_rank
+        ORDER BY CASE review.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
+                 CASE review.action_status WHEN 'REVIEW_CANDIDATES' THEN 0 WHEN 'VERIFIED' THEN 1 ELSE 2 END,
+                 review.priority_score DESC NULLS LAST,
+                 review.review_rank
         LIMIT %s
         """,
         (list(tiers), list(statuses), company_search, company_search, limit),
@@ -1649,13 +1651,14 @@ def jobs(
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
+        LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
         WHERE job.first_seen_at >= (%s::date AT TIME ZONE 'America/Chicago')
           AND job.first_seen_at < ((%s::date + 1) AT TIME ZONE 'America/Chicago')
           AND (
               %s = ''
               OR concat_ws(' ', job.canonical_name, job.title, job.canonical_role,
                            job.location, job.category, job.employment_type,
-                           job.priority_tier, job.job_url)
+                           job.priority_tier, job.job_url, identity.search_text)
                  ILIKE ALL (ARRAY(
                      SELECT '%%' || term || '%%'
                      FROM regexp_split_to_table(%s, '\\s+') AS term
@@ -1702,9 +1705,10 @@ def company_jobs(company: str) -> pd.DataFrame:
                job.first_seen_at, job.last_seen_at, job.job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
+        LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
         WHERE %s <> ''
           AND concat_ws(' ', job.canonical_name, job.title, job.canonical_role,
-                        job.location, job.priority_tier, job.job_url)
+                        job.location, job.priority_tier, job.job_url, identity.search_text)
               ILIKE ALL (ARRAY(
                   SELECT '%%' || term || '%%'
                   FROM regexp_split_to_table(%s, '\\s+') AS term
@@ -1731,9 +1735,10 @@ def company_lookup_options(company: str, limit: int = 25) -> pd.DataFrame:
                consolidated.employer_city, consolidated.employer_state
         FROM jobpush.crawl_targets target
         JOIN jobpush.company_targets_consolidated consolidated USING (consolidation_key)
+        LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
         WHERE concat_ws(' ', target.canonical_name, target.consolidation_key,
                         target.priority_tier, consolidated.employer_city,
-                        consolidated.employer_state)
+                        consolidated.employer_state, identity.search_text)
               ILIKE ALL (ARRAY(
                   SELECT '%%' || term || '%%'
                   FROM regexp_split_to_table(%s, '\\s+') AS term
@@ -1756,10 +1761,12 @@ def company_lca_roles(company: str) -> pd.DataFrame:
     return query(
         """
         WITH matched_companies AS (
-            SELECT consolidation_key, canonical_name, member_feins
-            FROM jobpush.company_targets_consolidated
-            WHERE canonical_name ILIKE '%%' || %s || '%%'
-            ORDER BY priority_score DESC NULLS LAST, canonical_name
+            SELECT consolidated.consolidation_key, consolidated.canonical_name, consolidated.member_feins
+            FROM jobpush.company_targets_consolidated consolidated
+            LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
+            WHERE identity.search_text ILIKE '%%' || %s || '%%'
+               OR consolidated.canonical_name ILIKE '%%' || %s || '%%'
+            ORDER BY consolidated.priority_score DESC NULLS LAST, consolidated.canonical_name
             LIMIT 20
         ), member_feins AS (
             SELECT matched.consolidation_key, matched.canonical_name,
@@ -1796,7 +1803,7 @@ def company_lca_roles(company: str) -> pd.DataFrame:
         ORDER BY current_target_soc DESC, lca_count DESC, lca.canonical_name, raw_job_title
         LIMIT 1000
         """,
-        (company,),
+        (company, company),
     )
 
 

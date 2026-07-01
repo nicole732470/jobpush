@@ -161,7 +161,26 @@ def classify_url(raw_url):
     return canonical_url, host, site_kind, source_type, source_key
 
 
-def candidate_score(company_name, row):
+def search_terms_for(target):
+    terms = [target["canonical_name"].strip()]
+    terms.extend(term.strip() for term in (target.get("search_terms") or "").split("|"))
+    seen = set()
+    out = []
+    for term in terms:
+        key = term.casefold()
+        if not term or key in seen:
+            continue
+        seen.add(key)
+        out.append(term)
+    return out
+
+
+def tavily_query_for(terms):
+    quoted = " OR ".join(f'"{term}"' for term in terms[:3])
+    return f"({quoted}) official careers jobs" if quoted else "\"\" official careers jobs"
+
+
+def candidate_score(company_name, row, company_aliases=()):
     url = str(row.get("url") or "").strip()
     title = str(row.get("title") or "").strip()
     if not url.startswith(("http://", "https://")):
@@ -179,7 +198,9 @@ def candidate_score(company_name, row):
         score += 25
     if any(term in title_lower for term in CAREER_TERMS):
         score += 15
-    tokens = company_tokens(company_name)
+    tokens = []
+    for raw_name in (company_name, *company_aliases):
+        tokens.extend(company_tokens(raw_name))
     if tokens and any(token in host or token in title_lower for token in tokens[:4]):
         score += 15
     if "official" in title_lower:
@@ -234,7 +255,8 @@ def http_error_message(exc: HTTPError) -> str:
 
 def discover_target(api_key, target, index, total, max_results, max_candidates, delay):
     name = target["canonical_name"].strip()
-    query = f'"{name}" official careers jobs'
+    search_terms = search_terms_for(target)
+    query = tavily_query_for(search_terms)
     error_message = ""
     found = []
     fatal = False
@@ -242,7 +264,7 @@ def discover_target(api_key, target, index, total, max_results, max_candidates, 
         data = tavily_search(api_key, query, max_results)
         deduped = {}
         for row in data.get("results") or []:
-            candidate = candidate_score(name, row)
+            candidate = candidate_score(name, row, search_terms[1:])
             if not candidate:
                 continue
             current = deduped.get(candidate["site_url"])

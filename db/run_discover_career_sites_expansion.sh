@@ -22,8 +22,10 @@ RESULTS="$WORK_DIR/results.csv"
 # rows require a dedicated recovery reset after confirming the failure was
 # provider/network-wide.
 "${PSQL[@]}" -c "\copy (
-  SELECT consolidation_key, canonical_name, priority_tier, priority_score
+  SELECT target.consolidation_key, target.canonical_name, target.priority_tier, target.priority_score
+       , array_to_string(COALESCE(identity.tavily_search_terms, ARRAY[target.canonical_name]), '|') AS search_terms
   FROM jobpush.crawl_targets target
+  LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
   WHERE target.enabled
     AND target.priority_tier IN ('P0','P1','P2')
     AND target.last_discovery_at IS NULL

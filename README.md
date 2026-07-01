@@ -64,6 +64,21 @@ are in [`docs/SELF_SERVICE_OPERATIONS.md`](docs/SELF_SERVICE_OPERATIONS.md).
 The private daily jobs, application queue, and crawler-health dashboard is
 documented in [`docs/DASHBOARD.md`](docs/DASHBOARD.md).
 
+## Shared company identity
+
+JobPush reuses JobLens' FEIN-based company identity tables instead of owning a
+second company-name matcher. The read-only view
+`jobpush.company_identity_search` joins each JobPush `consolidation_key` to
+JobLens-owned `public.companies`, `public.company_aliases`, and
+`public.company_search_keys`.
+
+This shared identity layer is used by career-site discovery queries sent to
+Tavily, dashboard company search and Jobs to Apply filters, company LCA
+sponsorship role lookup, and site-review queue search.
+
+When JobLens learns a better legal name, DBA, brand alias, or normalized search
+key, JobPush picks it up through the shared view after the normal DB refresh.
+
 ## Repository layout
 
 ```text

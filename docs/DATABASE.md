@@ -19,6 +19,7 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
 | `jobpush.company_consolidation_groups` | JobPush | Conservative merged employer groups (2+ FEINs) |
 | `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
+| `jobpush.company_identity_search` | JobPush view over JobLens data | Alias/search-key text used for company lookup and career-site discovery |
 | `jobpush.crawl_priority_overrides` | JobPush | Persistent manual P0/P1/P2 promotions or downgrades |
 | `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
@@ -38,6 +39,30 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 The PostgreSQL schema is a namespace inside the existing database, not a
 separate database. This keeps joins and foreign keys simple while giving each
 repository clear migration ownership.
+
+## Shared company identity
+
+JobLens owns the FEIN-level company identity source:
+`public.companies`, `public.company_aliases`, and
+`public.company_search_keys`. JobPush does not duplicate that resolver. Instead,
+`jobpush.company_identity_search` is a read-only operational view that maps each
+JobPush `consolidation_key` to the JobLens legal names, DBA/alias strings, and
+collision-aware normalized search keys for its member FEINs.
+
+Current JobPush consumers:
+
+- Tavily career-site discovery: expands the query from only
+  `"canonical name" official careers jobs` to canonical name plus known
+  aliases/search terms.
+- Dashboard company lookup, Jobs to Apply search, and site review: global
+  company search matches aliases and normalized keys, not only
+  `canonical_name`.
+- LCA sponsorship role lookup: a typed company name can resolve through shared
+  aliases before listing filing roles.
+
+If JobLens updates a company alias or search key, JobPush sees it through this
+view after the database refresh. Migrations for the underlying `public.*`
+identity tables remain in JobLens.
 
 ## Tavily boundary
 

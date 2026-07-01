@@ -285,11 +285,16 @@ keeps a small reserve by default, rotates only the active AWS secret, and runs
 never-searched P-tier discovery in 150/30/10-company chunks. It does not print
 or commit keys.
 
-Candidate ranking rule: `scripts/discover_career_sites.py` queries
-`"<company>" official careers jobs`, scores each returned URL with
-`candidate_score`, removes duplicate URLs, then stores the top candidates by
-score. The score favors employer-owned career/careers/jobs pages and known ATS
-platforms; it penalizes external aggregators and weak company-name matches.
+Candidate ranking rule: `scripts/discover_career_sites.py` queries the shared
+company identity terms from `jobpush.company_identity_search`. That view reuses
+JobLens-owned `public.companies`, `public.company_aliases`, and
+`public.company_search_keys`, so discovery searches canonical name plus known
+legal/DBA/brand variants instead of only one display name. The query still costs
+one Tavily basic search per company. Returned URLs are scored with
+`candidate_score`, duplicate URLs are removed, and only the top candidates by
+score are stored. The score favors employer-owned career/careers/jobs pages and
+known ATS platforms; it penalizes external aggregators and weak company-name
+matches.
 The operational review surface is `jobpush.career_site_review_workbench`, and
 the dashboard can export a site-review batch with candidate 1/2/3 for sampling.
 Already verified/auto-trusted rows remain available for manual override.
