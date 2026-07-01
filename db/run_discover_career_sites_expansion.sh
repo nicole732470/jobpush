@@ -55,7 +55,8 @@ unset APP_SECRET
 export TAVILY_API_KEY
 
 python3 "$REPO_DIR/scripts/discover_career_sites.py" \
-  "$TARGETS" "$CANDIDATES" "$RESULTS" --run-id "$RUN_ID"
+  "$TARGETS" "$CANDIDATES" "$RESULTS" --run-id "$RUN_ID" \
+  --workers "${TAVILY_WORKERS:-3}"
 unset TAVILY_API_KEY
 
 "${PSQL[@]}" -c "\copy jobpush.career_site_discovery_stage FROM '$CANDIDATES' WITH (FORMAT csv, HEADER true)"

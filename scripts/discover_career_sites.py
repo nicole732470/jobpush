@@ -9,6 +9,7 @@ import json
 import os
 import re
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse, urlunparse
 from urllib.request import Request, urlopen
@@ -231,6 +232,37 @@ def http_error_message(exc: HTTPError) -> str:
     return message[:1000]
 
 
+def discover_target(api_key, target, index, total, max_results, max_candidates, delay):
+    name = target["canonical_name"].strip()
+    query = f'"{name}" official careers jobs'
+    error_message = ""
+    found = []
+    fatal = False
+    try:
+        data = tavily_search(api_key, query, max_results)
+        deduped = {}
+        for row in data.get("results") or []:
+            candidate = candidate_score(name, row)
+            if not candidate:
+                continue
+            current = deduped.get(candidate["site_url"])
+            if current is None or candidate["candidate_score"] > current["candidate_score"]:
+                deduped[candidate["site_url"]] = candidate
+        found = sorted(
+            deduped.values(), key=lambda item: item["candidate_score"], reverse=True
+        )[:max_candidates]
+    except HTTPError as exc:
+        error_message = http_error_message(exc)
+        fatal = exc.code in {401, 402, 403, 429, 432}
+    except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+        error_message = f"{type(exc).__name__}: {exc}"[:1000]
+    except Exception as exc:  # noqa: BLE001
+        error_message = f"{type(exc).__name__}: {exc}"[:1000]
+    if delay:
+        time.sleep(delay)
+    return index, total, target, name, query, found, error_message, fatal
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("targets_csv")
@@ -241,6 +273,7 @@ def main():
     parser.add_argument("--max-candidates", type=int, default=3)
     parser.add_argument("--delay", type=float, default=0.2)
     parser.add_argument("--fatal-error-threshold", type=int, default=3)
+    parser.add_argument("--workers", type=int, default=int(os.environ.get("TAVILY_WORKERS", "1")))
     args = parser.parse_args()
 
     api_key = os.environ.get("TAVILY_API_KEY", "").strip()
@@ -269,39 +302,11 @@ def main():
         candidate_writer.writeheader()
         result_writer.writeheader()
         consecutive_fatal_errors = 0
+        stop = False
 
-        for index, target in enumerate(targets, start=1):
-            name = target["canonical_name"].strip()
-            query = f'"{name}" official careers jobs'
-            error_message = ""
-            found = []
-            try:
-                data = tavily_search(api_key, query, args.max_results)
-                deduped = {}
-                for row in data.get("results") or []:
-                    candidate = candidate_score(name, row)
-                    if not candidate:
-                        continue
-                    current = deduped.get(candidate["site_url"])
-                    if current is None or candidate["candidate_score"] > current["candidate_score"]:
-                        deduped[candidate["site_url"]] = candidate
-                found = sorted(
-                    deduped.values(), key=lambda item: item["candidate_score"], reverse=True
-                )[: args.max_candidates]
-            except HTTPError as exc:
-                error_message = http_error_message(exc)
-                if exc.code in {401, 402, 403, 429, 432}:
-                    consecutive_fatal_errors += 1
-                else:
-                    consecutive_fatal_errors = 0
-            except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-                error_message = f"{type(exc).__name__}: {exc}"[:1000]
-                consecutive_fatal_errors = 0
-            except Exception as exc:  # noqa: BLE001
-                error_message = f"{type(exc).__name__}: {exc}"[:1000]
-                consecutive_fatal_errors = 0
-            else:
-                consecutive_fatal_errors = 0
+        def write_result(result):
+            nonlocal consecutive_fatal_errors, stop
+            index, total, target, name, query, found, error_message, fatal = result
 
             for rank, candidate in enumerate(found, start=1):
                 candidate_writer.writerow({
@@ -321,7 +326,8 @@ def main():
                 "candidate_count": len(found),
                 "error_message": error_message,
             })
-            print(f"[{index}/{len(targets)}] {name}: {len(found)} candidates", flush=True)
+            print(f"[{index}/{total}] {name}: {len(found)} candidates", flush=True)
+            consecutive_fatal_errors = consecutive_fatal_errors + 1 if fatal else 0
             if consecutive_fatal_errors >= args.fatal_error_threshold:
                 print(
                     "Aborting Tavily discovery after "
@@ -330,9 +336,42 @@ def main():
                     f"Last error: {error_message}",
                     flush=True,
                 )
-                break
-            if index < len(targets) and args.delay:
-                time.sleep(args.delay)
+                stop = True
+
+        workers = max(1, args.workers)
+        if workers == 1:
+            for index, target in enumerate(targets, start=1):
+                write_result(discover_target(
+                    api_key, target, index, len(targets),
+                    args.max_results, args.max_candidates, args.delay,
+                ))
+                if stop:
+                    break
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                pending = set()
+                target_iter = iter(enumerate(targets, start=1))
+                while not stop:
+                    while len(pending) < workers:
+                        try:
+                            index, target = next(target_iter)
+                        except StopIteration:
+                            break
+                        pending.add(executor.submit(
+                            discover_target,
+                            api_key, target, index, len(targets),
+                            args.max_results, args.max_candidates, args.delay,
+                        ))
+                    if not pending:
+                        break
+                    done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        write_result(future.result())
+                        if stop:
+                            for waiting in pending:
+                                waiting.cancel()
+                            pending.clear()
+                            break
 
 
 if __name__ == "__main__":
