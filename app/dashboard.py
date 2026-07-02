@@ -1461,7 +1461,11 @@ def jobs(
     search = normalize_search_query(search)
     return query(
         """
-        WITH ranked_targets AS (
+        WITH search_terms AS (
+            SELECT term
+            FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
+            WHERE term <> ''
+        ), ranked_targets AS (
             SELECT consolidation_key, priority_score,
                    ROW_NUMBER() OVER (
                        PARTITION BY priority_tier
@@ -1469,6 +1473,17 @@ def jobs(
                    ) AS priority_rank_in_tier
             FROM jobpush.crawl_targets
             WHERE enabled
+        ), matching_companies AS (
+            SELECT target.consolidation_key
+            FROM jobpush.crawl_targets target
+            LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
+            WHERE EXISTS (SELECT 1 FROM search_terms)
+              AND concat_ws(' ', target.canonical_name, target.consolidation_key,
+                            target.priority_tier, identity.search_text)
+                  ILIKE ALL (ARRAY(
+                      SELECT '%%' || term || '%%'
+                      FROM search_terms
+                  ))
         )
         SELECT job.site_id, job.external_job_id, job.canonical_name, job.priority_tier,
                ranked.priority_score, ranked.priority_rank_in_tier, job.title,
@@ -1656,14 +1671,14 @@ def jobs(
         WHERE job.first_seen_at >= (%s::date AT TIME ZONE 'America/Chicago')
           AND job.first_seen_at < ((%s::date + 1) AT TIME ZONE 'America/Chicago')
           AND (
-              %s = ''
-              OR concat_ws(' ', job.canonical_name, job.title, job.canonical_role,
+              NOT EXISTS (SELECT 1 FROM search_terms)
+              OR job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)
+              OR concat_ws(' ', job.title, job.canonical_role,
                            job.location, job.category, job.employment_type,
-                           job.priority_tier, job.job_url, identity.search_text)
+                           job.priority_tier, job.job_url)
                  ILIKE ALL (ARRAY(
                      SELECT '%%' || term || '%%'
-                     FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
-                     WHERE term <> ''
+                     FROM search_terms
                  ))
           )
           AND job.priority_tier = ANY(%s)
@@ -1673,10 +1688,9 @@ def jobs(
         LIMIT %s
         """,
         (
+            search,
             start_date,
             end_date,
-            search,
-            search,
             list(tiers),
             list(role_statuses),
             list(app_statuses),
