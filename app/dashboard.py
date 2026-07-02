@@ -1665,8 +1665,13 @@ def jobs(
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
-        WHERE job.first_seen_at >= (%s::date AT TIME ZONE 'America/Chicago')
-          AND job.first_seen_at < ((%s::date + 1) AT TIME ZONE 'America/Chicago')
+        WHERE (
+              EXISTS (SELECT 1 FROM search_terms)
+              OR (
+                  job.first_seen_at >= (%s::date::timestamp AT TIME ZONE 'America/Chicago')
+                  AND job.first_seen_at < (((%s::date + 1)::timestamp) AT TIME ZONE 'America/Chicago')
+              )
+          )
           AND (
               NOT EXISTS (SELECT 1 FROM search_terms)
               OR job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)
