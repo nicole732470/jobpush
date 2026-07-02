@@ -2402,22 +2402,20 @@ if selected_page == "Jobs to apply":
     filter_cols = st.columns(4)
     job_search_filter = filter_cols[0].text_input("Search this page", value=global_search, key="jobs-global-search")
     effective_job_search = job_search_filter.strip() or global_search.strip()
-    track_choice = filter_cols[1].multiselect(
+    track_choice = filter_cols[1].selectbox(
         "Track",
         ["All"] + TRACK_OPTIONS,
-        default=["All"],
     )
     role_family_choice = filter_cols[2].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
     employment_choice = filter_cols[3].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
-    selected_status_labels = st.multiselect(
+    selected_status_label = st.selectbox(
         "Application status",
         ["All"] + list(APPLICATION_STATUS_OPTIONS.keys()),
-        default=["All"],
     )
     job_app_statuses = (
         tuple(APPLICATION_STATUS_OPTIONS.values())
-        if "All" in selected_status_labels or not selected_status_labels
-        else tuple(APPLICATION_STATUS_OPTIONS[label] for label in selected_status_labels)
+        if selected_status_label == "All"
+        else (APPLICATION_STATUS_OPTIONS[selected_status_label],)
     )
     search_mode = bool(effective_job_search)
     effective_role_statuses = ("target", "review", "non_target") if search_mode else role_statuses
@@ -2444,7 +2442,7 @@ if selected_page == "Jobs to apply":
         )
         job_frame["track_sort"] = job_frame["track_label"].apply(track_sort_rank)
 
-        selected_tracks = TRACK_OPTIONS if search_mode or "All" in track_choice or not track_choice else track_choice
+        selected_tracks = TRACK_OPTIONS if search_mode or track_choice == "All" else (track_choice,)
         if not search_mode and role_family_choice != "All":
             job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
         if not search_mode and employment_choice != "All":
