@@ -1476,10 +1476,8 @@ def jobs(
         ), matching_companies AS (
             SELECT target.consolidation_key
             FROM jobpush.crawl_targets target
-            LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
             WHERE EXISTS (SELECT 1 FROM search_terms)
-              AND concat_ws(' ', target.canonical_name, target.consolidation_key,
-                            target.priority_tier, identity.search_text)
+              AND concat_ws(' ', target.canonical_name, target.consolidation_key, target.priority_tier)
                   ILIKE ALL (ARRAY(
                       SELECT '%%' || term || '%%'
                       FROM search_terms
