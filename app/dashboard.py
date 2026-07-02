@@ -2405,12 +2405,7 @@ if selected_page == "Jobs to apply":
     track_choice = filter_cols[1].multiselect(
         "Track",
         TRACK_OPTIONS,
-        default=[
-            "Track 1 · Business / Product / Data",
-            "Track 2 · AI / Solutions / Systems / Data",
-            "Track 3 · Customer Success / Technical Account",
-            "Track 3 · GTM / Sales / Marketing",
-        ],
+        default=TRACK_OPTIONS,
     )
     role_family_choice = filter_cols[2].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
     employment_choice = filter_cols[3].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
@@ -2442,7 +2437,7 @@ if selected_page == "Jobs to apply":
         )
         job_frame["track_sort"] = job_frame["track_label"].apply(track_sort_rank)
 
-        selected_tracks = track_choice or TRACK_OPTIONS
+        selected_tracks = TRACK_OPTIONS if effective_job_search else (track_choice or TRACK_OPTIONS)
         if role_family_choice != "All":
             job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
         if employment_choice != "All":
