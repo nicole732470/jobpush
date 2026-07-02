@@ -10,7 +10,7 @@ LIMIT="${1:-150}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "LIMIT must be a positive integer" >&2; exit 2; }
 
 RUN_ID="career-expansion-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-COHORT="effective-tier-p0-p1-p2-expansion"
+COHORT="effective-tier-p0-p1-p2-p3-expansion"
 WORK_DIR="$(mktemp -d -t jobpush-career-expansion.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 TARGETS="$WORK_DIR/targets.csv"
@@ -27,7 +27,7 @@ RESULTS="$WORK_DIR/results.csv"
   FROM jobpush.crawl_targets target
   LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
   WHERE target.enabled
-    AND target.priority_tier IN ('P0','P1','P2')
+    AND target.priority_tier IN ('P0','P1','P2','P3')
     AND target.last_discovery_at IS NULL
     AND target.discovery_status = 'pending'
     AND NOT EXISTS (
@@ -58,7 +58,7 @@ export TAVILY_API_KEY
 
 python3 "$REPO_DIR/scripts/discover_career_sites.py" \
   "$TARGETS" "$CANDIDATES" "$RESULTS" --run-id "$RUN_ID" \
-  --workers "${TAVILY_WORKERS:-3}"
+  --workers "${TAVILY_WORKERS:-1}"
 unset TAVILY_API_KEY
 
 "${PSQL[@]}" -c "\copy jobpush.career_site_discovery_stage FROM '$CANDIDATES' WITH (FORMAT csv, HEADER true)"
