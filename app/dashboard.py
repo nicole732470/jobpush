@@ -1457,6 +1457,7 @@ def jobs(
     role_statuses: tuple[str, ...],
     app_statuses: tuple[str, ...],
     row_limit: int,
+    row_offset: int = 0,
 ) -> pd.DataFrame:
     company_search = normalize_search_query(company_search)
     return query(
@@ -1681,6 +1682,7 @@ def jobs(
           AND job.application_status = ANY(%s)
         ORDER BY job.first_seen_at DESC, job.canonical_name, job.title
         LIMIT %s
+        OFFSET %s
         """,
         (
             company_search,
@@ -1690,6 +1692,7 @@ def jobs(
             list(role_statuses),
             list(app_statuses),
             int(row_limit),
+            int(row_offset),
         ),
     )
 
@@ -2125,64 +2128,14 @@ st.markdown(
 
 chicago_today = datetime.now(ZoneInfo("America/Chicago")).date()
 
-st.sidebar.header("Global view")
-st.sidebar.caption("Global date range, tier filter, and fuzzy search.")
-with st.sidebar.form("global_view_form"):
-    global_search = st.text_input(
-        "Global search",
-        placeholder="Company, title, role, location, tier, URL...",
-    )
-    date_window = st.date_input(
-        "First seen date range",
-        value=(chicago_today - timedelta(days=6), chicago_today),
-        min_value=chicago_today - timedelta(days=90),
-        max_value=chicago_today,
-    )
-    priority_choice = st.selectbox(
-        "Priority tier",
-        ["All P tiers", "P0 only", "P1 only", "P2 only", "P3 only", "P0 + P1"],
-    )
-    row_limit = st.selectbox("Rows to load", [300, 1000, 2000, 5000], index=0)
-    st.form_submit_button("Apply global view", use_container_width=True)
-company = normalize_search_query(global_search)
-title = ""
-location = ""
-role_choice = "target only"
-app_choice = "open items"
-if isinstance(date_window, tuple):
-    start_date = date_window[0]
-    end_date = date_window[1] if len(date_window) > 1 else date_window[0]
-else:
-    start_date = date_window
-    end_date = date_window
-if start_date > end_date:
-    st.sidebar.error("Start date must be before end date.")
-    st.stop()
-tiers = {
-    "P0 + P1": ("P0", "P1"),
-    "P0 only": ("P0",),
-    "P1 only": ("P1",),
-    "P2 only": ("P2",),
-    "P3 only": ("P3",),
-    "All P tiers": ("P0", "P1", "P2", "P3"),
-}[priority_choice]
-role_statuses = {
-    "target only": ("target",),
-    "target + needs review": ("target", "review"),
-    "needs review only": ("review",),
-    "all decisions": ("target", "review", "non_target"),
-}[role_choice]
-app_statuses = {
-    "open items": OPEN_APPLICATION_STATUSES,
-    "new only": ("new",),
-    "saved/apply next": ("saved", "apply_next", "referred"),
-    "all statuses": ("new", "saved", "apply_next", "referred", "applied", "dismissed"),
-}[app_choice]
-if not tiers or not role_statuses or not app_statuses:
-    st.warning("Select at least one priority tier, role decision, and application status.")
-    st.stop()
-
-selected_tier_label = priority_choice.replace(" only", "").replace("All P tiers", "P0+P1+P2+P3")
+global_search = ""
+start_date = chicago_today - timedelta(days=6)
+end_date = chicago_today
+tiers = ("P0", "P1", "P2", "P3")
+role_statuses = ("target",)
+app_statuses = OPEN_APPLICATION_STATUSES
+selected_tier_label = "P0+P1+P2+P3"
+row_limit = 300
 
 PAGE_LABELS = [
     "Pulse",
@@ -2201,7 +2154,7 @@ selected_page = st.radio(
 )
 
 def load_current_jobs() -> pd.DataFrame:
-    return jobs(start_date, end_date, company.strip(), tiers, role_statuses, app_statuses, row_limit)
+    return jobs(start_date, end_date, "", tiers, role_statuses, app_statuses, row_limit)
 
 if selected_page == "Pulse":
     summary = apply_job_summary(tiers)
@@ -2412,11 +2365,11 @@ if selected_page == "Jobs to apply":
     filter_cols = st.columns(4)
     company_search_filter = filter_cols[0].text_input(
         "Company",
-        value=global_search,
+        value="",
         placeholder="e.g. Ropes Gray, Uber, Pfizer",
         key="jobs-global-search",
     )
-    effective_company_search = company_search_filter.strip() or global_search.strip()
+    effective_company_search = company_search_filter.strip()
     track_choice = filter_cols[1].selectbox(
         "Track",
         ["All"] + TRACK_OPTIONS,
@@ -2427,17 +2380,48 @@ if selected_page == "Jobs to apply":
         "Application status",
         ["All"] + list(APPLICATION_STATUS_OPTIONS.keys()),
     )
+    filter_cols_2 = st.columns(4)
+    date_window = filter_cols_2[0].date_input(
+        "First seen",
+        value=(chicago_today - timedelta(days=6), chicago_today),
+        min_value=chicago_today - timedelta(days=365),
+        max_value=chicago_today,
+    )
+    priority_choice = filter_cols_2[1].selectbox(
+        "Priority tier",
+        ["All", "P0", "P1", "P2", "P3", "P0 + P1"],
+    )
+    page_size = int(filter_cols_2[2].selectbox("Page size", [50, 100, 300], index=1))
+    page_number = int(filter_cols_2[3].number_input("Page", min_value=1, value=1, step=1))
+    if isinstance(date_window, tuple):
+        job_start_date = date_window[0]
+        job_end_date = date_window[1] if len(date_window) > 1 else date_window[0]
+    else:
+        job_start_date = date_window
+        job_end_date = date_window
+    if job_start_date > job_end_date:
+        st.error("Start date must be before end date.")
+        st.stop()
+    job_tiers = {
+        "All": ("P0", "P1", "P2", "P3"),
+        "P0": ("P0",),
+        "P1": ("P1",),
+        "P2": ("P2",),
+        "P3": ("P3",),
+        "P0 + P1": ("P0", "P1"),
+    }[priority_choice]
     job_app_statuses = (
         tuple(APPLICATION_STATUS_OPTIONS.values())
         if selected_status_label == "All"
         else (APPLICATION_STATUS_OPTIONS[selected_status_label],)
     )
     search_mode = bool(effective_company_search)
-    effective_start_date = datetime(2000, 1, 1).date() if search_mode else start_date
-    effective_end_date = chicago_today if search_mode else end_date
-    effective_tiers = ("P0", "P1", "P2", "P3") if search_mode else tiers
+    effective_start_date = datetime(2000, 1, 1).date() if search_mode else job_start_date
+    effective_end_date = chicago_today if search_mode else job_end_date
+    effective_tiers = ("P0", "P1", "P2", "P3") if search_mode else job_tiers
     effective_role_statuses = ("target", "review", "non_target") if search_mode else role_statuses
     effective_app_statuses = tuple(APPLICATION_STATUS_OPTIONS.values()) if search_mode else job_app_statuses
+    row_offset = (page_number - 1) * page_size
 
     job_frame = jobs(
         effective_start_date,
@@ -2446,7 +2430,8 @@ if selected_page == "Jobs to apply":
         effective_tiers,
         effective_role_statuses,
         effective_app_statuses,
-        row_limit,
+        page_size,
+        row_offset,
     )
     if job_frame.empty:
         st.info("No jobs match the current filters.")
