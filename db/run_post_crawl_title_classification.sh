@@ -47,3 +47,6 @@ GROUP BY classification_status, COALESCE(rule_version, 'unknown')
 ORDER BY titles DESC
 LIMIT 12;
 SQL
+
+echo "==> refresh dashboard jobs fast table"
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/refresh/refresh_dashboard_jobs_fast.sql"
