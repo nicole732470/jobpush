@@ -47,12 +47,16 @@ if [[ "$TARGET_COUNT" -le 0 ]]; then
 fi
 echo "Searching $TARGET_COUNT companies; expected basic-search credits: $TARGET_COUNT"
 
-APP_SECRET=$(aws secretsmanager get-secret-value \
-  --secret-id joblens/app --region us-east-2 --query SecretString --output text)
-TAVILY_API_KEY=$(python3 -c \
-  'import json,sys; print(json.loads(sys.argv[1]).get("TAVILY_API_KEY", ""))' \
-  "$APP_SECRET")
-unset APP_SECRET
+# If a caller exports TAVILY_API_KEY, use it. This lets EC2 run through a
+# monthly key list without rotating the shared active secret for every batch.
+if [[ -z "${TAVILY_API_KEY:-}" ]]; then
+  APP_SECRET=$(aws secretsmanager get-secret-value \
+    --secret-id joblens/app --region us-east-2 --query SecretString --output text)
+  TAVILY_API_KEY=$(python3 -c \
+    'import json,sys; print(json.loads(sys.argv[1]).get("TAVILY_API_KEY", ""))' \
+    "$APP_SECRET")
+  unset APP_SECRET
+fi
 [[ -n "$TAVILY_API_KEY" ]] || { echo "TAVILY_API_KEY is not configured" >&2; exit 1; }
 export TAVILY_API_KEY
 

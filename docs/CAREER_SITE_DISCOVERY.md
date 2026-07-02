@@ -274,7 +274,7 @@ Historical runs before migration 091 have only run-level totals in
 `career_site_discovery_runs`; their exact per-company attempt lists were not
 archived.
 
-To use residual credits from multiple Tavily keys safely, run:
+To use residual credits from multiple Tavily keys safely from a local terminal, run:
 
 ```bash
 bash db/deplete_tavily_keys.sh
@@ -284,6 +284,18 @@ Paste one key per line, then press Ctrl-D. The script checks each key's usage,
 keeps a small reserve by default, rotates only the active AWS secret, and runs
 never-searched P-tier discovery in 150/30/10-company chunks. It does not print
 or commit keys.
+
+For the monthly EC2 automation, store keys in AWS Secrets Manager
+`joblens/app:TAVILY_API_KEYS` and run:
+
+```bash
+bash db/deplete_tavily_keys_from_secret.sh
+```
+
+That script reads the key list, checks each key's remaining credits, keeps a
+reserve, and passes the key directly to the discovery runner. It does not rotate
+the shared active `TAVILY_API_KEY`, which avoids extra Secrets Manager writes and
+keeps dashboard/search behavior predictable while expansion is running.
 
 Candidate ranking rule: `scripts/discover_career_sites.py` queries the shared
 company identity terms from `jobpush.company_identity_search`. That view reuses
@@ -614,6 +626,7 @@ The active Tavily key is stored only in AWS Secrets Manager:
 
 - secret: `joblens/app`
 - JSON field: `TAVILY_API_KEY`
+- optional monthly expansion field: `TAVILY_API_KEYS`
 - region: `us-east-2`
 
 It must not be committed to this repository, pasted into documentation, or
