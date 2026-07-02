@@ -108,6 +108,11 @@ Senior Product Owner, Senior Program Manager, and Senior Project Manager.
   signals are non-target. The same sync added AI/technical product, presales
   engineering, GTM engineering, marketing automation, pure Java/C++/C#/Go SDE,
   naval/aerospace, and `leader` rules from the JobLens YAML.
+- 2026-07-01 profile update: pure SDE/software-implementation titles
+  (`software engineer`, `software developer`, SDE, full-stack/backend/frontend,
+  DevOps, QA/test/SDET) are non-target for JobPush recommendations. Company
+  priority/crawl coverage is unchanged; this only removes those postings from
+  Jobs to Apply.
 - 2026-06-29 dashboard manual reviews are included in training through
   `manual-v1`. The latest local retrain used 1,540 manual labels
   (`non_target` 1,225; `target` 315). `local-title-ml-v4` still passes the
