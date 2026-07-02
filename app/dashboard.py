@@ -1460,8 +1460,24 @@ def jobs(
     row_offset: int = 0,
 ) -> pd.DataFrame:
     company_search = normalize_search_query(company_search)
+    company_mode = bool(company_search)
+    date_clause = "TRUE" if company_mode else """
+                  job.first_seen_at >= (%s::date::timestamp AT TIME ZONE 'America/Chicago')
+                  AND job.first_seen_at < (((%s::date + 1)::timestamp) AT TIME ZONE 'America/Chicago')
+              """
+    company_clause = "job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)" if company_mode else "TRUE"
+    params: list[object] = [company_search]
+    if not company_mode:
+        params.extend([start_date, end_date])
+    params.extend([
+        list(tiers),
+        list(role_statuses),
+        list(app_statuses),
+        int(row_limit),
+        int(row_offset),
+    ])
     return query(
-        """
+        f"""
         WITH search_terms AS (
             SELECT term
             FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
@@ -1666,17 +1682,8 @@ def jobs(
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
-        WHERE (
-              EXISTS (SELECT 1 FROM search_terms)
-              OR (
-                  job.first_seen_at >= (%s::date::timestamp AT TIME ZONE 'America/Chicago')
-                  AND job.first_seen_at < (((%s::date + 1)::timestamp) AT TIME ZONE 'America/Chicago')
-              )
-          )
-          AND (
-              NOT EXISTS (SELECT 1 FROM search_terms)
-              OR job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)
-          )
+        WHERE {date_clause}
+          AND {company_clause}
           AND job.priority_tier = ANY(%s)
           AND job.role_status = ANY(%s)
           AND job.application_status = ANY(%s)
@@ -1684,16 +1691,7 @@ def jobs(
         LIMIT %s
         OFFSET %s
         """,
-        (
-            company_search,
-            start_date,
-            end_date,
-            list(tiers),
-            list(role_statuses),
-            list(app_statuses),
-            int(row_limit),
-            int(row_offset),
-        ),
+        tuple(params),
     )
 
 
