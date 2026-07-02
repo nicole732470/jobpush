@@ -1452,13 +1452,13 @@ def trigger_inline_site_crawl(site_id: int | None) -> tuple[bool, str]:
 def jobs(
     start_date,
     end_date,
-    search: str,
+    company_search: str,
     tiers: tuple[str, ...],
     role_statuses: tuple[str, ...],
     app_statuses: tuple[str, ...],
     row_limit: int,
 ) -> pd.DataFrame:
-    search = normalize_search_query(search)
+    company_search = normalize_search_query(company_search)
     return query(
         """
         WITH search_terms AS (
@@ -1665,19 +1665,11 @@ def jobs(
                first_seen_at, last_seen_at, job_url
         FROM jobpush.dashboard_jobs job
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
-        LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
         WHERE job.first_seen_at >= (%s::date AT TIME ZONE 'America/Chicago')
           AND job.first_seen_at < ((%s::date + 1) AT TIME ZONE 'America/Chicago')
           AND (
               NOT EXISTS (SELECT 1 FROM search_terms)
               OR job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)
-              OR concat_ws(' ', job.title, job.canonical_role,
-                           job.location, job.category, job.employment_type,
-                           job.priority_tier, job.job_url)
-                 ILIKE ALL (ARRAY(
-                     SELECT '%%' || term || '%%'
-                     FROM search_terms
-                 ))
           )
           AND job.priority_tier = ANY(%s)
           AND job.role_status = ANY(%s)
@@ -1686,7 +1678,7 @@ def jobs(
         LIMIT %s
         """,
         (
-            search,
+            company_search,
             start_date,
             end_date,
             list(tiers),
@@ -2413,13 +2405,13 @@ if selected_page == "Jobs to apply":
         "Review target jobs, update application status, and open application links from one page."
     )
     filter_cols = st.columns(4)
-    job_search_filter = filter_cols[0].text_input(
-        "Search jobs / company",
+    company_search_filter = filter_cols[0].text_input(
+        "Company",
         value=global_search,
-        placeholder="e.g. Ropes Gray, Uber, product manager",
+        placeholder="e.g. Ropes Gray, Uber, Pfizer",
         key="jobs-global-search",
     )
-    effective_job_search = job_search_filter.strip() or global_search.strip()
+    effective_company_search = company_search_filter.strip() or global_search.strip()
     track_choice = filter_cols[1].selectbox(
         "Track",
         ["All"] + TRACK_OPTIONS,
@@ -2435,7 +2427,7 @@ if selected_page == "Jobs to apply":
         if selected_status_label == "All"
         else (APPLICATION_STATUS_OPTIONS[selected_status_label],)
     )
-    search_mode = bool(effective_job_search)
+    search_mode = bool(effective_company_search)
     effective_start_date = datetime(2000, 1, 1).date() if search_mode else start_date
     effective_end_date = chicago_today if search_mode else end_date
     effective_tiers = ("P0", "P1", "P2", "P3") if search_mode else tiers
@@ -2445,7 +2437,7 @@ if selected_page == "Jobs to apply":
     job_frame = jobs(
         effective_start_date,
         effective_end_date,
-        effective_job_search,
+        effective_company_search,
         effective_tiers,
         effective_role_statuses,
         effective_app_statuses,
