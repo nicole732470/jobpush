@@ -2412,17 +2412,20 @@ if selected_page == "Jobs to apply":
     selected_status_labels = st.multiselect(
         "Application status",
         list(APPLICATION_STATUS_OPTIONS.keys()),
-        default=["New", "Apply Next", "Referred", "Saved (legacy)"],
+        default=list(APPLICATION_STATUS_OPTIONS.keys()),
     )
     job_app_statuses = tuple(APPLICATION_STATUS_OPTIONS[label] for label in selected_status_labels) or OPEN_APPLICATION_STATUSES
+    search_mode = bool(effective_job_search)
+    effective_role_statuses = ("target", "review", "non_target") if search_mode else role_statuses
+    effective_app_statuses = tuple(APPLICATION_STATUS_OPTIONS.values()) if search_mode else job_app_statuses
 
     job_frame = jobs(
         start_date,
         end_date,
         effective_job_search,
         tiers,
-        role_statuses,
-        job_app_statuses,
+        effective_role_statuses,
+        effective_app_statuses,
         row_limit,
     )
     if job_frame.empty:
@@ -2437,10 +2440,10 @@ if selected_page == "Jobs to apply":
         )
         job_frame["track_sort"] = job_frame["track_label"].apply(track_sort_rank)
 
-        selected_tracks = TRACK_OPTIONS if effective_job_search else (track_choice or TRACK_OPTIONS)
-        if role_family_choice != "All":
+        selected_tracks = TRACK_OPTIONS if search_mode else (track_choice or TRACK_OPTIONS)
+        if not search_mode and role_family_choice != "All":
             job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
-        if employment_choice != "All":
+        if not search_mode and employment_choice != "All":
             job_frame = job_frame[job_frame["employment_bucket"] == employment_choice]
         fallback_selected = "Track 5 · Possible Target / Unclassified" in selected_tracks
         track_mask = job_frame["track_label"].isin(selected_tracks)
