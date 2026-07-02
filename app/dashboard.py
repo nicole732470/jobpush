@@ -1089,7 +1089,7 @@ def site_review_queue(
                            identity.search_text)
                  ILIKE ALL (ARRAY(
                      SELECT '%%' || term || '%%'
-                     FROM regexp_split_to_table(%s, '\\s+') AS term
+                     FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
                      WHERE term <> ''
                  ))
           )
@@ -1662,7 +1662,7 @@ def jobs(
                            job.priority_tier, job.job_url, identity.search_text)
                  ILIKE ALL (ARRAY(
                      SELECT '%%' || term || '%%'
-                     FROM regexp_split_to_table(%s, '\\s+') AS term
+                     FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
                      WHERE term <> ''
                  ))
           )
@@ -1712,7 +1712,7 @@ def company_jobs(company: str) -> pd.DataFrame:
                         job.location, job.priority_tier, job.job_url, identity.search_text)
               ILIKE ALL (ARRAY(
                   SELECT '%%' || term || '%%'
-                  FROM regexp_split_to_table(%s, '\\s+') AS term
+                  FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
                   WHERE term <> ''
               ))
         ORDER BY CASE role_status WHEN 'target' THEN 0 WHEN 'review' THEN 1 ELSE 2 END,
@@ -1742,7 +1742,7 @@ def company_lookup_options(company: str, limit: int = 25) -> pd.DataFrame:
                         consolidated.employer_state, identity.search_text)
               ILIKE ALL (ARRAY(
                   SELECT '%%' || term || '%%'
-                  FROM regexp_split_to_table(%s, '\\s+') AS term
+                  FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
                   WHERE term <> ''
               ))
         ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END,
