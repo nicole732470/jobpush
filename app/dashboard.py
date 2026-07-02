@@ -2418,14 +2418,17 @@ if selected_page == "Jobs to apply":
         else (APPLICATION_STATUS_OPTIONS[selected_status_label],)
     )
     search_mode = bool(effective_job_search)
+    effective_start_date = datetime(2000, 1, 1).date() if search_mode else start_date
+    effective_end_date = chicago_today if search_mode else end_date
+    effective_tiers = ("P0", "P1", "P2", "P3") if search_mode else tiers
     effective_role_statuses = ("target", "review", "non_target") if search_mode else role_statuses
     effective_app_statuses = tuple(APPLICATION_STATUS_OPTIONS.values()) if search_mode else job_app_statuses
 
     job_frame = jobs(
-        start_date,
-        end_date,
+        effective_start_date,
+        effective_end_date,
         effective_job_search,
-        tiers,
+        effective_tiers,
         effective_role_statuses,
         effective_app_statuses,
         row_limit,
