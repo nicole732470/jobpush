@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import os
 from pathlib import Path
+import re
 import subprocess
 from urllib.parse import parse_qs, quote_plus, urlparse, urlunparse
 from urllib.request import urlopen
@@ -1158,11 +1159,11 @@ def csv_bytes(frame: pd.DataFrame) -> bytes:
 
 
 def normalize_company_query(value: str) -> str:
-    return " ".join((value or "").strip().split())
+    return " ".join(re.sub(r"[^0-9A-Za-z]+", " ", value or "").strip().split())
 
 
 def normalize_search_query(value: str) -> str:
-    return " ".join((value or "").strip().split())
+    return " ".join(re.sub(r"[^0-9A-Za-z]+", " ", value or "").strip().split())
 
 
 def linkedin_company_search_url(company_name: str) -> str:
@@ -2400,7 +2401,12 @@ if selected_page == "Jobs to apply":
         "Review target jobs, update application status, and open application links from one page."
     )
     filter_cols = st.columns(4)
-    job_search_filter = filter_cols[0].text_input("Search this page", value=global_search, key="jobs-global-search")
+    job_search_filter = filter_cols[0].text_input(
+        "Search jobs / company",
+        value=global_search,
+        placeholder="e.g. Ropes Gray, Uber, product manager",
+        key="jobs-global-search",
+    )
     effective_job_search = job_search_filter.strip() or global_search.strip()
     track_choice = filter_cols[1].selectbox(
         "Track",
