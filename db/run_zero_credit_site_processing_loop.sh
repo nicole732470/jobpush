@@ -22,10 +22,9 @@ flock -n 9 || { echo "Another zero-credit site processing loop is already runnin
 count_due_sites() {
   "${PSQL[@]}" -qAt -c "
     SELECT count(*)
-    FROM jobpush.career_sites
-    WHERE crawl_enabled
-      AND verification_status = 'verified'
-      AND next_crawl_at <= now();
+    FROM jobpush.crawl_schedule_queue
+    WHERE is_due
+      AND crawl_status <> 'running';
   "
 }
 
