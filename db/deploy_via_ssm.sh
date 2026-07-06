@@ -80,6 +80,11 @@ for common_runner in run_post_crawl_title_classification.sh run_local_title_ml.s
   [[ -f "$REPO_DIR/db/$common_runner" ]] || continue
   cp "$REPO_DIR/db/$common_runner" "$STAGING/db/$common_runner"
   chmod +x "$STAGING/db/$common_runner"
+  while IFS= read -r nested; do
+    [[ -n "$nested" && -f "$REPO_DIR/db/$nested" ]] || continue
+    mkdir -p "$STAGING/db/$(dirname "$nested")"
+    cp "$REPO_DIR/db/$nested" "$STAGING/db/$nested"
+  done < <(extract_matches "$DB_REF_PATTERN" "$REPO_DIR/db/$common_runner" | sort -u)
 done
 
 for extra in "$@"; do
