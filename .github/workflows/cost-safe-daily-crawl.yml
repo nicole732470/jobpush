@@ -1,0 +1,39 @@
+name: Cost-safe daily crawl
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 12 * * *"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cost-safe-daily-crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Authenticate to AWS with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Start compute
+        run: bash deploy/cost_safe_start_compute.sh
+
+      - name: Run daily crawl on EC2
+        run: bash db/deploy_via_ssm.sh db/run_cost_safe_daily_crawl.sh
+        env:
+          COST_SAFE_CRAWL_LIMIT: "500"
+
+      - name: Stop compute
+        if: always()
+        run: bash deploy/cost_safe_stop_compute.sh
