@@ -132,6 +132,18 @@ misses, and current failed enabled sites. If a recurring "template" is actually
 an external job board, add it to the discovery exclude list and reject existing
 generic candidates instead of writing parser code.
 
+Platform-template parsers should stay tiny and sample-gated. Current small
+platform adapters:
+
+```bash
+bash db/run_due_crawl_jobscore_10.sh
+bash db/run_due_crawl_dover_10.sh
+```
+
+`jobscore` costs one HTML request per company. `dover` costs one client lookup
+plus paginated public JSON job requests. Both are `local_filter` adapters and
+only persist rows that classify as US.
+
 When hidden ATS details find employer-specific Greenhouse boards, validate a
 small sample with `scripts/crawl_greenhouse.py` first, then use:
 

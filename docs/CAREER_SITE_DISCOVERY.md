@@ -658,6 +658,25 @@ not expose a standardized "United States" location dropdown. The adapter now
 uses that dropdown when available and otherwise falls back to local
 per-posting market classification.
 
+## Platform-template sample gate
+
+For platform-looking generic domains, sample 3-5 company URLs before adding
+parser code. Only promote the domain when the job structure is stable and
+company-specific.
+
+- `www.jobscore.com/careers/{company}`: stable server-rendered list with title,
+  department, and location. Migration 147 promotes one best candidate per
+  company to `source_type='jobscore'`; `scripts/crawl_jobscore.py` parses it
+  with one request per company.
+- `app.dover.com/jobs/{slug}` or `app.dover.com/{name}/careers/{uuid}`: the HTML
+  is a React shell, but the public careers-page API is stable. Migration 147
+  promotes one best candidate per company to `source_type='dover'`;
+  `scripts/crawl_dover.py` reads public JSON and locally filters US jobs.
+- `theapplicantmanager.com/careers` / `/jobs`: sampled URLs were vendor
+  homepages, not employer-specific boards. Migration 147 rejects those root
+  candidates. Do not write a parser unless discovery finds company-specific TAM
+  URLs with real job rows.
+
 ## Tavily credential storage and rotation
 
 The active Tavily key is stored only in AWS Secrets Manager:

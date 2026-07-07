@@ -32,6 +32,8 @@ SUPPORTED_SOURCE_TYPES = {
     "smartrecruiters",
     "workable",
     "jobvite",
+    "jobscore",
+    "dover",
     "paylocity",
     "rippling",
 }
@@ -42,6 +44,8 @@ LOCAL_FILTER_SOURCE_TYPES = {
     "smartrecruiters",
     "workable",
     "jobvite",
+    "jobscore",
+    "dover",
     "paylocity",
     "rippling",
     "icims",
@@ -1207,6 +1211,17 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         source_key = path_parts[1] if path_parts[0] == "careers" and len(path_parts) >= 2 else path_parts[0]
         site_kind = "ats_feed"
         canonical_path = f"/{source_key}/jobs"
+    elif host == "www.jobscore.com" and len(path_parts) >= 2 and path_parts[0] == "careers":
+        source_type, source_key, site_kind = "jobscore", path_parts[1], "ats_feed"
+        canonical_path = f"/careers/{source_key}"
+    elif host == "app.dover.com" and path_parts:
+        source_type, site_kind = "dover", "ats_feed"
+        if len(path_parts) >= 2 and path_parts[0] == "jobs":
+            source_key = path_parts[1]
+            canonical_path = f"/jobs/{source_key}"
+        elif "careers" in path_parts:
+            source_key = path_parts[0]
+            canonical_path = "/" + "/".join(path_parts)
     elif host in {"apply.workable.com", "jobs.workable.com"} and path_parts:
         source_type, source_key, site_kind = "workable", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"
