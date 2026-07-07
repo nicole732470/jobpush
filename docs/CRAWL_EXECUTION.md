@@ -141,13 +141,27 @@ bash db/run_due_crawl_dover_10.sh
 bash db/run_due_crawl_catsone_20.sh
 bash db/run_due_crawl_trakstar_10.sh
 bash db/run_due_crawl_breezy_10.sh
+bash db/run_due_crawl_applytojob_20.sh
 ```
 
 `jobscore` costs one HTML request per company. `dover` costs one client lookup
 plus paginated public JSON job requests. Both are `local_filter` adapters and
 only persist rows that classify as US. `catsone`, `trakstar`, and `breezy` are
 also one-page rendered-HTML adapters; reject stale vendor/shared roots rather
-than hiding their 404s in parser code.
+than hiding their 404s in parser code. `applytojob` / JazzHR pages are likewise
+one-page HTML boards. They can produce staffing-board noise, so after each
+larger rollout run `db/run_applytojob_noise_audit.sh` and feed recurring bad
+families into the title classifier/YAML instead of weakening the parser.
+
+For any platform that returns hundreds of jobs for one company, run the
+platform noise audit before expanding further:
+
+```bash
+bash db/deploy_via_ssm.sh db/run_platform_noise_and_template_audit.sh
+```
+
+Treat `raw_job_count >= 700`, `review_job_count >= 150`, or review jobs far
+above target jobs as a signal for platform-level noise review.
 
 When hidden ATS details find employer-specific Greenhouse boards, validate a
 small sample with `scripts/crawl_greenhouse.py` first, then use:

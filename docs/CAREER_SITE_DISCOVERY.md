@@ -681,6 +681,16 @@ company-specific.
   `catsone`, `trakstar`, and `breezy`; it rejects DigitalHire single-job detail
   candidates and HireBridge bad-url roots so those companies go back through
   rediscovery/review instead of being crawled as incomplete boards.
+- `*.applytojob.com`: stable JazzHR/ApplyToJob rendered boards. Migration 150
+  promotes the canonical `https://{subdomain}.applytojob.com/apply` board per
+  company to `source_type='applytojob'`; `scripts/crawl_applytojob.py` parses
+  title, link, location, and category with one request per company. This source
+  can include staffing-style boards, so use `db/run_applytojob_noise_audit.sh`
+  to find high-volume/noisy sites before adding new YAML/title-classifier rules.
+- ADP (`myjobs.adp.com`), ApplicantPro, and HRMDirect remain sample-first
+  candidates. ADP is a JS shell, ApplicantPro is Vue/component-driven, and
+  HRMDirect samples can be empty or flaky; do not write broad parsers until a
+  stable employer-specific API/HTML pattern is proven.
 
 ## Tavily credential storage and rotation
 

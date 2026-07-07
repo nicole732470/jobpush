@@ -132,6 +132,9 @@ def classify_url(raw_url):
     elif host.endswith(".breezy.hr"):
         source_type, source_key, site_kind = "breezy", host, "ats_feed"
         canonical_path = "/"
+    elif host.endswith(".applytojob.com"):
+        source_type, source_key, site_kind = "applytojob", host, "ats_feed"
+        canonical_path = "/apply"
     elif host in {"apply.workable.com", "jobs.workable.com"} and path_parts:
         source_type, source_key, site_kind = "workable", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"

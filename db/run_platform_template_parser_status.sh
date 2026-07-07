@@ -15,7 +15,7 @@ SELECT site.source_type,
 FROM jobpush.career_sites site
 JOIN jobpush.crawl_targets target USING (consolidation_key)
 LEFT JOIN jobpush.crawl_schedule_queue queue USING (site_id)
-WHERE site.source_type IN ('jobscore', 'dover', 'catsone', 'trakstar', 'breezy')
+WHERE site.source_type IN ('jobscore', 'dover', 'catsone', 'trakstar', 'breezy', 'applytojob')
   AND site.verification_status = 'verified'
   AND site.crawl_enabled
 GROUP BY 1, 2
@@ -30,7 +30,7 @@ SELECT site.source_type,
        COUNT(*) FILTER (WHERE run.status = 'failed') AS failures
 FROM jobpush.crawl_runs run
 JOIN jobpush.career_sites site USING (site_id)
-WHERE site.source_type IN ('jobscore', 'dover', 'catsone', 'trakstar', 'breezy')
+WHERE site.source_type IN ('jobscore', 'dover', 'catsone', 'trakstar', 'breezy', 'applytojob')
   AND run.finished_at >= now() - interval '2 hours'
 GROUP BY 1
 ORDER BY 1;
@@ -43,6 +43,7 @@ WHERE reviewed_by IN (
     'system:catsone-parser-v1',
     'system:trakstar-parser-v1',
     'system:breezy-parser-v1',
+    'system:applytojob-parser-v1',
     'system:applicantmanager-root-cleanup-v1'
     ,'system:platform-template-cleanup-v1'
 )
@@ -58,7 +59,7 @@ SELECT target.priority_tier,
        site.last_error
 FROM jobpush.career_sites site
 JOIN jobpush.crawl_targets target USING (consolidation_key)
-WHERE site.source_type IN ('jobscore', 'dover', 'catsone', 'trakstar', 'breezy')
+WHERE site.source_type IN ('jobscore', 'dover', 'catsone', 'trakstar', 'breezy', 'applytojob')
   AND site.verification_status = 'verified'
   AND site.crawl_enabled
   AND site.crawl_status = 'failed'
