@@ -67,6 +67,10 @@ APPLICATION_STATUS_OPTIONS = {
 }
 OPEN_APPLICATION_STATUSES = ("new", "saved", "apply_next", "referred")
 PROFILE_YAML_URL = "https://raw.githubusercontent.com/nicole732470/joblens/main/evals/golden_set/candidate_profile.yaml"
+HOME_CACHE_TTL_SECONDS = 300
+COMPANY_SEARCH_ALIASES = {
+    "bcg": ("boston consulting group",),
+}
 
 
 st.set_page_config(page_title="JobPush Ops", page_icon="↗", layout="wide")
@@ -111,7 +115,7 @@ st.markdown(
 )
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
 def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -154,7 +158,7 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     )
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
 def application_status_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -183,7 +187,7 @@ def application_status_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     )
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
 def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -384,7 +388,7 @@ def candidate_profile_yaml() -> tuple[str, str]:
         return PROFILE_YAML_URL, response.read().decode("utf-8")
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
 def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -588,7 +592,7 @@ def crawl_rank_coverage() -> pd.DataFrame:
     )
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
 def crawl_rollout_by_tier() -> pd.DataFrame:
     return query(
         """
@@ -1176,6 +1180,15 @@ def normalize_search_query(value: str) -> str:
     return " ".join(re.sub(r"[^0-9A-Za-z]+", " ", value or "").strip().split())
 
 
+def company_search_variants(value: str) -> tuple[str, ...]:
+    query_text = normalize_search_query(value)
+    if not query_text:
+        return ()
+    variants = [query_text]
+    variants.extend(COMPANY_SEARCH_ALIASES.get(query_text.casefold(), ()))
+    return tuple(dict.fromkeys(normalize_search_query(variant) for variant in variants if normalize_search_query(variant)))
+
+
 def linkedin_company_search_url(company_name: str) -> str:
     return f"https://www.linkedin.com/search/results/companies/?keywords={quote_plus(company_name)}"
 
@@ -1317,6 +1330,7 @@ def clear_dashboard_caches() -> None:
         company_lca_roles,
         company_lca_roles_by_key,
         company_lookup_options,
+        company_search_status,
         lca_soc_review_table,
         lca_raw_job_review_sample,
         recent_failures,
@@ -1489,13 +1503,14 @@ def jobs(
     row_offset: int = 0,
 ) -> pd.DataFrame:
     company_search = normalize_search_query(company_search)
+    search_variants = company_search_variants(company_search)
     company_mode = bool(company_search)
     date_clause = "TRUE" if company_mode else """
                   job.first_seen_at >= (%s::date::timestamp AT TIME ZONE 'America/Chicago')
                   AND job.first_seen_at < (((%s::date + 1)::timestamp) AT TIME ZONE 'America/Chicago')
               """
     company_clause = "job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)" if company_mode else "TRUE"
-    params: list[object] = [company_search]
+    params: list[object] = [list(search_variants)]
     if not company_mode:
         params.extend([start_date, end_date])
     params.extend([
@@ -1507,18 +1522,19 @@ def jobs(
     ])
     return query(
         f"""
-        WITH search_terms AS (
-            SELECT term
-            FROM regexp_split_to_table(%s, '[[:space:]]+') AS term
-            WHERE term <> ''
+        WITH search_variants AS (
+            SELECT unnest(%s::text[]) AS phrase
         ), matching_companies AS (
-            SELECT target.consolidation_key
+            SELECT DISTINCT target.consolidation_key
             FROM jobpush.crawl_targets target
-            WHERE EXISTS (SELECT 1 FROM search_terms)
-              AND concat_ws(' ', target.canonical_name, target.consolidation_key, target.priority_tier)
+            LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
+            JOIN search_variants variant ON variant.phrase <> ''
+            WHERE concat_ws(' ', target.canonical_name, target.consolidation_key,
+                            target.priority_tier, identity.search_text)
                   ILIKE ALL (ARRAY(
                       SELECT '%%' || term || '%%'
-                      FROM search_terms
+                      FROM regexp_split_to_table(variant.phrase, '[[:space:]]+') AS term
+                      WHERE term <> ''
                   ))
         )
         SELECT job.site_id, job.external_job_id, job.canonical_name, job.priority_tier,
@@ -1611,6 +1627,73 @@ def company_lookup_options(company: str, limit: int = 25) -> pd.DataFrame:
         LIMIT %s
         """,
         (company, limit),
+    )
+
+
+@st.cache_data(ttl=60)
+def company_search_status(company: str, limit: int = 25) -> pd.DataFrame:
+    variants = company_search_variants(company)
+    if not variants:
+        return pd.DataFrame()
+    return query(
+        """
+        WITH search_variants AS (
+            SELECT unnest(%s::text[]) AS phrase
+        ), matching_companies AS (
+            SELECT DISTINCT target.consolidation_key
+            FROM jobpush.crawl_targets target
+            LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
+            JOIN search_variants variant ON variant.phrase <> ''
+            WHERE concat_ws(' ', target.canonical_name, target.consolidation_key,
+                            target.priority_tier, identity.search_text)
+                  ILIKE ALL (ARRAY(
+                      SELECT '%%' || term || '%%'
+                      FROM regexp_split_to_table(variant.phrase, '[[:space:]]+') AS term
+                      WHERE term <> ''
+                  ))
+        ), site_rollup AS (
+            SELECT consolidation_key,
+                   count(*) AS site_candidates,
+                   count(*) FILTER (WHERE verification_status = 'verified') AS verified_sites,
+                   count(*) FILTER (WHERE verification_status = 'verified' AND crawl_enabled) AS enabled_sites,
+                   count(*) FILTER (WHERE verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS successful_sites,
+                   count(*) FILTER (WHERE verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS failed_sites,
+                   max(last_crawled_at) AS last_crawled_at,
+                   max(last_success_at) AS last_success_at,
+                   string_agg(DISTINCT source_type, ', ' ORDER BY source_type) AS source_types
+            FROM jobpush.career_sites
+            GROUP BY consolidation_key
+        ), job_rollup AS (
+            SELECT consolidation_key,
+                   count(*) AS visible_jobs,
+                   count(*) FILTER (WHERE role_status = 'target') AS target_jobs
+            FROM jobpush.dashboard_jobs_fast
+            GROUP BY consolidation_key
+        )
+        SELECT target.consolidation_key,
+               target.canonical_name,
+               target.priority_tier,
+               target.priority_score,
+               COALESCE(job_rollup.target_jobs, 0) AS target_jobs,
+               COALESCE(job_rollup.visible_jobs, 0) AS all_visible_jobs,
+               COALESCE(site_rollup.site_candidates, 0) AS site_candidates,
+               COALESCE(site_rollup.verified_sites, 0) AS verified_sites,
+               COALESCE(site_rollup.enabled_sites, 0) AS enabled_sites,
+               COALESCE(site_rollup.successful_sites, 0) AS successful_sites,
+               COALESCE(site_rollup.failed_sites, 0) AS failed_sites,
+               site_rollup.last_crawled_at,
+               site_rollup.last_success_at,
+               site_rollup.source_types
+        FROM matching_companies
+        JOIN jobpush.crawl_targets target USING (consolidation_key)
+        LEFT JOIN site_rollup USING (consolidation_key)
+        LEFT JOIN job_rollup USING (consolidation_key)
+        ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
+                 target.priority_score DESC NULLS LAST,
+                 target.canonical_name
+        LIMIT %s
+        """,
+        (list(variants), limit),
     )
 
 
@@ -2074,32 +2157,35 @@ if selected_page == "Pulse":
             if role_mix["current_open_jobs"].sum() > 0:
                 st.bar_chart(role_mix.set_index("label")["current_open_jobs"], height=220)
 
-    activity = daily_activity(tiers)
-    st.subheader("30-day target job discovery")
-    chart = activity.sort_values("activity_date").set_index("activity_date")
-    st.line_chart(chart[["new_target_jobs", "closed_jobs"]], height=330)
+    if st.toggle("Load trend and crawl coverage details", value=False):
+        activity = daily_activity(tiers)
+        st.subheader("30-day target job discovery")
+        chart = activity.sort_values("activity_date").set_index("activity_date")
+        st.line_chart(chart[["new_target_jobs", "closed_jobs"]], height=330)
 
-    st.subheader("Crawl rollout by priority tier")
-    rollout = crawl_rollout_by_tier()
-    if not rollout.empty:
-        st.caption("Company coverage by priority tier")
-        coverage_cards = st.columns(4)
-        for column, tier in zip(coverage_cards, ["P0", "P1", "P2", "P3"]):
-            tier_rows = rollout[rollout["priority_tier"] == tier]
-            if tier_rows.empty:
-                column.metric(tier, "0 / 0", "0.0% succeeded")
-                continue
-            tier_row = tier_rows.iloc[0]
-            total = int(tier_row.get("companies", 0))
-            enabled = int(tier_row.get("enabled_site_companies", 0))
-            succeeded = int(tier_row.get("succeeded_companies", 0))
-            pct = 100 * succeeded / total if total else 0
-            column.metric(
-                f"{tier} coverage",
-                f"{succeeded:,} / {total:,}",
-                f"{pct:.1f}% succeeded · {enabled:,} enabled",
-            )
-    st.dataframe(rollout, hide_index=True, use_container_width=True, height=240)
+        st.subheader("Crawl rollout by priority tier")
+        rollout = crawl_rollout_by_tier()
+        if not rollout.empty:
+            st.caption("Company coverage by priority tier")
+            coverage_cards = st.columns(4)
+            for column, tier in zip(coverage_cards, ["P0", "P1", "P2", "P3"]):
+                tier_rows = rollout[rollout["priority_tier"] == tier]
+                if tier_rows.empty:
+                    column.metric(tier, "0 / 0", "0.0% succeeded")
+                    continue
+                tier_row = tier_rows.iloc[0]
+                total = int(tier_row.get("companies", 0))
+                enabled = int(tier_row.get("enabled_site_companies", 0))
+                succeeded = int(tier_row.get("succeeded_companies", 0))
+                pct = 100 * succeeded / total if total else 0
+                column.metric(
+                    f"{tier} coverage",
+                    f"{succeeded:,} / {total:,}",
+                    f"{pct:.1f}% succeeded · {enabled:,} enabled",
+                )
+        st.dataframe(rollout, hide_index=True, use_container_width=True, height=240)
+    else:
+        st.caption("Trend and crawl coverage details are skipped by default to keep Pulse fast.")
 
 if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 / P3 company crawl rollout")
@@ -2282,7 +2368,19 @@ if selected_page == "Jobs to apply":
         row_offset,
     )
     if job_frame.empty:
-        st.info("No jobs match the current filters.")
+        if search_mode:
+            status_frame = company_search_status(effective_company_search)
+            if status_frame.empty:
+                st.warning("No company matches this search.")
+            else:
+                st.warning("Company matched, but no jobs currently match Jobs to apply.")
+                st.caption("This usually means the company has no active target jobs yet, or its verified career site has not successfully crawled.")
+                display_status = status_frame.copy()
+                for column in ["last_crawled_at", "last_success_at"]:
+                    display_status[column] = pd.to_datetime(display_status[column], utc=True, errors="coerce").dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
+                st.dataframe(display_status, hide_index=True, use_container_width=True, height=220)
+        else:
+            st.info("No jobs match the current filters.")
     else:
         job_frame = job_frame.copy()
         job_frame["first_seen_ct"] = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
