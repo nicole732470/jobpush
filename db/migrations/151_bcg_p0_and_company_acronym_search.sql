@@ -65,3 +65,71 @@ FROM jobpush.crawl_targets target
 LEFT JOIN final_terms USING (consolidation_key)
 WHERE target.enabled
 GROUP BY target.consolidation_key, target.canonical_name;
+
+SELECT jobpush.set_manual_crawl_priority(
+    '04-2432614',
+    'P0',
+    'Nicole confirmed BCG as manual P0 on 2026-07-07'
+);
+
+INSERT INTO jobpush.career_sites (
+    consolidation_key,
+    site_url,
+    normalized_domain,
+    site_kind,
+    source_type,
+    source_key,
+    discovery_source,
+    verification_status,
+    crawl_enabled,
+    crawl_status,
+    target_country_code,
+    scope_method,
+    crawl_interval_hours,
+    next_crawl_at,
+    reviewed_at,
+    reviewed_by,
+    review_notes,
+    updated_at
+) VALUES (
+    '04-2432614',
+    'https://careers.bcg.com/global/en/search-results',
+    'careers.bcg.com',
+    'careers',
+    'generic_html',
+    NULL,
+    'manual_dashboard',
+    'verified',
+    TRUE,
+    'pending',
+    'US',
+    'local_filter',
+    24,
+    now(),
+    now(),
+    'nicole',
+    'Nicole confirmed BCG official careers site. No URL-level US filter; keep only explicit US postings via local market_scope filter.',
+    now()
+)
+ON CONFLICT (consolidation_key, site_url) DO UPDATE SET
+    verification_status = 'verified',
+    crawl_enabled = TRUE,
+    crawl_status = 'pending',
+    target_country_code = 'US',
+    scope_method = 'local_filter',
+    crawl_interval_hours = 24,
+    next_crawl_at = now(),
+    reviewed_at = now(),
+    reviewed_by = 'nicole',
+    review_notes = EXCLUDED.review_notes,
+    updated_at = now();
+
+UPDATE jobpush.career_sites
+SET verification_status = 'rejected',
+    crawl_enabled = FALSE,
+    crawl_status = 'pending',
+    review_notes = 'Superseded by Nicole confirmed BCG canonical careers URL on 2026-07-07.',
+    updated_at = now()
+WHERE consolidation_key = '04-2432614'
+  AND normalized_domain = 'careers.bcg.com'
+  AND site_url <> 'https://careers.bcg.com/global/en/search-results';

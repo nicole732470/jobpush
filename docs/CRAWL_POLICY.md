@@ -53,6 +53,9 @@ office identifiers exist.
 - Greenhouse and Workday global feeds use conservative per-posting location
   classification. Only explicit US/state evidence enters `job_postings_us`;
   ambiguous locations remain `unknown` for review.
+- Global official pages without a country URL parameter, such as BCG, may be
+  stored as `local_filter`; Jobs to apply still reads only `job_postings_us`, so
+  non-US and unknown-location postings stay out of the application queue.
 - Run scope and method are copied into `crawl_runs` for audit.
 
 ## 4. Scheduling and batches

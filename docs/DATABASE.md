@@ -19,7 +19,7 @@ JobLens and JobPush use the same PostgreSQL database on AWS RDS.
 | `jobpush.linkedin_top_employer_company_matches` | JobPush | FEIN matches to LinkedIn 2026 employers |
 | `jobpush.company_consolidation_groups` | JobPush | Conservative merged employer groups (2+ FEINs) |
 | `jobpush.company_targets_consolidated` | JobPush | Priority scores on merged + singleton employers |
-| `jobpush.company_identity_search` | JobPush view over JobLens data | Alias/search-key text used for company lookup and career-site discovery |
+| `jobpush.company_identity_search` | JobPush view over JobLens data | Alias/search-key/acronym text used for company lookup and career-site discovery |
 | `jobpush.crawl_priority_overrides` | JobPush | Persistent manual P0/P1/P2 promotions or downgrades |
 | `jobpush.crawl_targets` | JobPush | Operational P0/P1/P2 company discovery queue |
 | `jobpush.career_sites` | JobPush | Real corporate/career/ATS endpoints and crawl state |
@@ -47,7 +47,9 @@ JobLens owns the FEIN-level company identity source:
 `public.company_search_keys`. JobPush does not duplicate that resolver. Instead,
 `jobpush.company_identity_search` is a read-only operational view that maps each
 JobPush `consolidation_key` to the JobLens legal names, DBA/alias strings, and
-collision-aware normalized search keys for its member FEINs.
+collision-aware normalized search keys for its member FEINs. It also emits
+simple acronyms after removing legal suffixes, so `BCG` can match
+`Boston Consulting Group, Inc.` without a dashboard-only alias.
 
 Current JobPush consumers:
 

@@ -68,9 +68,6 @@ APPLICATION_STATUS_OPTIONS = {
 OPEN_APPLICATION_STATUSES = ("new", "saved", "apply_next", "referred")
 PROFILE_YAML_URL = "https://raw.githubusercontent.com/nicole732470/joblens/main/evals/golden_set/candidate_profile.yaml"
 HOME_CACHE_TTL_SECONDS = 300
-COMPANY_SEARCH_ALIASES = {
-    "bcg": ("boston consulting group",),
-}
 
 
 st.set_page_config(page_title="JobPush Ops", page_icon="↗", layout="wide")
@@ -1180,15 +1177,6 @@ def normalize_search_query(value: str) -> str:
     return " ".join(re.sub(r"[^0-9A-Za-z]+", " ", value or "").strip().split())
 
 
-def company_search_variants(value: str) -> tuple[str, ...]:
-    query_text = normalize_search_query(value)
-    if not query_text:
-        return ()
-    variants = [query_text]
-    variants.extend(COMPANY_SEARCH_ALIASES.get(query_text.casefold(), ()))
-    return tuple(dict.fromkeys(normalize_search_query(variant) for variant in variants if normalize_search_query(variant)))
-
-
 def linkedin_company_search_url(company_name: str) -> str:
     return f"https://www.linkedin.com/search/results/companies/?keywords={quote_plus(company_name)}"
 
@@ -1503,14 +1491,13 @@ def jobs(
     row_offset: int = 0,
 ) -> pd.DataFrame:
     company_search = normalize_search_query(company_search)
-    search_variants = company_search_variants(company_search)
     company_mode = bool(company_search)
     date_clause = "TRUE" if company_mode else """
                   job.first_seen_at >= (%s::date::timestamp AT TIME ZONE 'America/Chicago')
                   AND job.first_seen_at < (((%s::date + 1)::timestamp) AT TIME ZONE 'America/Chicago')
               """
     company_clause = "job.consolidation_key IN (SELECT consolidation_key FROM matching_companies)" if company_mode else "TRUE"
-    params: list[object] = [list(search_variants)]
+    params: list[object] = [[company_search]]
     if not company_mode:
         params.extend([start_date, end_date])
     params.extend([
@@ -1632,8 +1619,8 @@ def company_lookup_options(company: str, limit: int = 25) -> pd.DataFrame:
 
 @st.cache_data(ttl=60)
 def company_search_status(company: str, limit: int = 25) -> pd.DataFrame:
-    variants = company_search_variants(company)
-    if not variants:
+    company = normalize_search_query(company)
+    if not company:
         return pd.DataFrame()
     return query(
         """
@@ -1693,7 +1680,7 @@ def company_search_status(company: str, limit: int = 25) -> pd.DataFrame:
                  target.canonical_name
         LIMIT %s
         """,
-        (list(variants), limit),
+        ([company], limit),
     )
 
 
