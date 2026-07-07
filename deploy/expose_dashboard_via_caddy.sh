@@ -38,10 +38,35 @@ template = f"""
 payload = base64.b64encode(template.encode()).decode()
 remote = f"""
 set -euo pipefail
+sudo systemctl unmask caddy 2>/dev/null || true
+if ! systemctl cat caddy >/dev/null 2>&1; then
+  sudo tee /etc/systemd/system/caddy.service >/dev/null <<'UNIT'
+[Unit]
+Description=Caddy web server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=true
+ProtectSystem=full
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  sudo systemctl daemon-reload
+fi
 HASH=$(sudo /usr/local/bin/caddy hash-password --plaintext '{password}')
 sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)
 echo {payload} | base64 -d | sed "s|__HASH__|$HASH|" | sudo tee /etc/caddy/Caddyfile >/dev/null
 sudo /usr/local/bin/caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo systemctl enable --now caddy
 sudo /usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 sleep 2
 curl -fsSI -u '{user}:{password}' https://{host} >/dev/null
