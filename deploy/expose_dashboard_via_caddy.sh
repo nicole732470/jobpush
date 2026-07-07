@@ -2,8 +2,9 @@
 set -euo pipefail
 
 REGION="${REGION:-us-east-2}"
-EC2_INSTANCE="${EC2_INSTANCE:-i-0bdee6f611283586f}"
-PUBLIC_HOST="${PUBLIC_HOST:-jobpush.3-128-164-130.sslip.io}"
+EC2_INSTANCE="${EC2_INSTANCE:-i-0fc6ca6a342fb0608}"
+PUBLIC_HOST="${PUBLIC_HOST:-jobpush.3.143.247.202.sslip.io}"
+API_PUBLIC_HOST="${API_PUBLIC_HOST:-3.143.247.202.sslip.io}"
 UPSTREAM="${UPSTREAM:-127.0.0.1:8501}"
 DASHBOARD_USER="${DASHBOARD_USER:-nicole}"
 
@@ -16,14 +17,14 @@ PY
 )"
 fi
 
-COMMANDS=$(python3 - "$PUBLIC_HOST" "$UPSTREAM" "$DASHBOARD_USER" "$DASHBOARD_PASSWORD" <<'PY'
+COMMANDS=$(python3 - "$PUBLIC_HOST" "$API_PUBLIC_HOST" "$UPSTREAM" "$DASHBOARD_USER" "$DASHBOARD_PASSWORD" <<'PY'
 import base64
 import json
 import sys
 
-host, upstream, user, password = sys.argv[1:5]
+host, api_host, upstream, user, password = sys.argv[1:6]
 template = f"""
-3-128-164-130.sslip.io {{
+{api_host} {{
 \treverse_proxy 127.0.0.1:8000
 }}
 
@@ -63,7 +64,10 @@ UNIT
   sudo systemctl daemon-reload
 fi
 HASH=$(sudo /usr/local/bin/caddy hash-password --plaintext '{password}')
-sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)
+sudo mkdir -p /etc/caddy
+if [[ -f /etc/caddy/Caddyfile ]]; then
+  sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)
+fi
 echo {payload} | base64 -d | sed "s|__HASH__|$HASH|" | sudo tee /etc/caddy/Caddyfile >/dev/null
 sudo /usr/local/bin/caddy fmt --overwrite /etc/caddy/Caddyfile
 sudo systemctl enable --now caddy

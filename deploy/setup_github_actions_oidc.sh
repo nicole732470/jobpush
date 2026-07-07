@@ -4,7 +4,7 @@ set -euo pipefail
 REGION="${REGION:-us-east-2}"
 REPOSITORY="${REPOSITORY:-nicole732470/jobpush}"
 ROLE_NAME="${ROLE_NAME:-JobPushGitHubActionsSSMRole}"
-INSTANCE_ID="${EC2_INSTANCE:-i-0bdee6f611283586f}"
+INSTANCE_ID="${EC2_INSTANCE:-i-0fc6ca6a342fb0608}"
 OIDC_URL="https://token.actions.githubusercontent.com"
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"

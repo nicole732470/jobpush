@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REGION="${REGION:-us-east-2}"
-EC2_INSTANCE="${EC2_INSTANCE:-i-0bdee6f611283586f}"
+EC2_INSTANCE="${EC2_INSTANCE:-i-0fc6ca6a342fb0608}"
 LOCAL_PORT="${LOCAL_PORT:-8501}"
 
 if [[ -x "$HOME/.local/bin/session-manager-plugin" ]]; then

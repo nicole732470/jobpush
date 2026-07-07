@@ -8,12 +8,18 @@ Goal: keep JobPush usable while stretching the remaining AWS credit through `202
 - `.github/workflows/cost-safe-daily-crawl.yml` now runs once daily at `12:15 UTC` (`07:15 America/Chicago` during daylight time).
 - The daily workflow:
   1. starts RDS `joblens-db`;
-  2. starts EC2 `i-0bdee6f611283586f`;
+  2. starts EC2 `i-0fc6ca6a342fb0608`;
   3. runs one bounded due-site crawl batch, default `500` sites;
   4. stops dashboard/background crawl services;
   5. stops EC2 and RDS.
 
 ## Manual commands
+
+Run local AWS commands against the migrated production account:
+
+```bash
+export AWS_PROFILE=jobpush-new
+```
 
 Start compute:
 

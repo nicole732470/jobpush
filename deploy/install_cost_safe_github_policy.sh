@@ -4,7 +4,7 @@ set -euo pipefail
 REGION="${REGION:-us-east-2}"
 ROLE_NAME="${ROLE_NAME:-JobPushGitHubActionsSSMRole}"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-INSTANCE_ID="${EC2_INSTANCE:-i-0bdee6f611283586f}"
+INSTANCE_ID="${EC2_INSTANCE:-i-0fc6ca6a342fb0608}"
 DB_INSTANCE="${DB_INSTANCE:-joblens-db}"
 
 POLICY="$(jq -cn \

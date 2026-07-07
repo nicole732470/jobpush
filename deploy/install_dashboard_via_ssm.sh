@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REGION="${REGION:-us-east-2}"
-EC2_INSTANCE="${EC2_INSTANCE:-i-0bdee6f611283586f}"
+EC2_INSTANCE="${EC2_INSTANCE:-i-0fc6ca6a342fb0608}"
 REPO_URL="${REPO_URL:-https://github.com/nicole732470/jobpush.git}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/jobpush}"
 

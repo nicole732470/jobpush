@@ -3,8 +3,8 @@ set -e
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 
 REGION="us-east-2"
-EC2_INSTANCE="i-0bdee6f611283586f"
-RDS_HOST="joblens-db.chu86icsovrl.us-east-2.rds.amazonaws.com"
+EC2_INSTANCE="i-0fc6ca6a342fb0608"
+RDS_HOST="joblens-db.cbsey8gqw0tx.us-east-2.rds.amazonaws.com"
 LOCAL_PORT="15432"
 
 if ! command -v session-manager-plugin >/dev/null 2>&1; then

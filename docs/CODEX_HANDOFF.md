@@ -34,8 +34,15 @@ crawl pool.
 | RDS | `joblens-db`，`us-east-2`，**`db.t4g.micro`**（偏小，refresh 慢） |
 | 数据库名 | `joblens` |
 | 凭证 | AWS Secrets Manager `joblens/rds` |
-| EC2（SSM） | `i-0bdee6f611283586f` |
+| AWS account | `314567759747` |
+| EC2（SSM） | `i-0fc6ca6a342fb0608` |
 | 本地连库 | 双击 `deploy/database/open-database.command` → TablePlus `127.0.0.1:15432` |
+
+本机手动运行 AWS/SSM 脚本前，先切到新账号 profile：
+
+```bash
+export AWS_PROFILE=jobpush-new
+```
 
 RDS **在 VPC 内**，本机不能直接 `psql`。部署用：
 
