@@ -122,6 +122,50 @@ def row_from_job(job: dict, source_url: str, default_market: str = "unknown") ->
     }
 
 
+def row_from_embedded_job(job: dict, source_url: str, default_market: str = "unknown") -> dict | None:
+    title = clean(job.get("title"))
+    if not title or title_out_of_scope(title):
+        return None
+    location = clean(job.get("location") or "; ".join(job.get("multi_location") or []))
+    country = clean(job.get("country"))
+    if country and country.casefold() not in {"united states", "united states of america", "usa"}:
+        return None
+    job_url = clean(job.get("applyUrl") or job.get("jobUrl") or job.get("url")) or source_url
+    external_id = clean(job.get("jobSeqNo") or job.get("jobId") or job.get("reqId"))
+    if not external_id:
+        external_id = hashlib.sha1(f"{job_url}|{title}|{location}".encode("utf-8")).hexdigest()[:24]
+    return {
+        "external_job_id": external_id[:200],
+        "title": title,
+        "normalized_title": normalize(title),
+        "location": location,
+        "category": clean(job.get("category") or job.get("subCategory") or ", ".join(job.get("multi_category") or [])),
+        "job_url": urljoin(source_url, job_url),
+        "description_snippet": strip_html(job.get("descriptionTeaser") or (job.get("ml_job_parser") or {}).get("descriptionTeaser"))[:1000],
+        "market_scope": classify_market_scope(location, default_market),
+        "posted_text": clean(job.get("postedDate") or job.get("dateCreated")),
+        "employment_type": clean(job.get("type")),
+    }
+
+
+def embedded_job_rows(body: str, source_url: str, default_market: str = "unknown") -> list[dict]:
+    rows = []
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r'"jobs"\s*:\s*\[', body):
+        try:
+            jobs, _ = decoder.raw_decode(body[match.end() - 1:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(jobs, list):
+            continue
+        for job in jobs:
+            if isinstance(job, dict):
+                row = row_from_embedded_job(job, source_url, default_market)
+                if row:
+                    rows.append(row)
+    return rows
+
+
 BAD_LINK_TEXT = re.compile(
     r"^(apply|apply now|learn more|view job|view jobs|view openings|search jobs|"
     r"all jobs|careers|career opportunities|join us|read more)$",
@@ -176,7 +220,7 @@ def html_link_rows(body: str, source_url: str) -> list[dict]:
         if (not (4 <= len(title) <= 140) or BAD_LINK_TEXT.match(title)
                 or not JOB_WORDS.search(title) or title_out_of_scope(title)):
             continue
-        chunk = strip_html(body[max(0, match.start() - 400): match.end() + 400])
+        chunk = strip_html(body[max(0, match.start() - 1400): match.end() + 1400])
         location = us_location_from_text(chunk)
         if not location or classify_market_scope(location, "unknown") != "US":
             continue
@@ -216,6 +260,12 @@ def main() -> int:
         for job in job_items(payload):
             row = row_from_job(job, args.url, args.default_market)
             if not row or row["external_job_id"] in seen:
+                continue
+            seen.add(row["external_job_id"])
+            rows.append(row)
+    if not rows:
+        for row in embedded_job_rows(body, args.url, args.default_market):
+            if row["external_job_id"] in seen:
                 continue
             seen.add(row["external_job_id"])
             rows.append(row)
