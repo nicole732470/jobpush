@@ -133,6 +133,18 @@ JOB_WORDS = re.compile(
     re.I,
 )
 STATE_PATTERN = "|".join(sorted(STATE_CODES))
+US_LOCATION_TRAILER_RE = re.compile(
+    rf"(?=(\s+(?:[A-Z][a-z]+(?:[ .'-][A-Z][a-z]+){{0,4}}),\s*(?:{STATE_PATTERN})\b.*$))"
+)
+
+
+def clean_link_title(title: str) -> str:
+    # ponytail: generic cards often put location/salary inside the link label;
+    # strip only clear US city/state trailers, leave ambiguous titles alone.
+    matches = list(US_LOCATION_TRAILER_RE.finditer(title))
+    if not matches:
+        return clean(title)
+    return clean(title[:matches[-1].start(1)])
 
 
 def has_non_us_marker(text: str) -> bool:
@@ -160,7 +172,7 @@ def html_link_rows(body: str, source_url: str) -> list[dict]:
     # ponytail: regex HTML scan is intentionally conservative; replace with a DOM parser only if pilot precision is poor.
     for match in re.finditer(r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', body, re.I | re.S):
         href, label_html = match.groups()
-        title = strip_html(label_html)
+        title = clean_link_title(strip_html(label_html))
         if (not (4 <= len(title) <= 140) or BAD_LINK_TEXT.match(title)
                 or not JOB_WORDS.search(title) or title_out_of_scope(title)):
             continue
@@ -227,5 +239,11 @@ def main() -> int:
     return 0
 
 
+def _self_check() -> None:
+    assert clean_link_title("Sr. AI Solutions Engineer Seattle, WA $100,000 - $200,000 per year · Full time") == "Sr. AI Solutions Engineer"
+    assert clean_link_title("Product Manager") == "Product Manager"
+
+
 if __name__ == "__main__":
+    _self_check()
     raise SystemExit(main())

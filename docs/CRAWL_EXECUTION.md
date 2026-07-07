@@ -126,6 +126,12 @@ validate with `db/run_due_crawl_generic_html_50.sh` and
 `db/run_generic_html_conservative_wave_audit.sh`. Do not mass-enable generic
 pages after a low-yield pilot; move to template/domain-specific parsers instead.
 
+Use `db/run_generic_template_and_failure_audit.sh` before adding parser code.
+It separates ordinary company careers pages, external aggregators, known ATS
+misses, and current failed enabled sites. If a recurring "template" is actually
+an external job board, add it to the discovery exclude list and reject existing
+generic candidates instead of writing parser code.
+
 When hidden ATS details find employer-specific Greenhouse boards, validate a
 small sample with `scripts/crawl_greenhouse.py` first, then use:
 

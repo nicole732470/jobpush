@@ -441,6 +441,27 @@ bash db/deploy_via_ssm.sh db/run_generic_html_resolution_audit.sh
 - `db/run_due_crawl_by_source.sh` now supports `generic_html`; use
   `db/run_due_crawl_generic_html_50.sh` for small parser validation batches.
 
+2026-07-07 generic template/failure cleanup:
+
+- Added `db/run_generic_template_and_failure_audit.sh` as the concise decision
+  audit for remaining generic pages and failed enabled crawl sites.
+- Remaining generic candidates are dominated by ordinary company careers pages:
+  roughly 68-71% are `corporate_careers_path` across P1/P2/P3. These should
+  not receive a giant parser unless a repeatable template is proven.
+- High-count "templates" such as Internshala, Sulekha local jobs, John Gannon
+  Blog, Chronicle Jobs, FashionJobs, MIT CAPD, Climate Change Careers,
+  Entertainment Careers, SEEK AU, GulfTalent, PracticeMatch, Migratemate, USNLX,
+  and Jobs Redefined are external aggregators, not employer-owned career sites.
+  Migration 144 rejects existing generic candidates from those domains and adds
+  them to the discovery exclude list.
+- `jobs.gusto.com/boards/...` is a small recurring platform cohort. The existing
+  generic parser can parse it, so migration 145 enables 23 Gusto board sites
+  after adding a title cleanup for job-card text that includes location/salary.
+- Failed enabled sites were split by root cause. Most structured failures were
+  stale/wrong ATS slugs and were demoted by the existing cleanup. The remaining
+  six Workday 400/422 CXS failures were demoted by migration 146. After cleanup,
+  there were no verified+enabled sites left with `crawl_status='failed'`.
+
 The preferred next parser targets are platform-like domains that recur across
 companies, not arbitrary single-company custom pages. As of migration 074,
 newly separated examples include Jobvite, Workable, Paylocity, Rippling,
