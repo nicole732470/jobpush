@@ -676,6 +676,11 @@ company-specific.
   homepages, not employer-specific boards. Migration 147 rejects those root
   candidates. Do not write a parser unless discovery finds company-specific TAM
   URLs with real job rows.
+- `*.catsone.com/careers`, `*.hire.trakstar.com`, and `*.breezy.hr`: stable
+  rendered platform boards. Migration 148 promotes company-specific URLs to
+  `catsone`, `trakstar`, and `breezy`; it rejects DigitalHire single-job detail
+  candidates and HireBridge bad-url roots so those companies go back through
+  rediscovery/review instead of being crawled as incomplete boards.
 
 ## Tavily credential storage and rotation
 

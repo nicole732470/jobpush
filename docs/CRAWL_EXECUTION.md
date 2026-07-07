@@ -138,11 +138,16 @@ platform adapters:
 ```bash
 bash db/run_due_crawl_jobscore_10.sh
 bash db/run_due_crawl_dover_10.sh
+bash db/run_due_crawl_catsone_20.sh
+bash db/run_due_crawl_trakstar_10.sh
+bash db/run_due_crawl_breezy_10.sh
 ```
 
 `jobscore` costs one HTML request per company. `dover` costs one client lookup
 plus paginated public JSON job requests. Both are `local_filter` adapters and
-only persist rows that classify as US.
+only persist rows that classify as US. `catsone`, `trakstar`, and `breezy` are
+also one-page rendered-HTML adapters; reject stale vendor/shared roots rather
+than hiding their 404s in parser code.
 
 When hidden ATS details find employer-specific Greenhouse boards, validate a
 small sample with `scripts/crawl_greenhouse.py` first, then use:

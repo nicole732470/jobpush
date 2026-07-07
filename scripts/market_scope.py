@@ -29,6 +29,10 @@ NON_US_MARKERS = {
     "sweden", "norway", "denmark", "finland", "switzerland", "austria", "belgium",
     "portugal", "czech", "hungary", "philippines", "vietnam", "indonesia", "malaysia",
 }
+CANADIAN_CITY_MARKERS = {
+    "toronto", "vancouver", "montreal", "ottawa", "calgary", "edmonton",
+    "waterloo", "kitchener", "mississauga", "markham",
+}
 
 
 def classify_market_scope(location: str | None, fallback: str = "unknown") -> str:
@@ -37,6 +41,8 @@ def classify_market_scope(location: str | None, fallback: str = "unknown") -> st
     if not lowered:
         return fallback
 
+    if any(re.search(rf"\b{re.escape(city)}\b", lowered) for city in CANADIAN_CITY_MARKERS):
+        return "non-US"
     if re.search(r"\b(united states|u\.s\.|u\.s\.a\.|usa)\b", lowered):
         return "US"
     if re.search(r"\bUS-[A-Z]{2}\b", value):

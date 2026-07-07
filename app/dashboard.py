@@ -34,6 +34,9 @@ SUPPORTED_SOURCE_TYPES = {
     "jobvite",
     "jobscore",
     "dover",
+    "catsone",
+    "trakstar",
+    "breezy",
     "paylocity",
     "rippling",
 }
@@ -46,6 +49,9 @@ LOCAL_FILTER_SOURCE_TYPES = {
     "jobvite",
     "jobscore",
     "dover",
+    "catsone",
+    "trakstar",
+    "breezy",
     "paylocity",
     "rippling",
     "icims",
@@ -1222,6 +1228,14 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         elif "careers" in path_parts:
             source_key = path_parts[0]
             canonical_path = "/" + "/".join(path_parts)
+    elif host.endswith(".catsone.com") and path_parts and path_parts[0] == "careers":
+        source_type, source_key, site_kind = "catsone", host, "ats_feed"
+    elif host.endswith(".hire.trakstar.com"):
+        source_type, source_key, site_kind = "trakstar", host, "ats_feed"
+        canonical_path = "/"
+    elif host.endswith(".breezy.hr"):
+        source_type, source_key, site_kind = "breezy", host, "ats_feed"
+        canonical_path = "/"
     elif host in {"apply.workable.com", "jobs.workable.com"} and path_parts:
         source_type, source_key, site_kind = "workable", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"
