@@ -45,6 +45,7 @@ for row in "${DUE_SITES[@]}"; do
     icims) adapter_name="icims-html"; adapter_version="0.3.0"; adapter_script="scripts/crawl_icims.py" ;;
     oracle_cloud) adapter_name="oracle-cloud-rest"; adapter_version="0.1.0"; adapter_script="scripts/crawl_oracle_cloud.py" ;;
     workday) adapter_name="workday-cxs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_workday.py" ;;
+    generic_html) adapter_name="generic-html-jsonld"; adapter_version="0.2.0"; adapter_script="scripts/crawl_generic_jsonld.py" ;;
     *) echo "Unsupported source_type=$source_type" >&2; continue ;;
   esac
   echo "==> $priority_tier $consolidation_key ($source_type)"

@@ -113,15 +113,18 @@ For stubborn `generic_html` P1 blockers, use the cheap steps before writing
 company-specific parsers:
 
 ```bash
+bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links_3000.sh
 bash db/deploy_via_ssm.sh db/run_resolve_generic_html_ats_links_1000.sh
-bash db/deploy_via_ssm.sh db/run_promote_generic_jsonld_sites_1000.sh
 bash db/deploy_via_ssm.sh db/run_generic_blocker_template_audit.sh
 bash db/deploy_via_ssm.sh db/run_p1_generic_hidden_ats_detail.sh
 ```
 
-The resolver checks both anchor tags and embedded HTML/JS URLs. The JSON-LD
-probe promotes only pages that expose standard `JobPosting` data. Both use zero
-Tavily credits.
+The resolver checks outbound ATS links and embedded URLs with zero Tavily
+credits. If no hidden ATS is found, use
+`db/run_enable_generic_html_conservative_wave.sh` only as a measured pilot, then
+validate with `db/run_due_crawl_generic_html_50.sh` and
+`db/run_generic_html_conservative_wave_audit.sh`. Do not mass-enable generic
+pages after a low-yield pilot; move to template/domain-specific parsers instead.
 
 When hidden ATS details find employer-specific Greenhouse boards, validate a
 small sample with `scripts/crawl_greenhouse.py` first, then use:

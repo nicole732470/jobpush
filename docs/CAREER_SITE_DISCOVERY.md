@@ -424,6 +424,23 @@ Use the audit runner to pick the next parser target:
 bash db/deploy_via_ssm.sh db/run_generic_html_resolution_audit.sh
 ```
 
+2026-07-06 generic expansion rule:
+
+- First run the zero-credit hidden ATS resolver across retained generic pages:
+  `db/run_resolve_generic_html_ats_links_3000.sh`.
+- Then run structured ATS auto-trust and due crawls.
+- If generic pages still dominate, use
+  `db/run_enable_generic_html_conservative_wave.sh` only as a measured pilot.
+  It enables the best high-score careers/jobs-looking generic page per company,
+  excludes obvious aggregators, and leaves the existing parser to prove value.
+- Audit the pilot with `db/run_generic_html_conservative_wave_audit.sh`.
+  The first 2026-07-06 P1 wave enabled 500 sites; 37 were attempted, 29
+  succeeded, and only 22 postings / 3 target postings were parsed. That yield
+  is too low for blind mass expansion, so the next work should be domain or
+  template-specific parsing, not a giant generic parser.
+- `db/run_due_crawl_by_source.sh` now supports `generic_html`; use
+  `db/run_due_crawl_generic_html_50.sh` for small parser validation batches.
+
 The preferred next parser targets are platform-like domains that recur across
 companies, not arbitrary single-company custom pages. As of migration 074,
 newly separated examples include Jobvite, Workable, Paylocity, Rippling,
