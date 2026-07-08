@@ -1326,6 +1326,7 @@ def clear_dashboard_caches() -> None:
         p1_score_distribution,
         company_targets,
         site_review_queue,
+        title_cluster_review_queue,
         title_review_queue,
         jobs,
         company_jobs,
@@ -2487,17 +2488,15 @@ if selected_page == "Title review":
     if cluster_frame.empty:
         st.success("No title clusters are currently waiting for review.")
     else:
-        cluster_selection = st.dataframe(
+        st.dataframe(
             cluster_frame,
             hide_index=True,
             use_container_width=True,
             height=320,
-            on_select="rerun",
-            selection_mode="single-row",
-            key="title_cluster_review_table",
         )
-        selected_cluster_rows = getattr(getattr(cluster_selection, "selection", None), "rows", []) or []
-        selected_cluster_index = int(selected_cluster_rows[0]) if selected_cluster_rows else 0
+        cluster_options = cluster_frame["cluster_key"].astype(str).tolist()
+        selected_cluster_key = st.selectbox("Cluster to submit", cluster_options)
+        selected_cluster_index = cluster_options.index(selected_cluster_key)
         selected_cluster = cluster_frame.iloc[selected_cluster_index]
         with st.form("title_cluster_review_form", clear_on_submit=True):
             st.caption(
@@ -2522,16 +2521,19 @@ if selected_page == "Title review":
             cluster_reason = st.text_input("Reason / notes", value="dashboard title cluster review")
             cluster_submit = st.form_submit_button("Submit selected cluster", use_container_width=True)
         if cluster_submit:
-            applied_count = apply_title_cluster_review(
-                str(selected_cluster["cluster_key"]),
-                cluster_status,
-                cluster_role,
-                cluster_reason,
-                int(cluster_apply_limit),
-            )
-            clear_dashboard_caches()
-            st.success(f"Submitted {applied_count:,} title labels from cluster → {cluster_status}.")
-            st.rerun()
+            try:
+                applied_count = apply_title_cluster_review(
+                    str(selected_cluster["cluster_key"]),
+                    cluster_status,
+                    cluster_role,
+                    cluster_reason,
+                    int(cluster_apply_limit),
+                )
+                clear_dashboard_caches()
+                st.success(f"Submitted {applied_count:,} title labels from cluster → {cluster_status}.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Cluster submit failed: {exc}")
 
     st.divider()
     review_limit = st.select_slider("Review batch size", options=[100, 250, 500, 1000, 2000], value=500)
