@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# P2 ops continuation: fix failures, crawl due sites, zero-credit expand (no Tavily).
+# P2 ops continuation: safe defaults only.
+# ponytail: big crawls/guessing must be explicitly enabled; this script is run from SSM.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,29 +22,22 @@ echo "=== Step 3: quarantine chronic P2 failures (iCIMS/generic timeout, Workday
 echo "=== Step 4: auto-trust ==="
 bash "$SCRIPT_DIR/run_apply_career_site_auto_trust.sh"
 
-P2_DUE=$("${PSQL[@]}" -Atc \
-  "SELECT count(*) FROM jobpush.crawl_schedule_queue
-   WHERE priority_tier='P2' AND is_due AND crawl_status <> 'running';")
-echo "=== Step 5: P2 due crawl (count=$P2_DUE) ==="
-if [[ "$P2_DUE" -gt 0 ]]; then
-  LIMIT="${P2_DUE_LIMIT:-$P2_DUE}"
-  PRIORITY_TIER_FILTER=P2 SKIP_POST_CRAWL_TITLE_ML=1 \
-    bash "$SCRIPT_DIR/run_due_crawl_batch.sh" "$LIMIT"
+echo "=== Step 5: P2 fast-source due crawl only ==="
+bash "$SCRIPT_DIR/run_due_crawl_p2_fast_structured_wave.sh"
+
+if [[ "${RUN_P2_ATS_GUESS:-0}" == "1" ]]; then
+  echo "=== Step 6: optional zero-credit ATS guess P2+P3 ==="
+  ATS_GUESS_TIERS=P2,P3 ATS_GUESS_LIMIT="${ATS_GUESS_LIMIT:-100}" \
+    bash "$SCRIPT_DIR/run_guess_ats_sites.sh"
+else
+  echo "=== Step 6: skip ATS guessing by default ==="
 fi
-
-echo "=== Step 6: P2 structured source wave (greenhouse/icims/workday) ==="
-PRIORITY_TIER_FILTER=P2 SKIP_POST_CRAWL_TITLE_ML=1 \
-  bash "$SCRIPT_DIR/run_due_crawl_p2_structured_wave.sh"
-
-echo "=== Step 7: zero-credit ATS guess P2+P3 ==="
-ATS_GUESS_TIERS=P2,P3 ATS_GUESS_LIMIT="${ATS_GUESS_LIMIT:-1000}" \
-  bash "$SCRIPT_DIR/run_guess_ats_sites.sh"
 
 echo "=== Step 8: auto-trust after guess ==="
 bash "$SCRIPT_DIR/run_apply_career_site_auto_trust.sh"
 
-echo "=== Step 9: zero-credit generic HTML resolver P2 ==="
-GENERIC_RESOLVE_TIERS=P2 GENERIC_RESOLVE_LIMIT="${GENERIC_RESOLVE_LIMIT:-2000}" \
+echo "=== Step 9: zero-credit generic HTML hidden ATS resolver P2 ==="
+GENERIC_RESOLVE_TIERS=P2 GENERIC_RESOLVE_LIMIT="${GENERIC_RESOLVE_LIMIT:-200}" \
   bash "$SCRIPT_DIR/run_resolve_generic_html_ats_links.sh"
 
 echo "=== Step 10: final auto-trust ==="

@@ -1,6 +1,6 @@
 \pset pager off
 
-\echo '=== P1 generic blocker domain clustering ==='
+\echo '=== generic blocker domain clustering ==='
 WITH site_rollup AS (
     SELECT
         site.consolidation_key,
@@ -25,7 +25,7 @@ WITH site_rollup AS (
     JOIN jobpush.crawl_targets target USING (consolidation_key)
     LEFT JOIN site_rollup rollup USING (consolidation_key)
     WHERE target.enabled
-      AND target.priority_tier = 'P1'
+      AND target.priority_tier = ANY(string_to_array(:'priority_tiers', ','))
       AND site.source_type = 'generic_html'
       AND site.verification_status = 'unverified'
       AND site.crawl_enabled = FALSE
@@ -68,7 +68,7 @@ GROUP BY template_family, host, path_pattern
 ORDER BY companies DESC, site_rows DESC, avg_candidate_score DESC NULLS LAST
 LIMIT 80;
 
-\echo '=== P1 generic blocker template family summary ==='
+\echo '=== generic blocker template family summary ==='
 WITH site_rollup AS (
     SELECT
         site.consolidation_key,
@@ -85,7 +85,7 @@ WITH site_rollup AS (
     JOIN jobpush.crawl_targets target USING (consolidation_key)
     LEFT JOIN site_rollup rollup USING (consolidation_key)
     WHERE target.enabled
-      AND target.priority_tier = 'P1'
+      AND target.priority_tier = ANY(string_to_array(:'priority_tiers', ','))
       AND site.source_type = 'generic_html'
       AND site.verification_status = 'unverified'
       AND site.crawl_enabled = FALSE

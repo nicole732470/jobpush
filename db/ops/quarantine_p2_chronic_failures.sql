@@ -22,9 +22,12 @@ WHERE target.consolidation_key = site.consolidation_key
   AND target.priority_tier = 'P2'
   AND site.verification_status = 'verified'
   AND site.crawl_enabled
-  AND site.crawl_status = 'failed'
   AND site.source_type IN ('icims', 'generic_html')
   AND site.consecutive_failures >= 2
+  AND (
+      site.crawl_status = 'failed'
+      OR (site.source_type = 'icims' AND site.crawl_status = 'pending')
+  )
   AND (
       coalesce(site.last_error, '') ILIKE '%timeout%'
       OR coalesce(site.last_error, '') ILIKE '%timed out%'

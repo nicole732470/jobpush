@@ -36,6 +36,13 @@ WITH supported AS (
               AND site.normalized_domain LIKE '%.icims.com'
               AND site.normalized_domain <> 'icims.com'
               AND site.site_url !~* '(icims\.com/legal|/privacy|/jobs/login$|internal[-.])'
+              AND NOT (
+                  site.consecutive_failures >= 2
+                  AND (
+                      coalesce(site.last_error, '') ILIKE '%timeout%'
+                      OR coalesce(site.last_error, '') ILIKE '%timed out%'
+                  )
+              )
           )
           OR (
               site.source_type = 'ultipro'

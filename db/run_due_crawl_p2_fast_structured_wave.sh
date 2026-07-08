@@ -9,5 +9,5 @@ for source_type in "${SOURCES[@]}"; do
   PRIORITY_TIER_FILTER=P2 \
     SOURCE_TYPE_FILTER="$source_type" \
     SKIP_POST_CRAWL_TITLE_ML=1 \
-    bash "$SCRIPT_DIR/run_due_crawl_batch.sh" 5
+    bash "$SCRIPT_DIR/run_due_crawl_batch.sh" 5 || true
 done
