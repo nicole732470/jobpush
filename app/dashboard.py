@@ -2488,49 +2488,42 @@ if selected_page == "Title review":
     if cluster_frame.empty:
         st.success("No title clusters are currently waiting for review.")
     else:
-        st.dataframe(
+        cluster_selection = st.dataframe(
             cluster_frame,
             hide_index=True,
             use_container_width=True,
             height=320,
+            on_select="rerun",
+            selection_mode="multi-row",
+            key="title_cluster_review_table",
         )
-        cluster_options = cluster_frame["cluster_key"].astype(str).tolist()
-        selected_cluster_key = st.selectbox("Cluster to submit", cluster_options)
-        selected_cluster_index = cluster_options.index(selected_cluster_key)
-        selected_cluster = cluster_frame.iloc[selected_cluster_index]
-        with st.form("title_cluster_review_form", clear_on_submit=True):
-            st.caption(
-                f"Selected cluster: **{selected_cluster['cluster_key']}** · "
-                f"hint={selected_cluster['cluster_hint']} · "
-                f"{int(selected_cluster['title_count']):,} titles · "
-                f"{int(selected_cluster['active_postings']):,} active postings"
-            )
-            st.caption(f"Examples: {selected_cluster['example_titles']}")
-            cluster_status = st.selectbox("Decision for selected cluster", ["non_target", "target", "review"])
-            cluster_role = st.text_input(
-                "Standard role / role family for cluster",
-                value=str(selected_cluster.get("matched_soc_titles") or "")[:180],
-            )
-            cluster_apply_limit = st.number_input(
-                "Max titles to update from this cluster",
-                min_value=1,
-                max_value=10000,
-                value=min(5000, int(selected_cluster["title_count"])),
-                step=100,
-            )
-            cluster_reason = st.text_input("Reason / notes", value="dashboard title cluster review")
-            cluster_submit = st.form_submit_button("Submit selected cluster", use_container_width=True)
+        selected_cluster_rows = getattr(getattr(cluster_selection, "selection", None), "rows", []) or []
+        selected_clusters = cluster_frame.iloc[[int(row) for row in selected_cluster_rows]] if selected_cluster_rows else cluster_frame.iloc[0:0]
+        st.caption(f"Selected clusters: {len(selected_clusters):,}")
+        cluster_status = st.selectbox("Decision for selected rows", ["non_target", "target", "review"])
+        cluster_role = st.text_input("Standard role / role family for selected rows", value="")
+        cluster_apply_limit = st.number_input(
+            "Max titles to update per cluster",
+            min_value=1,
+            max_value=10000,
+            value=5000,
+            step=100,
+        )
+        cluster_reason = st.text_input("Reason / notes", value="dashboard title cluster review")
+        cluster_submit = st.button("Submit selected cluster rows", use_container_width=True, disabled=selected_clusters.empty)
         if cluster_submit:
             try:
-                applied_count = apply_title_cluster_review(
-                    str(selected_cluster["cluster_key"]),
-                    cluster_status,
-                    cluster_role,
-                    cluster_reason,
-                    int(cluster_apply_limit),
-                )
+                applied_count = 0
+                for _, selected_cluster in selected_clusters.iterrows():
+                    applied_count += apply_title_cluster_review(
+                        str(selected_cluster["cluster_key"]),
+                        cluster_status,
+                        cluster_role,
+                        cluster_reason,
+                        int(cluster_apply_limit),
+                    )
                 clear_dashboard_caches()
-                st.success(f"Submitted {applied_count:,} title labels from cluster → {cluster_status}.")
+                st.success(f"Submitted {applied_count:,} title labels from {len(selected_clusters):,} clusters → {cluster_status}.")
                 st.rerun()
             except Exception as exc:
                 st.error(f"Cluster submit failed: {exc}")
