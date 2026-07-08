@@ -1115,6 +1115,20 @@ def site_review_queue(
 
 
 @st.cache_data(ttl=60)
+def title_cluster_review_queue(limit: int = 200) -> pd.DataFrame:
+    return query(
+        """
+        SELECT cluster_key, cluster_hint, title_count, active_postings, company_mentions,
+               example_titles, matched_soc_titles
+        FROM jobpush.job_title_cluster_review_queue
+        ORDER BY active_postings DESC, title_count DESC, cluster_key
+        LIMIT %s
+        """,
+        (limit,),
+    )
+
+
+@st.cache_data(ttl=60)
 def title_review_queue(limit: int = 2000) -> pd.DataFrame:
     frame = query(
         """
@@ -1334,6 +1348,16 @@ def apply_title_review(normalized_title: str, status: str, canonical_role: str, 
         "SELECT jobpush.apply_manual_job_title_label(%s, %s, %s, %s, 'nicole')",
         (normalized_title, status, canonical_role, reason),
     )
+
+
+def apply_title_cluster_review(cluster_key: str, status: str, canonical_role: str, reason: str, limit: int) -> int:
+    result = query(
+        "SELECT jobpush.apply_manual_job_title_cluster_label(%s, %s, %s, %s, 'nicole', %s) AS applied_count",
+        (cluster_key, status, canonical_role, reason, int(limit)),
+    )
+    if result.empty:
+        return 0
+    return int(result.iloc[0]["applied_count"])
 
 
 def set_manual_crawl_priority(consolidation_key: str, tier: str, reason: str) -> None:
@@ -2453,6 +2477,63 @@ if selected_page == "Title review":
         "这里只是抽样训练/修正规则用，不是每天申请流程。已被人工标注、YAML/profile hard rules、"
         "local ML 高置信度处理过的 title 会从这里移除。你可以直接在页面里填人工判断并提交到数据库。"
     )
+    st.markdown("#### Review by title cluster")
+    st.caption(
+        "最快入口：先按簇处理明显同类 title。比如 delivery / security / dental 这种，"
+        "一次提交会批量写入该 cluster 下仍在 review 的 titles。"
+    )
+    cluster_limit = st.select_slider("Cluster batch size", options=[50, 100, 200, 500], value=200)
+    cluster_frame = title_cluster_review_queue(cluster_limit)
+    if cluster_frame.empty:
+        st.success("No title clusters are currently waiting for review.")
+    else:
+        cluster_selection = st.dataframe(
+            cluster_frame,
+            hide_index=True,
+            use_container_width=True,
+            height=320,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="title_cluster_review_table",
+        )
+        selected_cluster_rows = getattr(getattr(cluster_selection, "selection", None), "rows", []) or []
+        selected_cluster_index = int(selected_cluster_rows[0]) if selected_cluster_rows else 0
+        selected_cluster = cluster_frame.iloc[selected_cluster_index]
+        with st.form("title_cluster_review_form", clear_on_submit=True):
+            st.caption(
+                f"Selected cluster: **{selected_cluster['cluster_key']}** · "
+                f"hint={selected_cluster['cluster_hint']} · "
+                f"{int(selected_cluster['title_count']):,} titles · "
+                f"{int(selected_cluster['active_postings']):,} active postings"
+            )
+            st.caption(f"Examples: {selected_cluster['example_titles']}")
+            cluster_status = st.selectbox("Decision for selected cluster", ["non_target", "target", "review"])
+            cluster_role = st.text_input(
+                "Standard role / role family for cluster",
+                value=str(selected_cluster.get("matched_soc_titles") or "")[:180],
+            )
+            cluster_apply_limit = st.number_input(
+                "Max titles to update from this cluster",
+                min_value=1,
+                max_value=10000,
+                value=min(5000, int(selected_cluster["title_count"])),
+                step=100,
+            )
+            cluster_reason = st.text_input("Reason / notes", value="dashboard title cluster review")
+            cluster_submit = st.form_submit_button("Submit selected cluster", use_container_width=True)
+        if cluster_submit:
+            applied_count = apply_title_cluster_review(
+                str(selected_cluster["cluster_key"]),
+                cluster_status,
+                cluster_role,
+                cluster_reason,
+                int(cluster_apply_limit),
+            )
+            clear_dashboard_caches()
+            st.success(f"Submitted {applied_count:,} title labels from cluster → {cluster_status}.")
+            st.rerun()
+
+    st.divider()
     review_limit = st.select_slider("Review batch size", options=[100, 250, 500, 1000, 2000], value=500)
     review_frame = title_review_queue(review_limit)
     st.download_button(
