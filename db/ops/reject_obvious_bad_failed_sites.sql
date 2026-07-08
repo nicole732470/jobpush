@@ -8,7 +8,7 @@ SET verification_status='rejected',
 FROM jobpush.crawl_targets target
 WHERE target.consolidation_key=site.consolidation_key
   AND target.enabled
-  AND target.priority_tier IN ('P0','P1')
+  AND target.priority_tier IN ('P0','P1','P2')
   AND site.verification_status='verified'
   AND site.crawl_enabled
   AND site.crawl_status='failed'
@@ -23,7 +23,7 @@ SELECT site.source_type, site.verification_status, site.crawl_enabled, site.craw
 FROM jobpush.career_sites site
 JOIN jobpush.crawl_targets target USING (consolidation_key)
 WHERE target.enabled
-  AND target.priority_tier IN ('P0','P1')
+  AND target.priority_tier IN ('P0','P1','P2')
   AND site.source_type IN ('eightfold','icims','workable','workday')
 GROUP BY 1,2,3,4
 ORDER BY 1,2,3,4;

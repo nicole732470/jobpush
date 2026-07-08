@@ -76,7 +76,8 @@ fail_run() {
 trap fail_run ERR
 
 if [[ "$SOURCE_TYPE" == "icims" ]]; then
-  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
+  ICIMS_TIMEOUT="${ICIMS_CRAWL_TIMEOUT:-15}"
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US --timeout "$ICIMS_TIMEOUT" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SOURCE_TYPE" == "generic_html" ]]; then
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SCOPE_METHOD" == "local_filter" ]]; then
