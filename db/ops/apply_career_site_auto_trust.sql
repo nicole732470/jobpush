@@ -31,6 +31,17 @@ WITH supported AS (
           OR (site.source_type = 'jobvite' AND site.normalized_domain = 'jobs.jobvite.com')
           OR (site.source_type = 'paylocity' AND site.normalized_domain = 'recruiting.paylocity.com')
           OR (site.source_type = 'rippling' AND site.normalized_domain = 'ats.rippling.com')
+          OR (
+              site.source_type = 'icims'
+              AND site.normalized_domain LIKE '%.icims.com'
+              AND site.normalized_domain <> 'icims.com'
+              AND site.site_url !~* '(icims\.com/legal|/privacy|/jobs/login$|internal[-.])'
+          )
+          OR (
+              site.source_type = 'ultipro'
+              AND site.normalized_domain = 'recruiting.ultipro.com'
+              AND site.site_url ~* '/jobboard/listjobs$'
+          )
       )
       AND NOT EXISTS (
           SELECT 1
@@ -51,7 +62,7 @@ SET verification_status = 'verified',
     scope_method = 'local_filter',
     next_crawl_at = now(),
     reviewed_at = now(),
-    reviewed_by = 'system:structured-ats-best-v4',
+    reviewed_by = 'system:structured-ats-best-v5',
     review_notes = 'Auto-trusted best supported structured ATS candidate after discovery; human labels override this, monitor crawl health and entity mismatch',
     updated_at = now()
 FROM eligible
@@ -66,7 +77,7 @@ WHERE EXISTS (
     FROM jobpush.career_sites site
     WHERE site.consolidation_key = target.consolidation_key
       AND site.verification_status = 'verified'
-      AND site.reviewed_by = 'system:structured-ats-best-v4'
+      AND site.reviewed_by IN ('system:structured-ats-best-v4', 'system:structured-ats-best-v5')
 );
 
 UPDATE jobpush.career_sites site
@@ -89,13 +100,13 @@ WHERE target.consolidation_key = site.consolidation_key
   AND site.source_type IN (
       'amazon_jobs', 'apple_jobs', 'greenhouse', 'icims', 'oracle_cloud', 'workday',
       'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite', 'paylocity',
-      'rippling'
+      'rippling', 'ultipro'
   );
 
 COMMIT;
 
 SELECT reviewed_by, source_type, count(*) AS newly_or_previously_auto_verified
 FROM jobpush.career_sites
-WHERE reviewed_by IN ('system:structured-ats-rank1-v3', 'system:structured-ats-best-v4')
+WHERE reviewed_by IN ('system:structured-ats-rank1-v3', 'system:structured-ats-best-v4', 'system:structured-ats-best-v5')
 GROUP BY 1, 2
 ORDER BY 2;

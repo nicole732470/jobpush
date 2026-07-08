@@ -8,11 +8,24 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 LIMIT="${1:-10}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "limit must be a positive integer" >&2; exit 2; }
 SITE_ID_FILTER="${SITE_ID_FILTER:-}"
+SOURCE_TYPE_FILTER="${SOURCE_TYPE_FILTER:-}"
+PRIORITY_TIER_FILTER="${PRIORITY_TIER_FILTER:-}"
 if [[ -n "$SITE_ID_FILTER" ]]; then
   [[ "$SITE_ID_FILTER" =~ ^[1-9][0-9]*$ ]] || { echo "SITE_ID_FILTER must be a positive integer" >&2; exit 2; }
   SITE_ID_WHERE="AND site_id=$SITE_ID_FILTER"
 else
   SITE_ID_WHERE=""
+fi
+if [[ -n "$SOURCE_TYPE_FILTER" ]]; then
+  SOURCE_TYPE_WHERE="AND source_type='$SOURCE_TYPE_FILTER'"
+else
+  SOURCE_TYPE_WHERE=""
+fi
+if [[ -n "$PRIORITY_TIER_FILTER" ]]; then
+  [[ "$PRIORITY_TIER_FILTER" =~ ^P[0-9](,P[0-9])*$ ]] || { echo "PRIORITY_TIER_FILTER must look like P2 or P2,P3" >&2; exit 2; }
+  PRIORITY_TIER_WHERE="AND priority_tier = ANY(ARRAY[$(printf "%s" "$PRIORITY_TIER_FILTER" | tr ',' '\n' | awk 'NF {printf "%s'\''%s'\''", sep, $1; sep=","}')])"
+else
+  PRIORITY_TIER_WHERE=""
 fi
 
 DUE_SITES=()
@@ -24,6 +37,8 @@ done < <("${PSQL[@]}" -qAtF $'\t' -c \
    WHERE is_due
      AND crawl_status <> 'running'
      $SITE_ID_WHERE
+     $SOURCE_TYPE_WHERE
+     $PRIORITY_TIER_WHERE
    ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
             priority_score DESC, site_id
    LIMIT $LIMIT;")
@@ -69,6 +84,8 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="rippling-nextjs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_rippling.py" ;;
     icims)
       adapter_name="icims-html"; adapter_version="0.3.0"; adapter_script="scripts/crawl_icims.py" ;;
+    ultipro)
+      adapter_name="ultipro-load-search"; adapter_version="0.1.0"; adapter_script="scripts/crawl_ultipro.py" ;;
     oracle_cloud)
       adapter_name="oracle-cloud-rest"; adapter_version="0.1.0"; adapter_script="scripts/crawl_oracle_cloud.py" ;;
     workday)

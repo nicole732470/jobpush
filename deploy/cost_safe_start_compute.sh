@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+: "${AWS_PROFILE:=jobpush-new}"
+export AWS_PROFILE
+
 REGION="${REGION:-us-east-2}"
 EC2_INSTANCE="${EC2_INSTANCE:-i-0fc6ca6a342fb0608}"
 DB_INSTANCE="${DB_INSTANCE:-joblens-db}"

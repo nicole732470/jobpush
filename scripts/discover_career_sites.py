@@ -160,7 +160,15 @@ def classify_url(raw_url):
     elif host.endswith("successfactors.com"):
         source_type, source_key, site_kind = "successfactors", host, "ats_feed"
     elif host.endswith("phenompeople.com") or host.endswith("phenom.com"):
-        source_type, source_key, site_kind = "phenom", host, "ats_feed"
+        if (
+            host.startswith(("cdn.", "content-", "assets.", "pp-cdn."))
+            or "careerconnectresources" in parsed.path.casefold()
+        ):
+            source_type, source_key, site_kind = "generic_html", host, "official_site"
+        elif host == "careers.phenom.com":
+            source_type, source_key, site_kind = "generic_html", host, "official_site"
+        else:
+            source_type, source_key, site_kind = "phenom", host, "ats_feed"
     elif host.endswith("talentbrew.com"):
         source_type, source_key, site_kind = "talentbrew", host, "ats_feed"
     elif host == "sjobs.brassring.com" or host.endswith(".brassring.com"):

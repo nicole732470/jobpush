@@ -2,6 +2,12 @@
 # Shared RDS connection for JobPush refresh/migration scripts.
 # Source this file, then use "${PSQL[@]}" for commands.
 
+if [[ -z "${AWS_PROFILE:-}" ]] \
+    && command -v aws >/dev/null \
+    && aws configure list-profiles 2>/dev/null | grep -qx 'jobpush-new'; then
+  export AWS_PROFILE=jobpush-new
+fi
+
 : "${REGION:=us-east-2}"
 : "${RDS_INSTANCE_ID:=joblens-db}"
 : "${RDS_SECRET_ID:=joblens/rds}"
