@@ -12,7 +12,7 @@ DECLARE
 BEGIN
     IF v_title ~ '(^|[^a-z])(dentist|dental|orthodont|oral surgeon|endodontist|periodontist)([^a-z]|$)' THEN
         RETURN 'svc:dental';
-    ELSIF v_title ~ '(^|[^a-z])(barista|cafe|café|restaurant|server|cook|dishwasher|kitchen|food runner|busser|hostess)([^a-z]|$)' THEN
+    ELSIF v_title ~ '(^|[^a-z])(barista|cafe|café|restaurant|server|cook|dishwasher|kitchen|food runner|busser|hostess|pizza|domino''?s?|papa john''?s?|pizzaiolo)([^a-z]|$)' THEN
         RETURN 'svc:food_restaurant';
     ELSIF v_title ~ '(^|[^a-z])(cashier|shopper|shopping|store associate|retail associate|sales floor|cart attendant|stocker|merchandise associate)([^a-z]|$)' THEN
         RETURN 'svc:retail_store';
@@ -20,7 +20,7 @@ BEGIN
         RETURN 'svc:delivery_logistics';
     ELSIF v_title ~ '(^|[^a-z])(security officer|security guard|valet|bus monitor|direct support professional|care worker|caregiver)([^a-z]|$)' THEN
         RETURN 'svc:frontline_care_security';
-    ELSIF v_title ~ '(^|[^a-z])(nurse|nursing|physician|therapist|medical assistant|clinical|microbiologist|resident -?pgy|chaplain|medical records)([^a-z]|$)' THEN
+    ELSIF v_title ~ '(^|[^a-z])(nurse|nursing|physician|doctor|therapist|medical assistant|clinical|clinician|microbiologist|resident -?pgy|chaplain|medical records|hospital|hospitalist|pharma|pharmaceutical|pharmacy|pharmacist|patient|radiology|surgical|surgeon|veterinary|paramedic)([^a-z]|$)' THEN
         RETURN 'clinical:healthcare';
     ELSIF v_title ~ '(^|[^a-z])(teacher|teaching|instructor|professor|faculty|tutor|school)([^a-z]|$)' THEN
         RETURN 'edu:teaching';

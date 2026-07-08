@@ -2491,6 +2491,13 @@ if selected_page == "Title review":
     if cluster_frame.empty:
         st.success("No title clusters are currently waiting for review.")
     else:
+        last_cluster_result = st.session_state.pop("title_cluster_review_last_result", None)
+        if last_cluster_result:
+            if last_cluster_result.get("ok"):
+                st.success(last_cluster_result["message"])
+            else:
+                st.error(last_cluster_result["message"])
+
         cluster_selection = st.dataframe(
             cluster_frame,
             hide_index=True,
@@ -2526,11 +2533,12 @@ if selected_page == "Title review":
         cluster_submit = st.button("Submit selected cluster rows", use_container_width=True, disabled=selected_clusters.empty)
         if cluster_submit:
             try:
+                selected_cluster_keys = [str(value) for value in selected_clusters["cluster_key"].astype(str).tolist()]
                 applied_count = 0
                 with st.spinner("Submitting selected clusters..."):
-                    for _, selected_cluster in selected_clusters.iterrows():
+                    for cluster_key in selected_cluster_keys:
                         applied_count += apply_title_cluster_review(
-                            str(selected_cluster["cluster_key"]),
+                            cluster_key,
                             cluster_status,
                             cluster_role,
                             cluster_reason,
@@ -2538,10 +2546,17 @@ if selected_page == "Title review":
                         )
                 clear_dashboard_caches()
                 st.session_state["title_cluster_review_selected_keys"] = []
-                st.success(f"Submitted {applied_count:,} title labels from {len(selected_clusters):,} clusters → {cluster_status}.")
+                st.session_state["title_cluster_review_last_result"] = {
+                    "ok": True,
+                    "message": f"Submitted {applied_count:,} title labels from {len(selected_cluster_keys):,} clusters → {cluster_status}.",
+                }
                 st.rerun()
             except Exception as exc:
-                st.error(f"Cluster submit failed: {exc}")
+                st.session_state["title_cluster_review_last_result"] = {
+                    "ok": False,
+                    "message": f"Cluster submit failed: {exc}",
+                }
+                st.rerun()
 
     st.divider()
     review_limit = st.select_slider("Review batch size", options=[100, 250, 500, 1000, 2000], value=500)
