@@ -24,7 +24,10 @@ WHERE target.consolidation_key = site.consolidation_key
   AND site.crawl_enabled
   AND site.crawl_status = 'failed'
   AND site.source_type IN ('ashby', 'greenhouse', 'lever', 'smartrecruiters', 'rippling')
-  AND site.consecutive_failures >= 5
+  AND (
+      site.consecutive_failures >= 5
+      OR (site.source_type = 'rippling' AND site.consecutive_failures >= 4)
+  )
   AND (
       coalesce(site.last_error, '') ILIKE '%timeout%'
       OR coalesce(site.last_error, '') ILIKE '%timed out%'
