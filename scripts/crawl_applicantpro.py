@@ -53,6 +53,17 @@ def board_config(board_html: str, page_url: str) -> tuple[str, str, int, dict]:
     return subdomain, domain, int(domain_id_match.group(1)), json.loads(params_match.group(1))
 
 
+def load_board(url: str) -> tuple[str, int, tuple[str, str, int, dict]]:
+    parts = urlsplit(url)
+    fallback_url = f"{parts.scheme}://{parts.netloc}/jobs/"
+    try:
+        board_html, status = fetch_text(url)
+        return board_html, status, board_config(board_html, url)
+    except Exception:
+        board_html, status = fetch_text(fallback_url)
+        return board_html, status, board_config(board_html, fallback_url)
+
+
 def parse_rows(payload: dict, default_market: str) -> list[dict]:
     rows: list[dict] = []
     for job in payload.get("data", {}).get("jobs", []) or []:
@@ -92,8 +103,8 @@ def main() -> int:
     args = parser.parse_args()
 
     started = time.monotonic()
-    board_html, status = fetch_text(args.url)
-    subdomain, domain, domain_id, get_params = board_config(board_html, args.url)
+    _board_html, status, config = load_board(args.url)
+    subdomain, domain, domain_id, get_params = config
     api_url = f"https://{subdomain}.{domain}/core/jobs/{domain_id}?{urlencode({'getParams': json.dumps(get_params)})}"
     payload_text, api_status = fetch_text(api_url, "application/json")
     rows = parse_rows(json.loads(payload_text), args.default_market)
