@@ -25,7 +25,7 @@ from discover_career_sites import classify_url, company_tokens, excluded
 
 
 CAREER_HINTS = re.compile(
-    r"(job|jobs|career|careers|opening|openings|position|positions|opportunit|workday|greenhouse|lever|ashby|icims|jobvite|workable|paylocity|rippling|ultipro)",
+    r"(job|jobs|career|careers|opening|openings|position|positions|opportunit|workday|greenhouse|lever|ashby|icims|jobvite|workable|paylocity|rippling|gusto|ultipro)",
     re.I,
 )
 URL_RE = re.compile(r"https?://[^\\\"'<> )]+")
@@ -41,6 +41,7 @@ SUPPORTED_ATS_LINKS = {
     "jobvite",
     "paylocity",
     "rippling",
+    "gusto",
     "phenom",
     "talentbrew",
     "brassring",

@@ -144,6 +144,9 @@ def classify_url(raw_url):
     elif host == "ats.rippling.com" and path_parts:
         source_type, source_key, site_kind = "rippling", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}/jobs"
+    elif host == "jobs.gusto.com" and len(path_parts) >= 2 and path_parts[0] == "boards":
+        source_type, source_key, site_kind = "gusto", path_parts[1], "ats_feed"
+        canonical_path = f"/boards/{source_key}"
     elif host == "recruiting.ultipro.com" and len(path_parts) >= 2:
         source_type, source_key, site_kind = "ultipro", "/".join(path_parts[:2]), "ats_feed"
         canonical_path = "/" + source_key

@@ -82,6 +82,8 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="paylocity-html-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_paylocity.py" ;;
     rippling)
       adapter_name="rippling-nextjs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_rippling.py" ;;
+    gusto)
+      adapter_name="gusto-board-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_gusto_jobs.py" ;;
     icims)
       adapter_name="icims-html"; adapter_version="0.3.0"; adapter_script="scripts/crawl_icims.py" ;;
     ultipro)

@@ -1260,6 +1260,9 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
     elif host == "ats.rippling.com" and path_parts:
         source_type, source_key, site_kind = "rippling", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}/jobs"
+    elif host == "jobs.gusto.com" and len(path_parts) >= 2 and path_parts[0] == "boards":
+        source_type, source_key, site_kind = "gusto", path_parts[1], "ats_feed"
+        canonical_path = f"/boards/{source_key}"
     elif host.endswith("myworkdayjobs.com"):
         source_type, source_key, site_kind = "workday", host, "ats_feed"
     elif host.endswith("icims.com"):
@@ -2499,6 +2502,16 @@ if selected_page == "Title review":
         )
         selected_cluster_rows = getattr(getattr(cluster_selection, "selection", None), "rows", []) or []
         selected_clusters = cluster_frame.iloc[[int(row) for row in selected_cluster_rows]] if selected_cluster_rows else cluster_frame.iloc[0:0]
+
+        # Streamlit reruns can drop dataframe row selections on button click.
+        # Keep selected cluster keys in session state so submit is reliable.
+        persisted_cluster_keys = st.session_state.get("title_cluster_review_selected_keys", [])
+        if not selected_clusters.empty:
+            persisted_cluster_keys = [str(value) for value in selected_clusters["cluster_key"].astype(str).tolist()]
+            st.session_state["title_cluster_review_selected_keys"] = persisted_cluster_keys
+        elif persisted_cluster_keys:
+            selected_clusters = cluster_frame[cluster_frame["cluster_key"].astype(str).isin(persisted_cluster_keys)]
+
         st.caption(f"Selected clusters: {len(selected_clusters):,}")
         cluster_status = st.selectbox("Decision for selected rows", ["non_target", "target", "review"])
         cluster_role = st.text_input("Standard role / role family for selected rows", value="")
@@ -2514,15 +2527,17 @@ if selected_page == "Title review":
         if cluster_submit:
             try:
                 applied_count = 0
-                for _, selected_cluster in selected_clusters.iterrows():
-                    applied_count += apply_title_cluster_review(
-                        str(selected_cluster["cluster_key"]),
-                        cluster_status,
-                        cluster_role,
-                        cluster_reason,
-                        int(cluster_apply_limit),
-                    )
+                with st.spinner("Submitting selected clusters..."):
+                    for _, selected_cluster in selected_clusters.iterrows():
+                        applied_count += apply_title_cluster_review(
+                            str(selected_cluster["cluster_key"]),
+                            cluster_status,
+                            cluster_role,
+                            cluster_reason,
+                            int(cluster_apply_limit),
+                        )
                 clear_dashboard_caches()
+                st.session_state["title_cluster_review_selected_keys"] = []
                 st.success(f"Submitted {applied_count:,} title labels from {len(selected_clusters):,} clusters → {cluster_status}.")
                 st.rerun()
             except Exception as exc:
