@@ -13,7 +13,39 @@ trap 'rm -rf "$TMP_DIR"' EXIT
     AND classification_status IN ('target','non_target')
 ) TO STDOUT WITH (FORMAT CSV, HEADER TRUE)" > "$TMP_DIR/manual_holdout_labels.csv"
 
-cp "$TMP_DIR/manual_holdout_labels.csv" "$TMP_DIR/train_labels.csv"
+"${PSQL[@]}" -qAt -c "COPY (
+  WITH manual_labels AS (
+    SELECT normalized_title, classification_status, 'manual' AS training_source
+    FROM jobpush.job_title_labels
+    WHERE rule_version LIKE 'manual%'
+      AND classification_status IN ('target','non_target')
+  ), trusted_rule_labels AS (
+    SELECT normalized_title, classification_status, training_source
+    FROM (
+      SELECT
+        label.normalized_title,
+        label.classification_status,
+        split_part(COALESCE(label.decision_reason, 'unknown'), ':', 1) AS training_source,
+        row_number() OVER (
+          PARTITION BY split_part(COALESCE(label.decision_reason, 'unknown'), ':', 1)
+          ORDER BY COALESCE(catalog.active_posting_count, 0) DESC, label.normalized_title
+        ) AS source_rank
+      FROM jobpush.job_title_labels label
+      LEFT JOIN jobpush.job_title_catalog catalog USING (normalized_title)
+      WHERE label.rule_version = 'profile-title-rules-v2'
+        AND label.classification_status = 'non_target'
+        AND label.labeled_by = 'system:profile-title-rules-v2'
+        AND NOT EXISTS (
+          SELECT 1 FROM manual_labels manual
+          WHERE manual.normalized_title = label.normalized_title
+        )
+    ) ranked
+    WHERE source_rank <= 75
+  )
+  SELECT normalized_title, classification_status FROM manual_labels
+  UNION ALL
+  SELECT normalized_title, classification_status FROM trusted_rule_labels
+) TO STDOUT WITH (FORMAT CSV, HEADER TRUE)" > "$TMP_DIR/train_labels.csv"
 
 "${PSQL[@]}" -qAt -c "COPY (
   SELECT normalized_title
@@ -26,12 +58,12 @@ python3 "$REPO_DIR/scripts/train_local_title_classifier.py" \
   "$TMP_DIR/train_labels.csv" "$TMP_DIR/review.csv" \
   "$TMP_DIR/predictions.sql" "$TMP_DIR/metrics.json" \
   --holdout-labels-csv "$TMP_DIR/manual_holdout_labels.csv" \
-  --model-version local-title-ml-v4 \
-  --variant stem \
+  --model-version local-title-ml-v5 \
+  --variant baseline \
   --class-prior balanced \
   --auto-label non_target
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -f "$TMP_DIR/predictions.sql"
 "${PSQL[@]}" -P pager=off -c \
-  "SELECT * FROM jobpush.apply_local_job_title_ml('local-title-ml-v4', 10000);"
+  "SELECT * FROM jobpush.apply_local_job_title_ml('local-title-ml-v5', 10000);"
 "${PSQL[@]}" -P pager=off -c \
   "SELECT classification_status, rule_version, count(*) FROM jobpush.job_title_labels GROUP BY 1,2 ORDER BY 1,2;"
