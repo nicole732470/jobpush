@@ -78,6 +78,8 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="workable-markdown"; adapter_version="0.1.0"; adapter_script="scripts/crawl_workable.py" ;;
     jobvite)
       adapter_name="jobvite-html-jsonld"; adapter_version="0.1.0"; adapter_script="scripts/crawl_jobvite.py" ;;
+    applicantpro)
+      adapter_name="applicantpro-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_applicantpro.py" ;;
     paylocity)
       adapter_name="paylocity-html-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_paylocity.py" ;;
     rippling)

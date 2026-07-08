@@ -41,6 +41,7 @@ for row in "${DUE_SITES[@]}"; do
     workable) adapter_name="workable-markdown"; adapter_version="0.1.0"; adapter_script="scripts/crawl_workable.py" ;;
     jobvite) adapter_name="jobvite-html-jsonld"; adapter_version="0.1.0"; adapter_script="scripts/crawl_jobvite.py" ;;
     jobscore) adapter_name="jobscore-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_jobscore.py" ;;
+    applicantpro) adapter_name="applicantpro-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_applicantpro.py" ;;
     dover) adapter_name="dover-careers-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_dover.py" ;;
     catsone) adapter_name="catsone-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_catsone.py" ;;
     trakstar) adapter_name="trakstar-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_trakstar.py" ;;

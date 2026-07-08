@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCES=(greenhouse smartrecruiters ashby lever paylocity oracle_cloud workable jobvite rippling)
+SOURCES=(greenhouse smartrecruiters ashby lever paylocity oracle_cloud workable jobvite applicantpro rippling)
 
 for source_type in "${SOURCES[@]}"; do
   echo "=== P2 fast due crawl source_type=$source_type ==="
