@@ -29,6 +29,18 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def slugify_title(value: str) -> str:
+    return re.sub(r"-+", "-", re.sub(r"[^A-Za-z0-9]+", "-", clean(value))).strip("-")
+
+
+def job_url_for(job: dict, source_url: str, title: str) -> str:
+    job_id = clean(job.get("jobId") or job.get("reqId"))
+    parsed = urlparse(source_url)
+    if parsed.netloc == "careers.united.com" and job_id:
+        return f"https://careers.united.com/us/en/job/{job_id}/{slugify_title(title)}"
+    return urljoin(source_url, clean(job.get("applyUrl")) or source_url)
+
+
 def strip_html(value: object) -> str:
     return clean(re.sub(r"<[^>]+>", " ", clean(value)))
 
@@ -95,7 +107,7 @@ def row_from_job(job: dict, source_url: str) -> dict | None:
         "normalized_title": normalize(title),
         "location": location,
         "category": clean(job.get("category") or ", ".join(job.get("multi_category") or [])),
-        "job_url": urljoin(source_url, clean(job.get("applyUrl")) or source_url),
+        "job_url": job_url_for(job, source_url, title),
         "description_snippet": strip_html(job.get("descriptionTeaser") or (job.get("ml_job_parser") or {}).get("descriptionTeaser"))[:1000],
         "market_scope": classify_market_scope(location, "unknown"),
         "posted_text": clean(job.get("postedDate") or job.get("dateCreated")),
