@@ -691,6 +691,14 @@ company-specific.
   candidates. ADP is a JS shell, ApplicantPro is Vue/component-driven, and
   HRMDirect samples can be empty or flaky; do not write broad parsers until a
   stable employer-specific API/HTML pattern is proven.
+  - 2026-07-08 sample check: `jobs.adp.com/en/jobs` is parseable, but it is
+    ADP's own career site, not proof that `myjobs.adp.com/{company}/cx` is a
+    reusable employer-board parser. `myjobs.adp.com` employer samples returned
+    JS shells with no server-rendered job rows.
+  - 2026-07-08 HRMDirect sample check: `*.hrmdirect.com/employment/job-openings.php`
+    pages loaded, but samples exposed department/opening shell text rather than
+    stable job-detail links. Keep these in review/rediscovery until a reusable
+    API or stable row pattern is found.
 
 ## Tavily credential storage and rotation
 
