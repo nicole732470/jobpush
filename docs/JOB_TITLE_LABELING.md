@@ -123,6 +123,18 @@ Senior Product Owner, Senior Program Manager, and Senior Project Manager.
   ops/procurement/territory-medical sales/clinical technologist/Prime Air
   frontline/hospitality operation titles.
 - The private dashboard can export a fresh review batch without Codex.
+- 2026-07-09 high-volume cleanup:
+  - migration 163 added hard non-target rules for old enterprise middleware
+    stacks, non-PM manager titles, Amazon operations/language/planner roles,
+    frontline retail/food-service roles, and staffing-style niche stack titles;
+  - migration 163 also paused two Domino SmartRecruiters mega-boards because
+    they produced 20k+ frontline postings with no useful target yield;
+  - migration 164 moved SDE/software-engineering, IT support/helpdesk, infra /
+    construction / hardware ops, sales-representative, AI-infra niche, and
+    enterprise-app staffing titles to non-target under the current profile.
+- `db/run_high_volume_review_noise_top.sh` is the lightweight audit for this
+  loop. It shows which high-volume sources are still feeding review/title
+  pressure before adding another rule.
 
 ## Crawl-time automation
 
@@ -161,8 +173,11 @@ YAML/profile updates should publish a new rule table version rather than burying
 all logic in one SQL function:
 
 - product/product-owner/product-marketing titles -> target;
-- software, full-stack, backend/frontend, data, BI, systems analyst, solution
-  architecture/engineering -> target;
+- product/data/BI/systems analyst/solution architecture/engineering titles can
+  be target when they fit the current profile;
+- SDE/software-engineering titles are no longer Jobs-to-Apply targets under the
+  current profile; migration 164 moves them to non-target to keep the apply
+  queue focused;
 - applied AI / GenAI / LLM application, customer success / technical account,
   and selected marketing analyst/specialist titles -> target;
 - HR/recruiting, accounting/tax/audit, retail/in-store/Xfinity sales,

@@ -65,6 +65,8 @@ public ATS adapters use the same batch/run/posting loader:
   the board exposes it.
 - `smartrecruiters-api`: SmartRecruiters public company-postings API with
   paginated normalization.
+  Domino SmartRecruiters mega-boards are paused by migration 163 because they
+  are high-volume frontline boards with no useful target yield.
 - `eightfold-embedded`: Eightfold embedded/API postings parser. It preserves
   URL query filters such as location and job function, then caps parsed jobs at
   300 by default because retail boards can otherwise return tens of thousands
