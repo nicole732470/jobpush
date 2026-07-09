@@ -40,6 +40,7 @@ SUPPORTED_SOURCE_TYPES = {
     "breezy",
     "paylocity",
     "rippling",
+    "phenom",
 }
 LOCAL_FILTER_SOURCE_TYPES = {
     "greenhouse",
@@ -56,6 +57,7 @@ LOCAL_FILTER_SOURCE_TYPES = {
     "breezy",
     "paylocity",
     "rippling",
+    "phenom",
     "icims",
     "workday",
 }
@@ -1294,12 +1296,12 @@ def classify_career_url(raw_url: str) -> dict[str, str | None]:
         source_type, source_key, site_kind = "cognizant_jobs", host, "ats_feed"
     elif host == "jobs.uber.com" and "/jobs" in parsed.path:
         source_type, source_key, site_kind = "uber_jobs", host, "ats_feed"
-    elif host.endswith("eightfold.ai") or host in {"portal.careers.hsbc.com", "jobs.ericsson.com"}:
+    elif host.endswith("eightfold.ai") or host in {"portal.careers.hsbc.com", "jobs.ericsson.com", "apply.careers.microsoft.com"}:
         source_type, source_key, site_kind = "eightfold", host, "ats_feed"
     elif not any(term in parsed.path.casefold() for term in CAREER_TERMS):
         site_kind = "corporate"
 
-    canonical_query = parsed.query if source_type in {"generic_html", "uber_jobs"} else ""
+    canonical_query = parsed.query if source_type in {"generic_html", "uber_jobs", "eightfold"} else ""
     canonical_url = urlunparse((parsed.scheme or "https", netloc, canonical_path, "", canonical_query, ""))
     scope_method = "local_filter" if source_type in LOCAL_FILTER_SOURCE_TYPES | {"uber_jobs"} else "unknown"
     if source_type in {"amazon_jobs", "apple_jobs", "cognizant_jobs", "eightfold", "google_jobs", "oracle_cloud"}:

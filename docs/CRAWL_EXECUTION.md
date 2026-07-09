@@ -69,6 +69,9 @@ public ATS adapters use the same batch/run/posting loader:
   URL query filters such as location and job function, then caps parsed jobs at
   300 by default because retail boards can otherwise return tens of thousands
   of postings.
+- `phenom-search-html`: Phenom search-page parser for company career boards
+  such as United Airlines. It reads `phApp.ddo` search results, paginates by
+  `from=`, and keeps US postings only.
 - `ats-url-guess`: zero-credit discovery helper, not a crawler adapter. It
   probes public Greenhouse, Lever, Ashby, and SmartRecruiters APIs with
   conservative company/domain slugs, stores candidates as

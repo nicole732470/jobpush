@@ -50,6 +50,7 @@ for row in "${DUE_SITES[@]}"; do
     paylocity) adapter_name="paylocity-html-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_paylocity.py" ;;
     rippling) adapter_name="rippling-nextjs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_rippling.py" ;;
     gusto) adapter_name="gusto-board-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_gusto_jobs.py" ;;
+    phenom) adapter_name="phenom-search-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_phenom.py" ;;
     icims) adapter_name="icims-html"; adapter_version="0.3.0"; adapter_script="scripts/crawl_icims.py" ;;
     oracle_cloud) adapter_name="oracle-cloud-rest"; adapter_version="0.1.0"; adapter_script="scripts/crawl_oracle_cloud.py" ;;
     workday) adapter_name="workday-cxs"; adapter_version="0.1.0"; adapter_script="scripts/crawl_workday.py" ;;

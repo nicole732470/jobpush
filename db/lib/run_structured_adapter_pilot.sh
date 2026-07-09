@@ -76,7 +76,7 @@ fail_run() {
 trap fail_run ERR
 
 if [[ "$SOURCE_TYPE" == "icims" ]]; then
-  ICIMS_TIMEOUT="${ICIMS_CRAWL_TIMEOUT:-15}"
+  ICIMS_TIMEOUT="${ICIMS_CRAWL_TIMEOUT:-30}"
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US --timeout "$ICIMS_TIMEOUT" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SOURCE_TYPE" == "generic_html" ]]; then
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
@@ -107,6 +107,13 @@ CREATE TEMP TABLE crawl_stage (
 DELETE FROM crawl_stage
 WHERE market_scope IS DISTINCT FROM 'US'
    OR COALESCE(description_snippet, '') ~* '(no|not).{0,50}(visa|h-?1b|sponsor|sponsorship)|without.{0,60}sponsorship|authorized.{0,80}without.{0,40}sponsorship|will not.{0,50}sponsor';
+
+-- ponytail: adapters sometimes return the same ATS id twice in one page/API
+-- batch; dedupe before ON CONFLICT so one bad board does not fail the run.
+DELETE FROM crawl_stage a
+USING crawl_stage b
+WHERE a.ctid < b.ctid
+  AND a.external_job_id = b.external_job_id;
 
 WITH counts AS (
   SELECT count(*) FILTER (WHERE p.external_job_id IS NULL) new_count,
