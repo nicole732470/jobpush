@@ -23,12 +23,34 @@ WHERE target.consolidation_key = site.consolidation_key
   AND site.verification_status = 'verified'
   AND site.crawl_enabled
   AND site.crawl_status = 'failed'
-  AND site.source_type IN ('ashby', 'greenhouse', 'lever', 'oracle_cloud', 'smartrecruiters', 'rippling', 'workable')
-  AND site.consecutive_failures >= 4
   AND (
-      coalesce(site.last_error, '') ILIKE '%timeout%'
-      OR coalesce(site.last_error, '') ILIKE '%timed out%'
-      OR coalesce(site.last_error, '') ILIKE '%urlopen%'
+      (
+          site.source_type IN ('ashby', 'greenhouse', 'lever', 'oracle_cloud', 'smartrecruiters', 'rippling', 'workable', 'workday')
+          AND site.consecutive_failures >= 4
+          AND (
+              coalesce(site.last_error, '') ILIKE '%timeout%'
+              OR coalesce(site.last_error, '') ILIKE '%timed out%'
+              OR coalesce(site.last_error, '') ILIKE '%urlopen%'
+          )
+      )
+      OR (
+          target.priority_tier = 'P2'
+          AND site.source_type IN ('greenhouse', 'workday')
+          AND site.consecutive_failures >= 2
+          AND (
+              coalesce(site.last_error, '') ILIKE '%timeout%'
+              OR coalesce(site.last_error, '') ILIKE '%timed out%'
+              OR coalesce(site.last_error, '') ILIKE '%urlopen%'
+              OR coalesce(site.last_error, '') ILIKE '%blocked%'
+              OR coalesce(site.last_error, '') ILIKE '%forbidden%'
+              OR coalesce(site.last_error, '') ILIKE '%403%'
+          )
+      )
+      OR (
+          target.priority_tier = 'P2'
+          AND site.source_type = 'workday'
+          AND site.consecutive_failures >= 5
+      )
   );
 
 COMMIT;

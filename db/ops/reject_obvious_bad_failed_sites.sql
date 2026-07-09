@@ -15,7 +15,14 @@ WHERE target.consolidation_key=site.consolidation_key
   AND (
     (site.source_type='eightfold' AND (site.site_url ILIKE '%eightfold.ai/privacy-policy%' OR site.site_url ILIKE '%vs-errors.eightfold.ai%'))
     OR (site.source_type='workable' AND site.site_url='https://jobs.workable.com/company')
-    OR (site.source_type='workday' AND (site.site_url LIKE '%"}}%' OR site.site_url ~ '^https://[^/]+/$'))
+    OR (site.source_type='workday' AND (
+      site.site_url LIKE '%"}}%'
+      OR site.site_url ~ '^https://[^/]+/$'
+      OR site.site_url ILIKE '%/login%'
+      OR site.site_url ILIKE '%/search'
+      OR (site.site_url ILIKE '%silabs.wd1.myworkdayjobs.com%' AND target.canonical_name NOT ILIKE '%silicon%')
+      OR (site.site_url ILIKE '%ipsen.wd3.myworkdayjobs.com%' AND target.canonical_name NOT ILIKE '%ipsen%')
+    ))
     OR (site.source_type='icims' AND (site.site_url ILIKE '%/icims2/servlet/icims2%' OR site.site_url ILIKE '%/jobs/login%'))
   );
 
