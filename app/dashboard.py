@@ -210,8 +210,6 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR normalized_title LIKE '%%data%%analyst%%'
                          OR normalized_title LIKE '%%strategy%%analyst%%'
                          OR normalized_title LIKE '%%operations%%analyst%%'
-                         OR normalized_title LIKE '%%program%%manager%%'
-                         OR normalized_title LIKE '%%project%%manager%%'
                          OR normalized_title LIKE '%%implementation%%'
                          OR normalized_title LIKE '%%consultant%%'
                          OR normalized_title LIKE '%%consulting%%'
@@ -229,6 +227,9 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                                   OR normalized_title LIKE '%%database%%admin%%'))
                          OR normalized_title LIKE '%%systems%%analyst%%'
                          OR normalized_title LIKE '%%information%%system%%'
+                         OR normalized_title LIKE '%%program%%manager%%'
+                         OR normalized_title LIKE '%%project%%manager%%'
+                         OR canonical_role ILIKE '%%information technology project manager%%'
                     THEN 'stack_2_ai_solutions_systems_data'
                     WHEN canonical_role = 'candidate_profile_track: software/data'
                          OR normalized_title LIKE '%%software%%'
@@ -1926,8 +1927,8 @@ def dataframe(frame: pd.DataFrame, *, height: int = 520) -> None:
 
 TRACK_LABELS = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
-    "stack_2_ai_solutions_systems_data": "Track 2 · AI / Solutions / Systems / Data",
-    "stack_2_software_systems": "Track 2 · AI / Solutions / Systems / Data",
+    "stack_2_ai_solutions_systems_data": "Track 2 · Project / AI / Solutions / Systems / Data",
+    "stack_2_software_systems": "Track 2 · Project / AI / Solutions / Systems / Data",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
     "stack_4_sde": "Track 4 · SDE / Software Engineering",
@@ -1973,7 +1974,7 @@ ROLE_FAMILY_LABELS = {
 
 TRACK_OPTIONS = [
     "Track 1 · Business / Product / Data",
-    "Track 2 · AI / Solutions / Systems / Data",
+    "Track 2 · Project / AI / Solutions / Systems / Data",
     "Track 3 · Customer Success / Technical Account",
     "Track 3 · GTM / Sales / Marketing",
     "Track 4 · SDE / Software Engineering",
@@ -1984,8 +1985,8 @@ TRACK_OPTIONS = [
 
 TRACK_VALUE_TO_LABEL = {
     "stack_1_business_product_data": "Track 1 · Business / Product / Data",
-    "stack_2_ai_solutions_systems_data": "Track 2 · AI / Solutions / Systems / Data",
-    "stack_2_software_systems": "Track 2 · AI / Solutions / Systems / Data",
+    "stack_2_ai_solutions_systems_data": "Track 2 · Project / AI / Solutions / Systems / Data",
+    "stack_2_software_systems": "Track 2 · Project / AI / Solutions / Systems / Data",
     "stack_3_customer_success": "Track 3 · Customer Success / Technical Account",
     "stack_3_gtm": "Track 3 · GTM / Sales / Marketing",
     "stack_4_sde": "Track 4 · SDE / Software Engineering",

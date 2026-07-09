@@ -126,6 +126,9 @@ taxonomy becomes a durable product rule, promote it into
 `jobpush.job_title_labels` or a versioned config file instead of treating this
 display rule as source of truth.
 
+Current dashboard track convention: Product Manager remains Track 1; Project
+Manager and Program Manager are displayed separately and roll up into Track 2.
+
 `Other` means the posting is still a target/review posting, but the dashboard
 display layer has not mapped its title or canonical role into a more specific
 role family yet. It is a grouping gap, not a crawler failure.

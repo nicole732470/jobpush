@@ -59,8 +59,6 @@ SELECT
                        OR normalized_title LIKE '%data%analyst%'
                        OR normalized_title LIKE '%strategy%analyst%'
                        OR normalized_title LIKE '%operations%analyst%'
-                       OR normalized_title LIKE '%program%manager%'
-                       OR normalized_title LIKE '%project%manager%'
                        OR normalized_title LIKE '%implementation%'
                        OR normalized_title LIKE '%consultant%'
                        OR normalized_title LIKE '%consulting%'
@@ -72,6 +70,11 @@ SELECT
                    WHEN role_status = 'target' AND canonical_role IN (
                        'candidate_profile_track: solutions/systems',
                        'candidate_profile_track: applied_ai'
+                   ) THEN 'stack_2_ai_solutions_systems_data'
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%program%manager%'
+                       OR normalized_title LIKE '%project%manager%'
+                       OR canonical_role ILIKE '%information technology project manager%'
                    ) THEN 'stack_2_ai_solutions_systems_data'
                    WHEN role_status = 'target'
                         AND canonical_role = 'candidate_profile_track: software/data'
@@ -313,8 +316,6 @@ SELECT
                        OR normalized_title LIKE '%data%analyst%'
                        OR normalized_title LIKE '%strategy%analyst%'
                        OR normalized_title LIKE '%operations%analyst%'
-                       OR normalized_title LIKE '%program%manager%'
-                       OR normalized_title LIKE '%project%manager%'
                        OR normalized_title LIKE '%implementation%'
                        OR normalized_title LIKE '%consultant%'
                        OR normalized_title LIKE '%consulting%'
@@ -326,6 +327,11 @@ SELECT
                    WHEN role_status = 'target' AND canonical_role IN (
                        'candidate_profile_track: solutions/systems',
                        'candidate_profile_track: applied_ai'
+                   ) THEN 'stack_2_ai_solutions_systems_data'
+                   WHEN role_status = 'target' AND (
+                       normalized_title LIKE '%program%manager%'
+                       OR normalized_title LIKE '%project%manager%'
+                       OR canonical_role ILIKE '%information technology project manager%'
                    ) THEN 'stack_2_ai_solutions_systems_data'
                    WHEN role_status = 'target'
                         AND canonical_role = 'candidate_profile_track: software/data'
