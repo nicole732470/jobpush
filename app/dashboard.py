@@ -2000,6 +2000,95 @@ TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.it
 TRACK_LABEL_TO_VALUE["Track 5 · Possible Target / Unclassified"] = "stack_5_possible_target"
 
 
+def _normalize_title_for_role(title: str) -> str:
+    return re.sub(r"\s+", " ", title.lower().replace("-", " ").replace("/", " ")).strip()
+
+
+def classify_job_role_from_title(title: str | None) -> str:
+    """Classify a job for dashboard filters from the posting title only."""
+    if not title:
+        return "Other"
+    t = _normalize_title_for_role(title)
+    if re.search(r"\b(intern(ship)?|co op|co-op)\b", t):
+        return "Internship"
+    if re.search(r"technical program manager|\btpm\b|program manager", t):
+        return "Program Manager"
+    if re.search(
+        r"information technology project manager|technical project manager|it project manager|project manager",
+        t,
+    ):
+        return "Project Manager"
+    if "production manager" not in t and re.search(
+        r"technical product manager|product manager|product owner",
+        t,
+    ):
+        return "Product Manager"
+    if re.search(r"forward deployed engineer|forward-deployed engineer", t):
+        return "Forward Deployed Engineer"
+    if re.search(r"ai full stack|ai engineer|gtm engineer", t):
+        return "Applied AI / GTM"
+    if re.search(
+        r"system engineer|systems engineer|systems analyst|information system",
+        t,
+    ):
+        return "Systems Engineering"
+    if re.search(
+        r"software engineer|software developer|fullstack|full stack",
+        t,
+    ):
+        return "Software Engineering"
+    if re.search(r"data scientist|machine learning|\bml engineer\b", t):
+        return "Data Science / ML"
+    if re.search(
+        r"data engineer|analytics engineer|data architect|database administrator|database admin",
+        t,
+    ):
+        return "Data Engineering"
+    if re.search(r"data analyst|business intelligence|\bbi analyst\b", t):
+        return "Data Analytics / BI"
+    if re.search(r"business analyst", t):
+        return "Business Analyst"
+    if re.search(r"operations analyst|strategy analyst", t):
+        return "Strategy / Operations"
+    if re.search(
+        r"customer success|technical account|relationship manager",
+        t,
+    ):
+        return "Customer Success"
+    if re.search(r"technical support|technical specialist|technical expert", t):
+        return "Technical Support"
+    if re.search(r"marketing", t):
+        return "Marketing"
+    if re.search(r"sales", t):
+        return "Sales"
+    if re.search(r"financial analyst", t):
+        return "Financial Analyst"
+    return "Other"
+
+
+JOB_ROLE_FILTER_OPTIONS = [
+    "Product Manager",
+    "Program Manager",
+    "Project Manager",
+    "Software Engineering",
+    "Data Science / ML",
+    "Data Engineering",
+    "Data Analytics / BI",
+    "Business Analyst",
+    "Systems Engineering",
+    "Customer Success",
+    "Marketing",
+    "Sales",
+    "Applied AI / GTM",
+    "Forward Deployed Engineer",
+    "Strategy / Operations",
+    "Technical Support",
+    "Financial Analyst",
+    "Internship",
+    "Other",
+]
+
+
 def role_family_label(value: str | None) -> str:
     if not value:
         return "Unclassified target title"
@@ -2059,6 +2148,20 @@ ROLE_FAMILY_OPTIONS = [
 EMPLOYMENT_BUCKET_OPTIONS = ["internship", "entry_level", "full_time_or_unknown", "full_time", "part_time", "contract"]
 LOCATION_BUCKET_OPTIONS = ["chicago_or_illinois", "remote", "other_us", "location_not_listed"]
 SENIORITY_BUCKET_OPTIONS = ["internship", "entry_level", "regular_full_time", "senior_or_leadership"]
+SENIORITY_FILTER_LABELS = {
+    "All": None,
+    "Internship": "internship",
+    "Entry level": "entry_level",
+    "Regular": "regular_full_time",
+    "Senior": "senior_or_leadership",
+}
+LOCATION_FILTER_LABELS = {
+    "All": None,
+    "Chicago / Illinois": "chicago_or_illinois",
+    "Remote": "remote",
+    "Other US": "other_us",
+    "Location not listed": "location_not_listed",
+}
 
 SEGMENT_DIMENSIONS = {
     "Track 1/2/3": "track_label",
@@ -2319,7 +2422,7 @@ if selected_page == "Jobs to apply":
     st.caption(
         "Review target jobs, update application status, and open application links from one page."
     )
-    filter_cols = st.columns(4)
+    filter_cols = st.columns(3)
     company_search_filter = filter_cols[0].text_input(
         "Company",
         value="",
@@ -2327,17 +2430,13 @@ if selected_page == "Jobs to apply":
         key="jobs-global-search",
     )
     effective_company_search = company_search_filter.strip()
-    track_choice = filter_cols[1].selectbox(
-        "Track",
-        ["All"] + TRACK_OPTIONS,
-    )
-    role_family_choice = filter_cols[2].selectbox("Role family", ["All"] + ROLE_FAMILY_OPTIONS)
-    employment_choice = filter_cols[3].selectbox("Type", ["All"] + EMPLOYMENT_BUCKET_OPTIONS)
+    role_choice = filter_cols[1].selectbox("Role", ["All"] + JOB_ROLE_FILTER_OPTIONS)
+    seniority_choice = filter_cols[2].selectbox("Seniority", list(SENIORITY_FILTER_LABELS))
     selected_status_label = st.selectbox(
         "Application status",
         ["All"] + list(APPLICATION_STATUS_OPTIONS.keys()),
     )
-    filter_cols_2 = st.columns(4)
+    filter_cols_2 = st.columns(6)
     date_window = filter_cols_2[0].date_input(
         "First seen",
         value=(chicago_today - timedelta(days=6), chicago_today),
@@ -2348,8 +2447,15 @@ if selected_page == "Jobs to apply":
         "Priority tier",
         ["All", "P0", "P1", "P2", "P3", "P0 + P1"],
     )
-    page_size = int(filter_cols_2[2].selectbox("Page size", [50, 100, 300], index=1))
-    page_number = int(filter_cols_2[3].number_input("Page", min_value=1, value=1, step=1))
+    location_choice = filter_cols_2[2].selectbox("Location", list(LOCATION_FILTER_LABELS))
+    city_search_filter = filter_cols_2[3].text_input(
+        "City",
+        value="",
+        placeholder="e.g. Chicago, New York, Seattle",
+        key="jobs-city-search",
+    )
+    page_size = int(filter_cols_2[4].selectbox("Page size", [50, 100, 300], index=1))
+    page_number = int(filter_cols_2[5].number_input("Page", min_value=1, value=1, step=1))
     if isinstance(date_window, tuple):
         job_start_date = date_window[0]
         job_end_date = date_window[1] if len(date_window) > 1 else date_window[0]
@@ -2407,28 +2513,25 @@ if selected_page == "Jobs to apply":
     else:
         job_frame = job_frame.copy()
         job_frame["first_seen_ct"] = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
-        job_frame["role_family_label"] = job_frame["role_family"].apply(role_family_label)
-        job_frame["track_label"] = job_frame.apply(
-            lambda row: f"Track 5 · {row['role_family_label']}" if row["role_stack"] == "stack_5_possible_target" else track_label(row["role_stack"]),
-            axis=1,
-        )
-        job_frame["track_sort"] = job_frame["track_label"].apply(track_sort_rank)
+        job_frame["role_label"] = job_frame["title"].apply(classify_job_role_from_title)
 
-        selected_tracks = TRACK_OPTIONS if search_mode or track_choice == "All" else (track_choice,)
-        if not search_mode and role_family_choice != "All":
-            job_frame = job_frame[job_frame["role_family_label"] == role_family_choice]
-        if not search_mode and employment_choice != "All":
-            job_frame = job_frame[job_frame["employment_bucket"] == employment_choice]
-        fallback_selected = "Track 5 · Possible Target / Unclassified" in selected_tracks
-        track_mask = job_frame["track_label"].isin(selected_tracks)
-        if fallback_selected:
-            track_mask = track_mask | (job_frame["role_stack"] == "stack_5_possible_target")
-        job_frame = job_frame[track_mask].sort_values(["track_sort", "first_seen_at"], ascending=[True, False])
+        if not search_mode and role_choice != "All":
+            job_frame = job_frame[job_frame["role_label"] == role_choice]
+        if not search_mode and seniority_choice != "All":
+            job_frame = job_frame[job_frame["seniority_bucket"] == SENIORITY_FILTER_LABELS[seniority_choice]]
+        if location_choice != "All":
+            job_frame = job_frame[job_frame["location_bucket"] == LOCATION_FILTER_LABELS[location_choice]]
+        city_search = city_search_filter.strip()
+        if city_search:
+            job_frame = job_frame[
+                job_frame["location"].fillna("").str.contains(city_search, case=False, regex=False)
+            ]
+        job_frame = job_frame.sort_values(["first_seen_at"], ascending=[False])
 
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
-            "priority_rank_in_tier", "title", "location",
-            "role_family_label", "track_label", "employment_bucket", "seniority_bucket",
+            "priority_rank_in_tier", "title", "location", "role_label",
+            "employment_bucket", "seniority_bucket",
             "application_status", "job_url",
         ]
         st.caption("Select one row in the table, then update its application status below.")
