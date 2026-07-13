@@ -39,7 +39,8 @@ RESULTS="$WORK_DIR/results.csv"
     AND site.crawl_enabled = FALSE
     AND (
         '$RETRY_ATTEMPTED' = '1'
-        OR COALESCE(site.last_error, '') NOT LIKE 'generic_ats_resolution_attempted%'
+        /* v2 reprocesses pages only stamped by the old single-page resolver. */
+        OR COALESCE(site.last_error, '') NOT LIKE 'generic_ats_resolution_attempted:v2%'
     )
     AND NOT EXISTS (
         SELECT 1
@@ -144,7 +145,7 @@ WHERE EXISTS (
 
 UPDATE jobpush.career_sites site
 SET
-    last_error = 'generic_ats_resolution_attempted: checked retained generic page for structured ATS links',
+    last_error = 'generic_ats_resolution_attempted:v2: one-hop+embeds checked retained generic page for structured ATS links',
     updated_at = now()
 FROM jobpush.career_site_discovery_result_stage result
 WHERE result.run_id = :'run_id'

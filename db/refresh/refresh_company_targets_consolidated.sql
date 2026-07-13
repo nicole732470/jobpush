@@ -291,4 +291,74 @@ ON CONFLICT (consolidation_key) DO UPDATE SET
     priority_version = EXCLUDED.priority_version,
     updated_at = now();
 
+-- Re-seed active manual overrides that have no LCA/LinkedIn unit (e.g. harvey).
+INSERT INTO jobpush.company_targets_consolidated (
+    consolidation_key,
+    canonical_name,
+    is_merged_group,
+    member_fein_count,
+    member_feins,
+    lca_count,
+    certified_count,
+    single_lca_company,
+    target_role_lca_count,
+    target_role_valid_salary_lca_count,
+    target_role_invalid_salary_lca_count,
+    product_role_lca_count,
+    product_role_lca_pct,
+    recent_lca,
+    target_role_score,
+    lca_count_score,
+    chicago_score,
+    product_role_score,
+    product_manager_score,
+    salary_score,
+    linkedin_top_employer_score,
+    priority_score,
+    computed_crawl_priority_tier,
+    crawl_priority_tier,
+    priority_version,
+    executive_only_excluded,
+    priority_exclusion_reason,
+    updated_at
+)
+SELECT
+    override.consolidation_key,
+    COALESCE(NULLIF(crawl.canonical_name, ''), override.consolidation_key),
+    FALSE,
+    1,
+    '{}'::text[],
+    0,
+    0,
+    FALSE,
+    0,
+    0,
+    0,
+    0,
+    0,
+    FALSE,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    NULL,
+    override.override_tier,
+    'manual-brand-seed-v1',
+    FALSE,
+    COALESCE(override.reason, 'Manual brand seed with no LCA FEIN'),
+    now()
+FROM jobpush.crawl_priority_overrides override
+LEFT JOIN jobpush.crawl_targets crawl
+  ON crawl.consolidation_key = override.consolidation_key
+WHERE override.active
+  AND NOT EXISTS (
+      SELECT 1
+      FROM jobpush.company_targets_consolidated existing
+      WHERE existing.consolidation_key = override.consolidation_key
+  );
+
 COMMIT;

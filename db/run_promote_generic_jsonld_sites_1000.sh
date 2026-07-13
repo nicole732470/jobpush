@@ -6,6 +6,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${GENERIC_JSONLD_LIMIT:-1000}"
+WORKERS="${GENERIC_JSONLD_WORKERS:-8}"
 TIERS="${GENERIC_JSONLD_TIERS:-P0,P1,P2,P3}"
 TIER_ARRAY="ARRAY[$(
   printf "%s" "$TIERS" | tr ',' '\n' | awk 'NF {gsub(/'\''/, ""); printf "%s'\''%s'\''", sep, $1; sep=","}'
@@ -47,7 +48,7 @@ if [[ "$TARGET_COUNT" -le 0 ]]; then
 fi
 
 echo "Checking $TARGET_COUNT generic HTML candidates for JobPosting JSON-LD; credits used: 0"
-python3 "$REPO_DIR/scripts/find_generic_jsonld_sites.py" "$TARGETS" "$RESULTS" --timeout 8 --workers 8
+python3 "$REPO_DIR/scripts/find_generic_jsonld_sites.py" "$TARGETS" "$RESULTS" --timeout 8 --workers "$WORKERS"
 
 "${PSQL[@]}" <<SQL
 CREATE TEMP TABLE generic_jsonld_probe (

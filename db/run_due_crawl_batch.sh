@@ -80,6 +80,16 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="jobvite-html-jsonld"; adapter_version="0.1.0"; adapter_script="scripts/crawl_jobvite.py" ;;
     applicantpro)
       adapter_name="applicantpro-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_applicantpro.py" ;;
+    dover)
+      adapter_name="dover-careers-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_dover.py" ;;
+    catsone)
+      adapter_name="catsone-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_catsone.py" ;;
+    trakstar)
+      adapter_name="trakstar-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_trakstar.py" ;;
+    breezy)
+      adapter_name="breezy-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_breezy.py" ;;
+    applytojob)
+      adapter_name="applytojob-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_applytojob.py" ;;
     paylocity)
       adapter_name="paylocity-html-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_paylocity.py" ;;
     rippling)

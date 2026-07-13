@@ -31,6 +31,23 @@ WITH supported AS (
           OR (site.source_type = 'jobvite' AND site.normalized_domain = 'jobs.jobvite.com')
           OR (site.source_type = 'paylocity' AND site.normalized_domain = 'recruiting.paylocity.com')
           OR (site.source_type = 'rippling' AND site.normalized_domain = 'ats.rippling.com')
+          OR (site.source_type = 'applytojob' AND site.normalized_domain LIKE '%.applytojob.com')
+          OR (site.source_type = 'catsone' AND site.normalized_domain LIKE '%.catsone.com')
+          OR (site.source_type = 'trakstar' AND site.normalized_domain LIKE '%.hire.trakstar.com')
+          OR (site.source_type = 'breezy' AND site.normalized_domain LIKE '%.breezy.hr')
+          OR (site.source_type = 'dover' AND site.normalized_domain = 'app.dover.com')
+          OR (
+              site.source_type = 'eightfold'
+              AND site.normalized_domain LIKE '%.eightfold.ai'
+              AND site.normalized_domain <> 'eightfold.ai'
+              AND site.site_url ~* '^https?://[^/]+\.eightfold\.ai/careers'
+              AND site.site_url !~* '(privacy|vs-errors\.eightfold\.ai)'
+          )
+          OR (
+              site.source_type = 'cognizant_jobs'
+              AND site.normalized_domain = 'careers.cognizant.com'
+              AND site.site_url ~* '/jobs'
+          )
           OR (
               site.source_type = 'icims'
               AND site.normalized_domain LIKE '%.icims.com'
@@ -108,6 +125,8 @@ WHERE target.consolidation_key = site.consolidation_key
       'amazon_jobs', 'apple_jobs', 'greenhouse', 'icims', 'oracle_cloud', 'workday',
       'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite', 'paylocity',
       'rippling', 'ultipro'
+      , 'applytojob', 'catsone', 'trakstar', 'breezy', 'dover'
+      , 'eightfold', 'cognizant_jobs'
   );
 
 COMMIT;

@@ -53,6 +53,13 @@ WHERE crawl.enabled
       FROM jobpush.company_targets_consolidated target
       WHERE target.consolidation_key = crawl.consolidation_key
         AND target.crawl_priority_tier IN ('P0', 'P1', 'P2', 'P3')
+  )
+  -- Keep manual brand seeds (e.g. harvey) that only exist via override.
+  AND NOT EXISTS (
+      SELECT 1
+      FROM jobpush.crawl_priority_overrides override
+      WHERE override.consolidation_key = crawl.consolidation_key
+        AND override.active
   );
 
 UPDATE jobpush.crawl_targets crawl
