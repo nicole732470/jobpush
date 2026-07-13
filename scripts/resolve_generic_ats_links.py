@@ -23,6 +23,20 @@ from urllib.request import Request, urlopen
 from discover_career_sites import classify_url, company_tokens, excluded
 
 
+def safe_urljoin(base: str, url: str) -> str | None:
+    try:
+        return urljoin(base, url)
+    except ValueError:
+        return None
+
+
+def safe_urlsplit(url: str):
+    try:
+        return urlsplit(url)
+    except ValueError:
+        return None
+
+
 CAREER_HINTS = re.compile(
     r"(job|jobs|career|careers|opening|openings|position|positions|opportunit|"
     r"workday|greenhouse|lever|ashby|icims|jobvite|workable|paylocity|rippling|"
@@ -141,8 +155,8 @@ def fetch_html(url: str, timeout: int) -> tuple[str, int]:
 
 
 def score_candidate(company_name: str, source_url: str, href: str, anchor_text: str) -> dict | None:
-    absolute_url = urljoin(source_url, href)
-    if not absolute_url.startswith(("http://", "https://")):
+    absolute_url = safe_urljoin(source_url, href)
+    if not absolute_url or not absolute_url.startswith(("http://", "https://")):
         return None
     if STATIC_ASSET_RE.search(absolute_url):
         return None
@@ -173,25 +187,33 @@ def score_candidate(company_name: str, source_url: str, href: str, anchor_text: 
 
 
 def same_host(url_a: str, url_b: str) -> bool:
-    host_a = (urlsplit(url_a).hostname or "").casefold().removeprefix("www.")
-    host_b = (urlsplit(url_b).hostname or "").casefold().removeprefix("www.")
+    split_a = safe_urlsplit(url_a)
+    split_b = safe_urlsplit(url_b)
+    if split_a is None or split_b is None:
+        return False
+    host_a = (split_a.hostname or "").casefold().removeprefix("www.")
+    host_b = (split_b.hostname or "").casefold().removeprefix("www.")
     return bool(host_a and host_a == host_b)
 
 
 def hop_score(source_url: str, href: str, anchor_text: str) -> float | None:
-    absolute = urljoin(source_url, href)
-    if not absolute.startswith(("http://", "https://")):
+    absolute = safe_urljoin(source_url, href)
+    if not absolute or not absolute.startswith(("http://", "https://")):
         return None
     if not same_host(source_url, absolute):
         return None
     if STATIC_ASSET_RE.search(absolute) or SKIP_HOP_RE.search(absolute):
         return None
     # Skip exact same page / fragment-only.
-    if urlsplit(absolute)._replace(fragment="").geturl().rstrip("/") == \
-       urlsplit(source_url)._replace(fragment="").geturl().rstrip("/"):
+    abs_split = safe_urlsplit(absolute)
+    src_split = safe_urlsplit(source_url)
+    if abs_split is None or src_split is None:
+        return None
+    if abs_split._replace(fragment="").geturl().rstrip("/") == \
+       src_split._replace(fragment="").geturl().rstrip("/"):
         return None
     text = f"{absolute} {anchor_text}"
-    path = urlsplit(absolute).path or "/"
+    path = abs_split.path or "/"
     score = 0.0
     if SAME_SITE_HOP_PATH.search(path):
         score += 40
@@ -226,7 +248,10 @@ def extract_from_html(
         consider_ats(href, anchor_text)
         score = hop_score(page_url, href, anchor_text)
         if score is not None:
-            absolute = urljoin(page_url, href).split("#", 1)[0]
+            absolute = safe_urljoin(page_url, href)
+            if not absolute:
+                continue
+            absolute = absolute.split("#", 1)[0]
             hops[absolute] = max(hops.get(absolute, 0.0), score)
 
     for href, label in parser_obj.embed_urls:
@@ -349,13 +374,16 @@ def main() -> None:
         def resolve_one(index: int, target: dict) -> tuple[int, dict, list[dict], str]:
             name = target["canonical_name"].strip()
             source_url = target["site_url"].strip()
-            found, error_message = resolve_page_tree(
-                name,
-                source_url,
-                args.timeout,
-                args.max_candidates,
-                args.max_hops,
-            )
+            try:
+                found, error_message = resolve_page_tree(
+                    name,
+                    source_url,
+                    args.timeout,
+                    args.max_candidates,
+                    args.max_hops,
+                )
+            except Exception as exc:  # noqa: BLE001 — one bad page must not abort the wave
+                return index, target, [], f"{type(exc).__name__}: {exc}"[:1000]
             return index, target, found, error_message
 
         with ThreadPoolExecutor(max_workers=max(1, args.workers)) as executor:
