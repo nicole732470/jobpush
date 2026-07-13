@@ -105,18 +105,33 @@ ARCHIVE="$(mktemp -t jobpush-ssm.XXXXXX.tgz)"
 COPYFILE_DISABLE=1 tar --exclude='__pycache__' --exclude='*.pyc' -czf "$ARCHIVE" -C "$STAGING" .
 PAYLOAD=$(base64 < "$ARCHIVE" | tr -d '\n')
 REMOTE_DIR="/tmp/jobpush-ssm-$$"
+# Long crawls/resolvers exceed SSM's default 360s document timeout.
+SSM_TIMEOUT_SECONDS="${SSM_TIMEOUT_SECONDS:-14400}"
+
+# Forward selected env vars into the remote shell (SSM does not inherit the local env).
+REMOTE_ENV_EXPORTS=()
+for var in \
+  GENERIC_RESOLVE_ROUNDS GENERIC_RESOLVE_LIMIT GENERIC_RESOLVE_TIERS GENERIC_RESOLVE_RETRY \
+  ATS_GUESS_LIMIT ATS_GUESS_TIERS SSM_TIMEOUT_SECONDS; do
+  if [[ -n "${!var:-}" ]]; then
+    # shellcheck disable=SC2086
+    REMOTE_ENV_EXPORTS+=("export ${var}=$(printf '%q' "${!var}")")
+  fi
+done
+REMOTE_ENV_PREFIX="$(printf '%s; ' "${REMOTE_ENV_EXPORTS[@]:-}")"
 
 COMMAND_ID=$(aws ssm send-command \
   --region "$REGION" \
   --instance-ids "$EC2_INSTANCE" \
   --document-name AWS-RunShellScript \
+  --timeout-seconds "$SSM_TIMEOUT_SECONDS" \
   --parameters commands="[
 \"set -euo pipefail\",
 \"rm -rf $REMOTE_DIR\",
 \"mkdir -p $REMOTE_DIR\",
 \"echo $PAYLOAD | base64 -d | tar xzf - -C $REMOTE_DIR\",
 \"chmod +x $REMOTE_DIR/$RUN_SCRIPT $REMOTE_DIR/db/lib/connect_rds.sh\",
-\"cd $REMOTE_DIR && bash $RUN_SCRIPT\",
+\"cd $REMOTE_DIR && ${REMOTE_ENV_PREFIX}bash $RUN_SCRIPT\",
 \"rm -rf $REMOTE_DIR\"
 ]" \
   --query 'Command.CommandId' \
@@ -125,7 +140,9 @@ COMMAND_ID=$(aws ssm send-command \
 echo "SSM CommandId: $COMMAND_ID"
 echo "Polling EC2 $EC2_INSTANCE ..."
 
-for _ in $(seq 1 360); do
+# Poll a bit longer than the document timeout (default sleep 10s).
+POLL_ITERS=$(( (SSM_TIMEOUT_SECONDS / 10) + 30 ))
+for _ in $(seq 1 "$POLL_ITERS"); do
   sleep 10
   STATUS=$(aws ssm get-command-invocation \
     --region "$REGION" \

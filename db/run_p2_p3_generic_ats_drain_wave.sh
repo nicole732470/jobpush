@@ -6,11 +6,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
 
-GENERIC_RESOLVE_ROUNDS="${GENERIC_RESOLVE_ROUNDS:-10}"
+GENERIC_RESOLVE_ROUNDS="${GENERIC_RESOLVE_ROUNDS:-3}"
 GENERIC_RESOLVE_LIMIT="${GENERIC_RESOLVE_LIMIT:-1500}"
 GENERIC_RESOLVE_TIERS="${GENERIC_RESOLVE_TIERS:-P2,P3}"
 GENERIC_RESOLVE_RETRY="${GENERIC_RESOLVE_RETRY:-0}"
-ATS_GUESS_LIMIT="${ATS_GUESS_LIMIT:-2000}"
+ATS_GUESS_LIMIT="${ATS_GUESS_LIMIT:-500}"
 
 snapshot() {
   local label="$1"
@@ -60,21 +60,26 @@ echo "=== Generic resolver wave: tiers=$GENERIC_RESOLVE_TIERS limit=$GENERIC_RES
 completed_rounds=0
 for round in $(seq 1 "$GENERIC_RESOLVE_ROUNDS"); do
   echo "=== Round $round/$GENERIC_RESOLVE_ROUNDS: resolve generic HTML → ATS links ==="
-  round_output="$(
-    GENERIC_RESOLVE_LIMIT="$GENERIC_RESOLVE_LIMIT" \
+  round_log="$(mktemp -t jobpush-resolve-round.XXXXXX.log)"
+  if ! GENERIC_RESOLVE_LIMIT="$GENERIC_RESOLVE_LIMIT" \
       GENERIC_RESOLVE_TIERS="$GENERIC_RESOLVE_TIERS" \
       GENERIC_RESOLVE_RETRY="$GENERIC_RESOLVE_RETRY" \
-      bash "$SCRIPT_DIR/run_resolve_generic_html_ats_links.sh" 2>&1
-  )" || {
-    echo "$round_output"
+      bash "$SCRIPT_DIR/run_resolve_generic_html_ats_links.sh" >"$round_log" 2>&1; then
+    tail -n 80 "$round_log"
+    rm -f "$round_log"
     exit 1
-  }
-  echo "$round_output"
-
-  if echo "$round_output" | grep -q "No generic HTML candidates require ATS-link resolution."; then
+  fi
+  # Summarize for SSM; keep full log locally on the instance only briefly.
+  grep -E '^(No generic HTML|Resolving ATS|COPY |Inserted |Updated |===)' "$round_log" || true
+  grep -E 'ATS links$' "$round_log" | awk -F': ' '$2+0>0 {print}' | tail -n 40 || true
+  hits=$(grep -E 'ATS links$' "$round_log" | awk -F': ' '$2+0>0' | wc -l | tr -d ' ')
+  echo "Round $round hits (companies with >=1 ATS link): $hits"
+  if grep -q "No generic HTML candidates require ATS-link resolution." "$round_log"; then
+    rm -f "$round_log"
     echo "Resolver backlog exhausted after $completed_rounds full round(s)."
     break
   fi
+  rm -f "$round_log"
 
   completed_rounds=$round
   echo "=== Round $round auto-trust ==="

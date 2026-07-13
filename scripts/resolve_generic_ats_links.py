@@ -386,7 +386,10 @@ def main() -> None:
                     "candidate_count": len(found),
                     "error_message": error_message,
                 })
-                print(f"[{index}/{len(targets)}] {name}: {len(found)} ATS links", flush=True)
+                # Keep SSM stdout small: only announce hits + sparse progress.
+                total = len(targets)
+                if found or index == total or index % 50 == 0:
+                    print(f"[{index}/{total}] {name}: {len(found)} ATS links", flush=True)
                 if args.delay:
                     time.sleep(args.delay)
 
