@@ -31,6 +31,8 @@ def main() -> int:
         "The nightly crawl and classification are complete.\n"
         f"Scope: {report['scope']}\n"
         f"Target jobs: {report['exported_jobs']}\n"
+        f"Complete job descriptions: {report['complete_job_descriptions']}\n"
+        f"Incomplete job descriptions: {report['incomplete_job_descriptions']}\n"
     )
     message.add_attachment(
         attachment.read_bytes(), maintype="application", subtype="json", filename=attachment.name
