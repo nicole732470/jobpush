@@ -67,6 +67,25 @@ def workday_site_from_path(path: str) -> str | None:
     return parts[0]
 
 
+def resolve_workday_url(url: str, timeout: int = 30):
+    """Resolve root/detail Workday URLs to the public board slug."""
+    parsed = urlsplit(url)
+    site = workday_site_from_path(parsed.path)
+    if site:
+        return parsed, site
+    request = Request(url, headers={"User-Agent": "JobPush/0.1", "Accept": "text/html,*/*"})
+    with urlopen(request, timeout=timeout) as response:
+        final = urlsplit(response.geturl())
+        body = response.read(1_000_000).decode(response.headers.get_content_charset() or "utf-8", "replace")
+    site = workday_site_from_path(final.path)
+    if not site:
+        match = re.search(r"myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?([^/\"']+)/(?:job|jobs)(?:/|\"|')", body)
+        site = match.group(1) if match else None
+    if not site:
+        raise ValueError(f"Cannot derive Workday tenant/site from {url}")
+    return final, site
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
@@ -76,8 +95,7 @@ def main() -> int:
     args = ap.parse_args()
 
     started = time.monotonic()
-    parsed = urlsplit(args.url)
-    site = workday_site_from_path(parsed.path)
+    parsed, site = resolve_workday_url(args.url)
     tenant = parsed.hostname.split(".")[0].replace("-", "_") if parsed.hostname else None
     if not tenant or not site:
         raise ValueError(f"Cannot derive Workday tenant/site from {args.url}")

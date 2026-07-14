@@ -16,6 +16,7 @@ import json
 import re
 import time
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
@@ -50,10 +51,22 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def fetch_text(url: str) -> tuple[str, int]:
-    request = Request(url, headers={"User-Agent": "JobPush/0.1", "Accept": "text/html,*/*"})
-    with urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8", errors="replace"), response.status
+def fetch_text(url: str, timeout: int = 30, retries: int = 2) -> tuple[str, int]:
+    last_error = None
+    for attempt in range(retries + 1):
+        request = Request(url, headers={"User-Agent": "JobPush/0.1", "Accept": "text/html,*/*"})
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return response.read().decode("utf-8", errors="replace"), response.status
+        except HTTPError as exc:
+            last_error = exc
+            if exc.code not in (408, 429) and exc.code < 500:
+                raise
+        except (TimeoutError, URLError) as exc:
+            last_error = exc
+        if attempt < retries:
+            time.sleep(min(2 ** attempt, 4))
+    raise RuntimeError(f"Rippling fetch failed after {retries + 1} attempts: {last_error}")
 
 
 def board_url(url: str) -> str:

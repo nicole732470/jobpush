@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, asdict
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
@@ -173,10 +174,30 @@ def page_url(search_url: str, page: int, extra_query: list[tuple[str, str]] | No
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), ""))
 
 
-def fetch(url: str, timeout: int) -> tuple[str, int]:
-    request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
-    with urlopen(request, timeout=timeout) as response:
-        return response.read().decode(response.headers.get_content_charset() or "utf-8", "replace"), response.status
+def search_url(url: str) -> str:
+    """Normalize iCIMS detail/login/legacy URLs to the public search page."""
+    parts = urlsplit(url)
+    if not (parts.hostname or "").lower().endswith("icims.com"):
+        raise ValueError(f"iCIMS adapter only supports icims.com URLs, got {url}")
+    return urlunsplit(("https", parts.netloc, "/jobs/search", "", ""))
+
+
+def fetch(url: str, timeout: int, retries: int = 2) -> tuple[str, int]:
+    last_error = None
+    for attempt in range(retries + 1):
+        request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                return response.read().decode(response.headers.get_content_charset() or "utf-8", "replace"), response.status
+        except HTTPError as exc:
+            last_error = exc
+            if exc.code not in (408, 429) and exc.code < 500:
+                raise
+        except (TimeoutError, URLError) as exc:
+            last_error = exc
+        if attempt < retries:
+            time.sleep(min(2 ** attempt, 4))
+    raise RuntimeError(f"iCIMS fetch failed after {retries + 1} attempts: {last_error}")
 
 
 def main() -> int:
@@ -194,7 +215,8 @@ def main() -> int:
     all_jobs: dict[str, Job] = {}
     raw_job_count = 0
 
-    first_html, status = fetch(page_url(args.url, 0), args.timeout)
+    normalized_url = search_url(args.url)
+    first_html, status = fetch(page_url(normalized_url, 0), args.timeout)
     requests_count += 1
     statuses.append(status)
     first = ICIMSParser()
@@ -204,7 +226,7 @@ def main() -> int:
         scope_query = [("searchLocation", value) for value, label in first.location_options
                        if label.casefold().startswith("united states-")]
         if scope_query:
-            first_html, status = fetch(page_url(args.url, 0, scope_query), args.timeout)
+            first_html, status = fetch(page_url(normalized_url, 0, scope_query), args.timeout)
             requests_count += 1
             statuses.append(status)
             first = ICIMSParser()
@@ -215,7 +237,7 @@ def main() -> int:
 
     for page in range(1, first.total_pages):
         time.sleep(args.delay)
-        body, status = fetch(page_url(args.url, page, scope_query), args.timeout)
+        body, status = fetch(page_url(normalized_url, page, scope_query), args.timeout)
         requests_count += 1
         statuses.append(status)
         current = ICIMSParser()
