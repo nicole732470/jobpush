@@ -45,5 +45,8 @@ if (( completed_batches > 0 )); then
   bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
 fi
 
+echo "==> daily crawl health analysis and safe recovery"
+bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
+
 remaining="$(due_count)"
 echo "Nightly crawl drain completed at $(date -u +%FT%TZ); batches=$completed_batches remaining_due=$remaining"
