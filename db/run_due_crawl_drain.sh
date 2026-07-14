@@ -20,7 +20,7 @@ due_count() {
 
 initial_due="$(due_count)"
 echo "Nightly crawl drain started at $(date -u +%FT%TZ); due_sites=$initial_due batch_size=$BATCH_SIZE"
-(( initial_due > 0 )) || { echo "No sites are due."; exit 0; }
+(( initial_due > 0 )) || echo "No sites are due; continuing to the post-crawl export check."
 
 completed_batches=0
 for batch_number in $(seq 1 "$MAX_BATCHES"); do
@@ -48,8 +48,13 @@ fi
 echo "==> daily crawl health analysis and safe recovery"
 bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
 
+remaining="$(due_count)"
+if (( remaining > 0 )); then
+  echo "Daily export withheld: $remaining due sites remain after the crawl." >&2
+  exit 1
+fi
+
 echo "==> export today's newly crawled target jobs and email JSON"
 bash "$SCRIPT_DIR/run_daily_job_export.sh"
 
-remaining="$(due_count)"
 echo "Nightly crawl drain completed at $(date -u +%FT%TZ); batches=$completed_batches remaining_due=$remaining"
