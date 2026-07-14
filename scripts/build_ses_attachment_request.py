@@ -16,13 +16,15 @@ def main() -> int:
     parser.add_argument("--sender", required=True)
     parser.add_argument("--recipients", required=True, help="Comma-separated recipient addresses")
     parser.add_argument("--date", required=True)
+    parser.add_argument("--part", default="")
     args = parser.parse_args()
 
     attachment = Path(args.attachment)
     with open(args.report, encoding="utf-8") as handle:
         report = json.load(handle)
     message = EmailMessage()
-    message["Subject"] = f"Job Push Daily Export — {args.date}"
+    suffix = f" — Part {args.part}" if args.part else ""
+    message["Subject"] = f"Job Push Daily Export — {args.date}{suffix}"
     message["From"] = args.sender
     recipients = [value.strip() for value in args.recipients.split(",") if value.strip()]
     message["To"] = ", ".join(recipients)

@@ -41,6 +41,7 @@ SCRAPE_REPORT="$WORK_DIR/jd_report.json"
 EXPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.json"
 REPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.report.json"
 SES_REQUEST="$WORK_DIR/ses_request.json"
+EMAIL_FILES="$WORK_DIR/email_files"
 
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
   WITH candidates AS (
@@ -154,19 +155,26 @@ EMAIL_ERROR=""
 FILE_SIZE="$(stat -c %s "$EXPORT_JSON" 2>/dev/null || stat -f %z "$EXPORT_JSON")"
 if [[ "$SKIP_EMAIL" == "1" ]]; then
   EMAIL_STATUS="skipped"
-elif (( FILE_SIZE > MAX_ATTACHMENT_BYTES )); then
-  EMAIL_STATUS="failed"
-  EMAIL_ERROR="attachment_too_large: ${FILE_SIZE} bytes exceeds ${MAX_ATTACHMENT_BYTES}"
 else
-  python3 "$REPO_DIR/scripts/build_ses_attachment_request.py" \
-    "$EXPORT_JSON" "$REPORT_JSON" "$SES_REQUEST" \
-    --sender "$EMAIL_FROM" --recipients "$EMAIL_TO" --date "$EXPORT_DATE"
-  if aws sesv2 send-email --region us-east-2 --cli-input-json "file://$SES_REQUEST" >/dev/null 2>"$WORK_DIR/email_error"; then
-    EMAIL_STATUS="sent"
+  if (( FILE_SIZE > MAX_ATTACHMENT_BYTES )); then
+    python3 "$REPO_DIR/scripts/split_json_export.py" "$EXPORT_JSON" "$EMAIL_FILES"
   else
-    EMAIL_STATUS="failed"
-    EMAIL_ERROR="$(tail -c 1000 "$WORK_DIR/email_error")"
+    printf '%s\n' "$EXPORT_JSON" > "$EMAIL_FILES"
   fi
+  mapfile -t ATTACHMENTS < "$EMAIL_FILES"
+  EMAIL_STATUS="sent"
+  for index in "${!ATTACHMENTS[@]}"; do
+    part=""
+    (( ${#ATTACHMENTS[@]} > 1 )) && part="$((index + 1)) of ${#ATTACHMENTS[@]}"
+    python3 "$REPO_DIR/scripts/build_ses_attachment_request.py" \
+      "${ATTACHMENTS[$index]}" "$REPORT_JSON" "$SES_REQUEST" \
+      --sender "$EMAIL_FROM" --recipients "$EMAIL_TO" --date "$EXPORT_DATE" --part "$part"
+    if ! aws sesv2 send-email --region us-east-2 --cli-input-json "file://$SES_REQUEST" >/dev/null 2>"$WORK_DIR/email_error"; then
+      EMAIL_STATUS="failed"
+      EMAIL_ERROR="$(tail -c 1000 "$WORK_DIR/email_error")"
+      break
+    fi
+  done
 fi
 
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -v export_path="$EXPORT_JSON" \
