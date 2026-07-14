@@ -90,6 +90,10 @@ for row in "${DUE_SITES[@]}"; do
       adapter_name="breezy-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_breezy.py" ;;
     applytojob)
       adapter_name="applytojob-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_applytojob.py" ;;
+    comeet)
+      adapter_name="comeet-careers-api"; adapter_version="0.1.0"; adapter_script="scripts/crawl_comeet.py" ;;
+    brassring)
+      adapter_name="brassring-html"; adapter_version="0.1.0"; adapter_script="scripts/crawl_brassring.py" ;;
     paylocity)
       adapter_name="paylocity-html-json"; adapter_version="0.1.0"; adapter_script="scripts/crawl_paylocity.py" ;;
     rippling)

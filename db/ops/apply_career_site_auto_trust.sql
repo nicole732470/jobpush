@@ -37,6 +37,17 @@ WITH supported AS (
           OR (site.source_type = 'breezy' AND site.normalized_domain LIKE '%.breezy.hr')
           OR (site.source_type = 'dover' AND site.normalized_domain = 'app.dover.com')
           OR (
+              site.source_type = 'comeet'
+              AND site.normalized_domain IN ('www.comeet.com', 'comeet.com', 'www.comeet.co', 'comeet.co')
+              AND site.site_url ~* 'comeet\.(com|co)/jobs/[^/]+/[0-9A-Fa-f]+\.[0-9A-Fa-f]+'
+          )
+          OR (
+              site.source_type = 'brassring'
+              AND site.normalized_domain LIKE '%brassring.com'
+              AND site.site_url ~* 'partnerid='
+              AND site.site_url ~* 'siteid='
+          )
+          OR (
               site.source_type = 'eightfold'
               AND site.normalized_domain LIKE '%.eightfold.ai'
               AND site.normalized_domain <> 'eightfold.ai'
@@ -126,7 +137,7 @@ WHERE target.consolidation_key = site.consolidation_key
       'lever', 'ashby', 'smartrecruiters', 'workable', 'jobvite', 'paylocity',
       'rippling', 'ultipro'
       , 'applytojob', 'catsone', 'trakstar', 'breezy', 'dover'
-      , 'eightfold', 'cognizant_jobs'
+      , 'eightfold', 'cognizant_jobs', 'comeet', 'brassring'
   );
 
 COMMIT;

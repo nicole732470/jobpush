@@ -153,9 +153,15 @@ def classify_url(raw_url):
     elif host == "app.trinethire.com" and path_parts:
         source_type, source_key, site_kind = "trinethire", path_parts[0], "ats_feed"
         canonical_path = f"/{source_key}"
-    elif host.endswith("comeet.com") and len(path_parts) >= 2:
-        source_type, source_key, site_kind = "comeet", "/".join(path_parts[:2]), "ats_feed"
-        canonical_path = "/" + source_key
+    elif (host.endswith("comeet.com") or host.endswith("comeet.co")) and len(path_parts) >= 2 and path_parts[0].casefold() == "jobs":
+        # Prefer /jobs/{slug}/{COMPANY.UID}; fall back to slug-only shells.
+        if len(path_parts) >= 3 and re.fullmatch(r"[0-9A-Fa-f]+\.[0-9A-Fa-f]+", path_parts[2] or ""):
+            source_key = f"{path_parts[1]}/{path_parts[2]}"
+            canonical_path = f"/jobs/{source_key}"
+        else:
+            source_key = path_parts[1]
+            canonical_path = f"/jobs/{source_key}"
+        source_type, site_kind = "comeet", "ats_feed"
     elif host.endswith("myworkdayjobs.com"):
         source_type, source_key, site_kind = "workday", host, "ats_feed"
     elif host.endswith("icims.com"):
@@ -175,7 +181,14 @@ def classify_url(raw_url):
     elif host.endswith("talentbrew.com"):
         source_type, source_key, site_kind = "talentbrew", host, "ats_feed"
     elif host == "sjobs.brassring.com" or host.endswith(".brassring.com"):
-        source_type, source_key, site_kind = "brassring", host, "ats_feed"
+        query = parse_qs(parsed.query)
+        partner = (query.get("partnerid") or [None])[0]
+        siteid = (query.get("siteid") or [None])[0]
+        if partner and siteid:
+            source_key = f"{partner}/{siteid}"
+        else:
+            source_key = host
+        source_type, site_kind = "brassring", "ats_feed"
     elif host.endswith("oraclecloud.com") and "CandidateExperience" in parsed.path and "/sites/" in parsed.path:
         site_index = path_parts.index("sites") if "sites" in path_parts else -1
         source_key = path_parts[site_index + 1] if site_index >= 0 and site_index + 1 < len(path_parts) else host

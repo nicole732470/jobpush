@@ -37,8 +37,6 @@ SET verification_status = 'rejected',
         '; ',
         site.review_notes,
         CASE site.source_type
-            WHEN 'brassring' THEN 'Rejected Brassring: no JobPush parser'
-            WHEN 'comeet' THEN 'Rejected Comeet: no JobPush parser'
             WHEN 'talentbrew' THEN 'Rejected TalentBrew CDN/asset; not an employer board'
             WHEN 'gusto' THEN 'Rejected Gusto board while AWS crawler is Cloudflare-blocked'
             WHEN 'successfactors' THEN 'Rejected SuccessFactors identify-only/shell URL; need company board'
@@ -62,7 +60,7 @@ WHERE target.consolidation_key = site.consolidation_key
         AND verified.crawl_enabled
   )
   AND (
-      site.source_type IN ('brassring', 'comeet', 'talentbrew', 'gusto')
+      site.source_type IN ('talentbrew', 'gusto')
       OR (
           site.source_type = 'successfactors'
           AND (
