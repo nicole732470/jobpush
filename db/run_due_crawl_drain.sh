@@ -46,10 +46,11 @@ if (( completed_batches > 0 )); then
 fi
 
 remaining="$(due_count)"
-if (( remaining > 0 )); then
-  echo "Daily export withheld: $remaining sites from this crawl remain unprocessed." >&2
+if (( completed_batches >= MAX_BATCHES && remaining > 0 )); then
+  echo "Daily export withheld: batch limit reached with $remaining due sites still queued." >&2
   exit 1
 fi
+(( remaining == 0 )) || echo "Crawl attempted all queued sites; $remaining failed/unsupported sites remain due for recovery."
 
 echo "==> daily crawl health analysis and safe recovery"
 bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
