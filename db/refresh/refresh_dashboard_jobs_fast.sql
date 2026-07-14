@@ -194,35 +194,7 @@ SELECT
                    WHEN canonical_role ILIKE '%software developer%' THEN 'software_engineering'
                    ELSE CONCAT('title:', COALESCE(NULLIF(normalized_title, ''), NULLIF(canonical_role, ''), 'unclassified target title'))
                END AS role_family,
-               CASE
-                   WHEN normalized_title LIKE '%intern%'
-                        OR normalized_title LIKE '%internship%'
-                        OR normalized_title LIKE '%co op%'
-                        OR normalized_title LIKE '%co-op%' THEN 'internship'
-                   WHEN normalized_title LIKE '%new grad%'
-                        OR normalized_title LIKE '%new graduate%'
-                        OR normalized_title LIKE '%university grad%'
-                        OR normalized_title LIKE '%college grad%'
-                        OR normalized_title LIKE '%recent grad%'
-                        OR normalized_title LIKE '%campus hire%'
-                        OR normalized_title LIKE '%campus recruit%'
-                        OR normalized_title LIKE '%university hire%'
-                        OR normalized_title LIKE '%graduate program%'
-                        OR normalized_title LIKE '%grad program%'
-                        OR normalized_title LIKE '%class of 20%'
-                        OR normalized_title LIKE '%grad 20%' THEN 'new_grad'
-                   WHEN normalized_title LIKE '%entry level%'
-                        OR normalized_title LIKE '%early career%' THEN 'entry_level'
-                   WHEN normalized_title LIKE '%senior%'
-                        OR normalized_title LIKE '%sr %'
-                        OR normalized_title LIKE '%staff%'
-                        OR normalized_title LIKE '%principal%'
-                        OR normalized_title LIKE '%lead%'
-                        OR normalized_title LIKE '%director%'
-                        OR normalized_title LIKE '%vice president%'
-                        OR normalized_title LIKE '%vp%' THEN 'senior_or_leadership'
-                   ELSE 'regular_full_time'
-               END AS seniority_bucket,
+               jobpush.classify_job_seniority(normalized_title) AS seniority_bucket,
                CASE
                    WHEN normalized_title LIKE '%intern%'
                         OR normalized_title LIKE '%internship%'
@@ -466,35 +438,7 @@ SELECT
                    WHEN canonical_role ILIKE '%software developer%' THEN 'software_engineering'
                    ELSE CONCAT('title:', COALESCE(NULLIF(normalized_title, ''), NULLIF(canonical_role, ''), 'unclassified target title'))
                END AS role_family,
-               CASE
-                   WHEN normalized_title LIKE '%intern%'
-                        OR normalized_title LIKE '%internship%'
-                        OR normalized_title LIKE '%co op%'
-                        OR normalized_title LIKE '%co-op%' THEN 'internship'
-                   WHEN normalized_title LIKE '%new grad%'
-                        OR normalized_title LIKE '%new graduate%'
-                        OR normalized_title LIKE '%university grad%'
-                        OR normalized_title LIKE '%college grad%'
-                        OR normalized_title LIKE '%recent grad%'
-                        OR normalized_title LIKE '%campus hire%'
-                        OR normalized_title LIKE '%campus recruit%'
-                        OR normalized_title LIKE '%university hire%'
-                        OR normalized_title LIKE '%graduate program%'
-                        OR normalized_title LIKE '%grad program%'
-                        OR normalized_title LIKE '%class of 20%'
-                        OR normalized_title LIKE '%grad 20%' THEN 'new_grad'
-                   WHEN normalized_title LIKE '%entry level%'
-                        OR normalized_title LIKE '%early career%' THEN 'entry_level'
-                   WHEN normalized_title LIKE '%senior%'
-                        OR normalized_title LIKE '%sr %'
-                        OR normalized_title LIKE '%staff%'
-                        OR normalized_title LIKE '%principal%'
-                        OR normalized_title LIKE '%lead%'
-                        OR normalized_title LIKE '%director%'
-                        OR normalized_title LIKE '%vice president%'
-                        OR normalized_title LIKE '%vp%' THEN 'senior_or_leadership'
-                   ELSE 'regular_full_time'
-               END AS seniority_bucket,
+               jobpush.classify_job_seniority(normalized_title) AS seniority_bucket,
                CASE
                    WHEN normalized_title LIKE '%intern%'
                         OR normalized_title LIKE '%internship%'

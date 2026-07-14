@@ -1525,6 +1525,7 @@ def jobs(
     app_statuses: tuple[str, ...],
     row_limit: int,
     row_offset: int = 0,
+    seniority_bucket: str | None = None,
 ) -> pd.DataFrame:
     company_search = normalize_search_query(company_search)
     company_mode = bool(company_search)
@@ -1540,6 +1541,8 @@ def jobs(
         list(tiers),
         list(role_statuses),
         list(app_statuses),
+        seniority_bucket,
+        seniority_bucket,
         int(row_limit),
         int(row_offset),
     ])
@@ -1576,6 +1579,7 @@ def jobs(
           AND job.priority_tier = ANY(%s)
           AND job.role_status = ANY(%s)
           AND COALESCE(action.action_status, 'new') = ANY(%s)
+          AND (%s::text IS NULL OR job.seniority_bucket = %s)
         ORDER BY job.first_seen_at DESC, job.canonical_name, job.title
         LIMIT %s
         OFFSET %s
@@ -2496,6 +2500,10 @@ if selected_page == "Jobs to apply":
         effective_app_statuses,
         page_size,
         row_offset,
+        seniority_bucket=(
+            None if search_mode or seniority_choice == "All"
+            else SENIORITY_FILTER_LABELS[seniority_choice]
+        ),
     )
     if job_frame.empty:
         if search_mode:
@@ -2518,8 +2526,6 @@ if selected_page == "Jobs to apply":
 
         if not search_mode and role_choice != "All":
             job_frame = job_frame[job_frame["role_label"] == role_choice]
-        if not search_mode and seniority_choice != "All":
-            job_frame = job_frame[job_frame["seniority_bucket"] == SENIORITY_FILTER_LABELS[seniority_choice]]
         if location_choice != "All":
             job_frame = job_frame[job_frame["location_bucket"] == LOCATION_FILTER_LABELS[location_choice]]
         city_search = city_search_filter.strip()
