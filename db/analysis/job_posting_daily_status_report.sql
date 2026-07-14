@@ -28,34 +28,42 @@ WITH days AS (
         (now() AT TIME ZONE 'America/Chicago')::date,
         interval '1 day'
     )::date AS day
+), active_daily AS (
+    SELECT
+        (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date AS day,
+        count(*) AS new_rows,
+        count(*) FILTER (WHERE COALESCE(label.classification_status, 'review') = 'target') AS new_target_rows,
+        count(*) FILTER (WHERE COALESCE(label.classification_status, 'review') = 'review') AS new_review_rows
+    FROM jobpush.job_postings_us posting
+    LEFT JOIN jobpush.job_title_labels label USING (normalized_title)
+    WHERE posting.first_seen_at >= now() - interval '15 days'
+    GROUP BY 1
+), seen_daily AS (
+    SELECT
+        (posting.last_seen_at AT TIME ZONE 'America/Chicago')::date AS day,
+        count(*) AS seen_rows
+    FROM jobpush.job_postings_us posting
+    WHERE posting.last_seen_at >= now() - interval '15 days'
+    GROUP BY 1
+), closed_daily AS (
+    SELECT
+        (posting.closed_at AT TIME ZONE 'America/Chicago')::date AS day,
+        count(*) AS closed_rows
+    FROM jobpush.job_postings posting
+    WHERE posting.closed_at >= now() - interval '15 days'
+    GROUP BY 1
 )
 SELECT
     days.day,
-    count(posting.*) FILTER (
-        WHERE (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = days.day
-    ) AS new_rows,
-    count(posting.*) FILTER (
-        WHERE posting.closed_at IS NOT NULL
-          AND (posting.closed_at AT TIME ZONE 'America/Chicago')::date = days.day
-    ) AS closed_rows,
-    count(posting.*) FILTER (
-        WHERE (posting.last_seen_at AT TIME ZONE 'America/Chicago')::date = days.day
-    ) AS seen_rows,
-    count(posting.*) FILTER (
-        WHERE (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = days.day
-          AND COALESCE(label.classification_status, 'review') = 'target'
-    ) AS new_target_rows,
-    count(posting.*) FILTER (
-        WHERE (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = days.day
-          AND COALESCE(label.classification_status, 'review') = 'review'
-    ) AS new_review_rows
+    COALESCE(active_daily.new_rows, 0) AS new_rows,
+    COALESCE(closed_daily.closed_rows, 0) AS closed_rows,
+    COALESCE(seen_daily.seen_rows, 0) AS seen_rows,
+    COALESCE(active_daily.new_target_rows, 0) AS new_target_rows,
+    COALESCE(active_daily.new_review_rows, 0) AS new_review_rows
 FROM days
-LEFT JOIN jobpush.job_postings_us posting
-  ON (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = days.day
-  OR (posting.closed_at AT TIME ZONE 'America/Chicago')::date = days.day
-  OR (posting.last_seen_at AT TIME ZONE 'America/Chicago')::date = days.day
-LEFT JOIN jobpush.job_title_labels label USING (normalized_title)
-GROUP BY days.day
+LEFT JOIN active_daily USING (day)
+LEFT JOIN seen_daily USING (day)
+LEFT JOIN closed_daily USING (day)
 ORDER BY days.day DESC;
 
 \echo '=== Recent title label changes by source ==='

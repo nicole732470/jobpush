@@ -58,12 +58,12 @@ python3 "$REPO_DIR/scripts/train_local_title_classifier.py" \
   "$TMP_DIR/train_labels.csv" "$TMP_DIR/review.csv" \
   "$TMP_DIR/predictions.sql" "$TMP_DIR/metrics.json" \
   --holdout-labels-csv "$TMP_DIR/manual_holdout_labels.csv" \
-  --model-version local-title-ml-v5 \
+  --model-version local-title-ml-v6 \
   --variant baseline \
   --class-prior balanced \
   --auto-label non_target
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -f "$TMP_DIR/predictions.sql"
 "${PSQL[@]}" -P pager=off -c \
-  "SELECT * FROM jobpush.apply_local_job_title_ml('local-title-ml-v5', 10000);"
+  "SELECT * FROM jobpush.apply_local_job_title_ml('local-title-ml-v6', 10000);"
 "${PSQL[@]}" -P pager=off -c \
   "SELECT classification_status, rule_version, count(*) FROM jobpush.job_title_labels GROUP BY 1,2 ORDER BY 1,2;"
