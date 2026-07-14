@@ -5,7 +5,7 @@ reading the existing private RDS database. The production browser entry point
 is the Caddy-proxied HTTPS URL with basic auth:
 
 ```text
-https://jobpush.3.143.247.202.sslip.io
+https://jobpush.3.136.63.83.sslip.io
 ```
 
 The Streamlit process itself still binds locally on EC2 at `127.0.0.1:8501`.
@@ -205,7 +205,7 @@ bash deploy/expose_dashboard_via_caddy.sh
 Current production URL:
 
 ```text
-https://jobpush.3.143.247.202.sslip.io
+https://jobpush.3.136.63.83.sslip.io
 ```
 
 Use basic auth. Do not commit the plaintext password; rotate by rerunning the
