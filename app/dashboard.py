@@ -263,6 +263,8 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                     ELSE 'stack_5_possible_target'
                 END AS role_stack,
                 CASE
+                    WHEN normalized_title LIKE '%%forward deployed%%'
+                         OR normalized_title LIKE '%%forward-deployed%%' THEN 'forward_deployed_engineer'
                     WHEN canonical_role = 'candidate_profile_track: product' THEN 'product_manager'
                     WHEN canonical_role = 'candidate_profile_track: analyst/bi' THEN 'data_analytics_bi'
                     WHEN canonical_role = 'candidate_profile_track: solutions/systems' THEN 'systems_engineering'
@@ -278,8 +280,6 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
                          OR normalized_title LIKE '%%internship%%'
                          OR normalized_title LIKE '%%co op%%'
                          OR normalized_title LIKE '%%co-op%%' THEN 'internship'
-                    WHEN normalized_title LIKE '%%forward deployed engineer%%'
-                         OR normalized_title LIKE '%%forward-deployed engineer%%' THEN 'forward_deployed_engineer'
                     WHEN normalized_title LIKE '%%ai full stack%%'
                          OR normalized_title LIKE '%%ai engineer%%'
                          OR normalized_title LIKE '%%gtm engineer%%' THEN 'applied_ai'
