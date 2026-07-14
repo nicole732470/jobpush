@@ -727,6 +727,54 @@ def recent_crawl_runs(tiers: tuple[str, ...], limit: int = 20) -> pd.DataFrame:
     )
 
 
+@st.cache_data(ttl=5)
+def live_crawl_status() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    summary = query(
+        """
+        WITH chicago_day AS (
+            SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), today AS (
+            SELECT COUNT(*) AS attempted,
+                   COUNT(*) FILTER (WHERE run.status='succeeded') AS succeeded,
+                   COUNT(*) FILTER (WHERE run.status='failed') AS failed,
+                   COALESCE(SUM(run.parsed_job_count), 0) AS parsed_jobs,
+                   COALESCE(SUM(run.new_job_count), 0) AS new_jobs,
+                   COALESCE(SUM(run.closed_job_count), 0) AS closed_jobs,
+                   MAX(run.finished_at) FILTER (WHERE run.status='succeeded') AS latest_success_at
+            FROM jobpush.crawl_runs run CROSS JOIN chicago_day
+            WHERE run.started_at >= chicago_day.start_at
+        ), due AS (
+            SELECT COUNT(*) FILTER (WHERE is_due AND crawl_status <> 'running') AS due_sites
+            FROM jobpush.crawl_schedule_queue
+        )
+        SELECT today.*, due.due_sites FROM today CROSS JOIN due
+        """
+    )
+    due_by_tier = query(
+        """
+        SELECT priority_tier, COUNT(*) AS due_sites
+        FROM jobpush.crawl_schedule_queue
+        WHERE is_due AND crawl_status <> 'running'
+        GROUP BY priority_tier
+        ORDER BY CASE priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END
+        """
+    )
+    current = query(
+        """
+        SELECT run.run_id, run.batch_id,
+               target.priority_tier, target.canonical_name AS company,
+               site.source_type AS ats, run.started_at AT TIME ZONE 'America/Chicago' AS started_ct
+        FROM jobpush.crawl_runs run
+        JOIN jobpush.career_sites site USING (site_id)
+        JOIN jobpush.crawl_targets target USING (consolidation_key)
+        WHERE run.status='running'
+        ORDER BY run.started_at DESC
+        LIMIT 1
+        """
+    )
+    return summary, due_by_tier, current
+
+
 @st.cache_data(ttl=60)
 def crawl_completion_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
@@ -2110,7 +2158,7 @@ selected_tier_label = "P0+P1+P2+P3"
 row_limit = 300
 
 PAGE_LABELS = [
-    "Pulse",
+    "Home",
     "Jobs to apply",
     "Crawl monitor",
     "Title review",
@@ -2128,7 +2176,7 @@ selected_page = st.radio(
 def load_current_jobs() -> pd.DataFrame:
     return jobs(start_date, end_date, "", tiers, role_statuses, app_statuses, row_limit)
 
-if selected_page == "Pulse":
+if selected_page == "Home":
     summary = apply_job_summary(tiers)
     summary_row = summary.iloc[0] if not summary.empty else pd.Series(dtype="int64")
     metric_columns = st.columns(5)
@@ -2154,6 +2202,43 @@ if selected_page == "Pulse":
         for column, row in zip(status_cards, status_summary.itertuples()):
             label = status_labels.get(row.application_status, row.application_status)
             column.metric(label, f"{int(row.jobs):,}", f"{float(row.pct or 0):.1f}%")
+
+    @st.fragment(run_every=10)
+    def render_live_crawl_progress() -> None:
+        summary_frame, due_frame, current_frame = live_crawl_status()
+        row = summary_frame.iloc[0] if not summary_frame.empty else pd.Series(dtype="object")
+        attempted = int(row.get("attempted", 0) or 0)
+        succeeded = int(row.get("succeeded", 0) or 0)
+        failed = int(row.get("failed", 0) or 0)
+        due_sites = int(row.get("due_sites", 0) or 0)
+        total_work = attempted + due_sites
+        progress_pct = attempted / total_work if total_work else 1.0
+
+        st.subheader("Live crawl progress")
+        if current_frame.empty:
+            st.caption("当前没有站点正在爬取；下一次定时爬取为芝加哥时间凌晨 1:00。每 10 秒自动刷新。")
+        else:
+            current = current_frame.iloc[0]
+            started = pd.to_datetime(current["started_ct"]).strftime("%I:%M:%S %p")
+            st.caption(
+                f"正在爬：{current['priority_tier']} · {current['company']} · {current['ats']} "
+                f"· batch {int(current['batch_id'])} · {started} 开始 · 每 10 秒自动刷新"
+            )
+
+        st.progress(
+            min(max(progress_pct, 0.0), 1.0),
+            text=f"今日处理 {attempted:,} / 当前工作量 {total_work:,} · 剩余 due {due_sites:,}",
+        )
+        live_cols = st.columns(5)
+        live_cols[0].metric("Succeeded today", f"{succeeded:,}")
+        live_cols[1].metric("Failed today", f"{failed:,}")
+        live_cols[2].metric("Jobs parsed", f"{int(row.get('parsed_jobs', 0) or 0):,}")
+        live_cols[3].metric("New jobs", f"{int(row.get('new_jobs', 0) or 0):,}")
+        live_cols[4].metric("Closed jobs", f"{int(row.get('closed_jobs', 0) or 0):,}")
+        if not due_frame.empty:
+            st.dataframe(due_frame, hide_index=True, use_container_width=True)
+
+    render_live_crawl_progress()
 
     mix_summary = target_job_mix_summary(tiers, OPEN_APPLICATION_STATUSES)
     if not mix_summary.empty:
@@ -2184,8 +2269,6 @@ if selected_page == "Pulse":
                 use_container_width=True,
                 height=220,
             )
-            if track_mix["current_open_jobs"].sum() > 0:
-                st.bar_chart(track_mix.set_index("label")["current_open_jobs"], height=220)
         with role_col:
             st.markdown("##### Role family distribution")
             st.caption("Unclassified rows are expanded by normalized title instead of being grouped into one fallback bucket.")
@@ -2195,8 +2278,6 @@ if selected_page == "Pulse":
                 use_container_width=True,
                 height=220,
             )
-            if role_mix["current_open_jobs"].sum() > 0:
-                st.bar_chart(role_mix.set_index("label")["current_open_jobs"], height=220)
 
     if st.toggle("Load trend and crawl coverage details", value=False):
         activity = daily_activity(tiers)
@@ -2226,7 +2307,7 @@ if selected_page == "Pulse":
                 )
         st.dataframe(rollout, hide_index=True, use_container_width=True, height=240)
     else:
-        st.caption("Trend and crawl coverage details are skipped by default to keep Pulse fast.")
+        st.caption("Trend and crawl coverage details are skipped by default to keep Home fast.")
 
 if selected_page == "Crawl monitor":
     st.subheader("P0 / P1 / P2 / P3 company crawl rollout")
