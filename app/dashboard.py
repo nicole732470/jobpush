@@ -386,8 +386,37 @@ def candidate_profile_yaml() -> tuple[str, str]:
     for path in paths:
         if path and Path(path).exists():
             return path, Path(path).read_text(encoding="utf-8")
-    with urlopen(PROFILE_YAML_URL, timeout=5) as response:
+    cache_busted_url = f"{PROFILE_YAML_URL}?v={int(datetime.now().timestamp() // 300)}"
+    with urlopen(cache_busted_url, timeout=5) as response:
         return PROFILE_YAML_URL, response.read().decode("utf-8")
+
+
+@st.cache_data(ttl=60)
+def effective_profile_rules() -> tuple[pd.DataFrame, pd.DataFrame]:
+    summary = query(
+        """
+        SELECT rule_version,
+               COUNT(*) FILTER (WHERE active) AS active_terms,
+               COUNT(*) FILTER (WHERE active AND rule_type='target') AS target_terms,
+               COUNT(*) FILTER (WHERE active AND rule_type='non_target') AS non_target_terms,
+               MAX(created_at) FILTER (WHERE active) AS latest_rule_change
+        FROM jobpush.profile_title_rule_terms
+        GROUP BY rule_version
+        ORDER BY latest_rule_change DESC NULLS LAST
+        """
+    )
+    labels = query(
+        """
+        SELECT COALESCE(rule_version, 'unknown') AS rule_version,
+               classification_status,
+               COUNT(*) AS titles,
+               MAX(updated_at) AS latest_applied_at
+        FROM jobpush.job_title_labels
+        GROUP BY COALESCE(rule_version, 'unknown'), classification_status
+        ORDER BY latest_applied_at DESC NULLS LAST, titles DESC
+        """
+    )
+    return summary, labels
 
 
 @st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
@@ -2983,14 +3012,23 @@ if selected_page == "Companies":
 
 if selected_page == "Scoring rules":
     st.subheader("Company priority and role-labeling rules")
-    st.caption("这个区域展示公司 P 档从哪里来，以及 LCA/SOC 初始职业标注如何影响 target_role_score。")
+    st.caption("YAML 是最新人工意图；数据库表是当前真正生效的规则与审核结果。两部分都会自动刷新。")
     try:
         profile_source, profile_yaml = candidate_profile_yaml()
-        st.subheader("Current candidate profile YAML")
+        st.subheader("Latest candidate profile YAML")
         st.caption(f"Source: `{profile_source}`")
         st.code(profile_yaml, language="yaml")
     except Exception as exc:
         st.warning(f"Could not load candidate profile YAML: {exc}")
+    try:
+        rule_summary, applied_labels = effective_profile_rules()
+        st.subheader("Current effective database rules")
+        st.caption("每 60 秒自动刷新；包含 YAML 编译规则、后续 migration 和 Dashboard 人工审核，因此可能比 YAML 更新。")
+        st.dataframe(rule_summary, hide_index=True, use_container_width=True)
+        st.subheader("Applied title decisions")
+        st.dataframe(applied_labels, hide_index=True, use_container_width=True, height=320)
+    except Exception as exc:
+        st.warning(f"Could not load effective database rules: {exc}")
     st.markdown(
         """
 ### P 档定义
