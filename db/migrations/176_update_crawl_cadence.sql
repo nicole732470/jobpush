@@ -37,10 +37,11 @@ WHERE target.consolidation_key = site.consolidation_key
 COMMIT;
 
 SELECT priority_tier,
-       min(crawl_interval_hours) AS interval_hours,
+       min(site.crawl_interval_hours) AS interval_hours,
        count(*) AS crawlable_sites,
-       count(*) FILTER (WHERE is_due AND crawl_status <> 'running') AS due_sites_now,
-       max(last_success_at) AS latest_success_at
-FROM jobpush.crawl_schedule_queue
-GROUP BY priority_tier
-ORDER BY priority_tier;
+       count(*) FILTER (WHERE queue.is_due AND queue.crawl_status <> 'running') AS due_sites_now,
+       max(queue.last_success_at) AS latest_success_at
+FROM jobpush.crawl_schedule_queue queue
+JOIN jobpush.career_sites site USING (site_id)
+GROUP BY queue.priority_tier
+ORDER BY queue.priority_tier;
