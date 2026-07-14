@@ -54,7 +54,7 @@ SES_REQUEST="$WORK_DIR/ses_request.json"
            snapshot.source_fingerprint AS saved_fingerprint,snapshot.scrape_status,snapshot.attempt_count
     FROM jobpush.job_postings_us posting
     JOIN jobpush.career_sites site USING(site_id)
-    JOIN jobpush.crawl_targets target USING(consolidation_key)
+    JOIN jobpush.crawl_targets target ON target.consolidation_key=posting.consolidation_key
     JOIN jobpush.job_title_labels label USING(normalized_title)
     LEFT JOIN jobpush.job_description_snapshots snapshot USING(site_id,external_job_id)
     WHERE posting.active AND label.classification_status='target' $DATE_FILTER
