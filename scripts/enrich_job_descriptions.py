@@ -13,6 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -144,12 +145,39 @@ def structured_fields(parser: JobPageParser) -> dict:
     }
 
 
+def oracle_detail_url(job_url: str) -> str:
+    parsed = urlsplit(job_url)
+    site = re.search(r"/sites/([^/]+)", parsed.path)
+    job_id = re.search(r"/job/([^/?#]+)", parsed.path)
+    if not parsed.hostname or not site or not job_id:
+        raise ValueError("invalid Oracle Cloud job URL")
+    query = urlencode({"onlyData": "true", "finder": f'ById;Id="{job_id.group(1)}",siteNumber={site.group(1)}'})
+    return f"{parsed.scheme}://{parsed.netloc}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?{query}"
+
+
+def oracle_fields(raw: str) -> dict:
+    payload = json.loads(raw)
+    items = payload.get("items") or []
+    if not items:
+        raise ValueError("Oracle detail response contained no job")
+    job = items[0]
+    description = clean_text(str(job.get("ExternalDescriptionStr") or ""))
+    return {
+        "cleaned_description": description,
+        "apply_url": "",
+        "work_arrangement": str(job.get("WorkplaceType") or ""),
+        "salary_text": "",
+        "posted_date": str(job.get("ExternalPostedStartDate") or "")[:10],
+    }
+
+
 def fetch(row: dict, timeout: int, retries: int) -> dict:
     result = {**row, "scraped_at": datetime.now(timezone.utc).isoformat(), "attempt_count": 0}
     for attempt in range(1, retries + 1):
         result["attempt_count"] = attempt
         try:
-            request = Request(row["job_url"], headers={
+            fetch_url = oracle_detail_url(row["job_url"]) if row["source_type"] == "oracle_cloud" else row["job_url"]
+            request = Request(fetch_url, headers={
                 "User-Agent": "Mozilla/5.0 (compatible; JobPush/1.0; job-description-export)",
                 "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
             })
@@ -159,9 +187,12 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
                 raw = raw_bytes.decode(charset, errors="replace").replace("\x00", "")
                 content_type = response.headers.get("Content-Type", "")
                 status = getattr(response, "status", 200)
-            parser = JobPageParser()
-            parser.feed(raw)
-            fields = structured_fields(parser)
+            if row["source_type"] == "oracle_cloud":
+                fields = oracle_fields(raw)
+            else:
+                parser = JobPageParser()
+                parser.feed(raw)
+                fields = structured_fields(parser)
             if len(fields["cleaned_description"]) < 100:
                 raise ValueError("cleaned job description shorter than 100 characters")
             return {

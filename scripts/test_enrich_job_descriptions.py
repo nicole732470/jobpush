@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from enrich_job_descriptions import JobPageParser, structured_fields
+from enrich_job_descriptions import JobPageParser, oracle_fields, structured_fields
 
 
 class JobDescriptionParserTest(unittest.TestCase):
@@ -25,6 +25,14 @@ class JobDescriptionParserTest(unittest.TestCase):
         result = structured_fields(parser)
         self.assertIn("Own customer workflows", result["cleaned_description"])
         self.assertNotIn("Noise", result["cleaned_description"])
+
+    def test_oracle_detail_json(self):
+        result = oracle_fields(json.dumps({"items": [{
+            "ExternalDescriptionStr": "<p>Build data products. " * 12 + "</p>",
+            "WorkplaceType": "Hybrid", "ExternalPostedStartDate": "2026-07-14T00:00:00Z",
+        }]}))
+        self.assertIn("Build data products", result["cleaned_description"])
+        self.assertEqual(result["work_arrangement"], "Hybrid")
 
 
 if __name__ == "__main__":
