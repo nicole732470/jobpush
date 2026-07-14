@@ -16,7 +16,7 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 # and sort before every 50 jobs, which became the dominant runtime.
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
   WITH candidates AS (
-    SELECT posting.site_id,posting.external_job_id,site.source_type,target.canonical_name AS company,
+    SELECT posting.site_id,posting.external_job_id,site.source_type,site.source_key,target.canonical_name AS company,
            posting.title,COALESCE(posting.location,'') AS location,
            COALESCE(posting.employment_type,'') AS employment_type,
            COALESCE(posting.posted_text,'') AS posted_text,posting.job_url,
@@ -31,7 +31,7 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
     LEFT JOIN jobpush.job_description_snapshots snapshot USING(site_id,external_job_id)
     WHERE posting.active AND label.classification_status='target'
   )
-  SELECT site_id,external_job_id,source_fingerprint,source_type,company,title,location,
+  SELECT site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
          employment_type,posted_text,job_url,first_seen_date
   FROM candidates
   WHERE saved_fingerprint IS NULL OR saved_fingerprint<>source_fingerprint

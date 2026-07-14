@@ -13,7 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -171,12 +171,91 @@ def oracle_fields(raw: str) -> dict:
     }
 
 
+def greenhouse_url(row: dict) -> str:
+    job_id = row["external_job_id"] or (parse_qs(urlsplit(row["job_url"]).query).get("gh_jid") or [""])[0]
+    token = row.get("source_key", "")
+    if not token or not job_id:
+        raise ValueError("missing Greenhouse board token or job id")
+    return f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}"
+
+
+def greenhouse_fields(raw: str) -> dict:
+    job = json.loads(raw)
+    return {
+        "cleaned_description": clean_text(str(job.get("content") or "")),
+        "apply_url": str(job.get("absolute_url") or ""),
+        "work_arrangement": "",
+        "salary_text": "",
+        "posted_date": str(job.get("updated_at") or "")[:10],
+    }
+
+
+def ashby_url(row: dict) -> str:
+    token = row.get("source_key", "")
+    if not token:
+        raise ValueError("missing Ashby board token")
+    return f"https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true"
+
+
+def ashby_fields(raw: str, external_job_id: str) -> dict:
+    payload = json.loads(raw)
+    job = next((item for item in payload.get("jobs", [])
+                if str(item.get("id") or item.get("jobId") or "") == external_job_id), None)
+    if not job:
+        raise ValueError("Ashby board response contained no matching job")
+    compensation = job.get("compensation") or job.get("compensationTierSummary")
+    return {
+        "cleaned_description": clean_text(str(job.get("descriptionHtml") or job.get("descriptionPlain") or "")),
+        "apply_url": str(job.get("applyUrl") or job.get("jobUrl") or job.get("hostedUrl") or ""),
+        "work_arrangement": str(job.get("workplaceType") or ""),
+        "salary_text": json.dumps(compensation, ensure_ascii=False, separators=(",", ":")) if compensation else "",
+        "posted_date": str(job.get("publishedAt") or job.get("updatedAt") or "")[:10],
+    }
+
+
+def workday_url(row: dict) -> str:
+    parsed = urlsplit(row["job_url"])
+    parts = [part for part in parsed.path.split("/") if part]
+    locale = bool(parts and re.fullmatch(r"[a-z]{2}-[A-Z]{2}", parts[0]))
+    if locale:
+        parts = parts[1:]
+    if len(parts) < 3 or "job" not in parts:
+        raise ValueError("invalid Workday job URL")
+    site = parts[0]
+    tenant = (parsed.hostname or "").split(".")[0].replace("-", "_")
+    external_path = "/" + "/".join(parts[1:])
+    return f"{parsed.scheme}://{parsed.netloc}/wday/cxs/{tenant}/{site}{external_path}"
+
+
+def workday_fields(raw: str) -> dict:
+    payload = json.loads(raw)
+    job = payload.get("jobPostingInfo") or payload
+    description = job.get("jobDescription") or job.get("description") or ""
+    return {
+        "cleaned_description": clean_text(str(description)),
+        "apply_url": str(job.get("externalUrl") or ""),
+        "work_arrangement": str(job.get("remoteType") or job.get("timeType") or ""),
+        "salary_text": str(job.get("salary") or ""),
+        "posted_date": str(job.get("startDate") or job.get("postedOn") or "")[:10],
+    }
+
+
 def fetch(row: dict, timeout: int, retries: int) -> dict:
     result = {**row, "scraped_at": datetime.now(timezone.utc).isoformat(), "attempt_count": 0}
     for attempt in range(1, retries + 1):
         result["attempt_count"] = attempt
         try:
-            fetch_url = oracle_detail_url(row["job_url"]) if row["source_type"] == "oracle_cloud" else row["job_url"]
+            source_type = row["source_type"]
+            if source_type == "oracle_cloud":
+                fetch_url = oracle_detail_url(row["job_url"])
+            elif source_type == "greenhouse":
+                fetch_url = greenhouse_url(row)
+            elif source_type == "ashby":
+                fetch_url = ashby_url(row)
+            elif source_type == "workday":
+                fetch_url = workday_url(row)
+            else:
+                fetch_url = row["job_url"]
             request = Request(fetch_url, headers={
                 "User-Agent": "Mozilla/5.0 (compatible; JobPush/1.0; job-description-export)",
                 "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
@@ -187,8 +266,14 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
                 raw = raw_bytes.decode(charset, errors="replace").replace("\x00", "")
                 content_type = response.headers.get("Content-Type", "")
                 status = getattr(response, "status", 200)
-            if row["source_type"] == "oracle_cloud":
+            if source_type == "oracle_cloud":
                 fields = oracle_fields(raw)
+            elif source_type == "greenhouse":
+                fields = greenhouse_fields(raw)
+            elif source_type == "ashby":
+                fields = ashby_fields(raw, row["external_job_id"])
+            elif source_type == "workday":
+                fields = workday_fields(raw)
             else:
                 parser = JobPageParser()
                 parser.feed(raw)
@@ -202,6 +287,8 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
         except HTTPError as exc:
             error = f"HTTP {exc.code}: {exc.reason}"
             status = exc.code
+            if exc.code in (404, 410):
+                result["attempt_count"] = 9
             if exc.code < 500 and exc.code not in (408, 429):
                 break
         except (URLError, TimeoutError, ValueError, OSError) as exc:

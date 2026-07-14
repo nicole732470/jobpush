@@ -47,13 +47,13 @@ SES_REQUEST="$WORK_DIR/ses_request.json"
 EMAIL_FILES="$WORK_DIR/email_files"
 
 if [[ "$SKIP_JD_FETCH" == "1" ]]; then
-  printf '%s\n' 'site_id,external_job_id,source_fingerprint,source_type,company,title,location,employment_type,posted_text,job_url,first_seen_date' > "$TARGETS"
+  printf '%s\n' 'site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,employment_type,posted_text,job_url,first_seen_date' > "$TARGETS"
 elif [[ -n "$JD_INPUT_FILE" ]]; then
   cp "$JD_INPUT_FILE" "$TARGETS"
 else
   "${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
   WITH candidates AS (
-    SELECT posting.site_id,posting.external_job_id,site.source_type,target.canonical_name AS company,
+    SELECT posting.site_id,posting.external_job_id,site.source_type,site.source_key,target.canonical_name AS company,
            posting.title,COALESCE(posting.location,'') AS location,
            COALESCE(posting.employment_type,'') AS employment_type,
            COALESCE(posting.posted_text,'') AS posted_text,posting.job_url,
@@ -68,7 +68,7 @@ else
     LEFT JOIN jobpush.job_description_snapshots snapshot USING(site_id,external_job_id)
     WHERE posting.active AND label.classification_status='target' $DATE_FILTER
   )
-  SELECT site_id,external_job_id,source_fingerprint,source_type,company,title,location,
+  SELECT site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
          employment_type,posted_text,job_url,first_seen_date
   FROM candidates
   WHERE saved_fingerprint IS NULL OR saved_fingerprint<>source_fingerprint
@@ -85,7 +85,7 @@ if (( TO_FETCH > 0 )); then
   "${PSQL[@]}" -v ON_ERROR_STOP=1 <<SQL
 BEGIN;
 CREATE TEMP TABLE jd_stage (
-  site_id BIGINT,external_job_id TEXT,source_fingerprint TEXT,source_type TEXT,company TEXT,title TEXT,
+  site_id BIGINT,external_job_id TEXT,source_fingerprint TEXT,source_type TEXT,source_key TEXT,company TEXT,title TEXT,
   location TEXT,employment_type TEXT,posted_text TEXT,job_url TEXT,first_seen_date DATE,
   raw_html TEXT,cleaned_description TEXT,content_type TEXT,apply_url TEXT,work_arrangement TEXT,
   salary_text TEXT,posted_date DATE,scraped_at TIMESTAMPTZ,scrape_status TEXT,scrape_error TEXT,
