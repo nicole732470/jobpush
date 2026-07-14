@@ -682,23 +682,26 @@ def today_crawl_progress(tiers: tuple[str, ...]) -> pd.DataFrame:
         """
         WITH chicago_day AS (
             SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), ranked_runs AS (
+            SELECT run.*,
+                   ROW_NUMBER() OVER (PARTITION BY run.site_id ORDER BY run.started_at DESC, run.run_id DESC) AS latest_rank
+            FROM jobpush.crawl_runs run CROSS JOIN chicago_day
+            WHERE run.started_at >= chicago_day.start_at
         )
         SELECT target.priority_tier,
                COUNT(*) AS site_attempts_today,
                COUNT(DISTINCT target.consolidation_key) AS companies_attempted_today,
-               COUNT(DISTINCT target.consolidation_key) FILTER (WHERE run.status = 'succeeded') AS companies_succeeded_today,
-               COUNT(*) FILTER (WHERE run.status = 'failed') AS failed_site_attempts_today,
+               COUNT(DISTINCT target.consolidation_key) FILTER (WHERE run.latest_rank=1 AND run.status='succeeded') AS companies_succeeded_today,
+               COUNT(*) FILTER (WHERE run.latest_rank=1 AND run.status='failed') AS failed_site_attempts_today,
                COALESCE(SUM(run.parsed_job_count), 0) AS parsed_jobs_today,
                COALESCE(SUM(run.new_job_count), 0) AS new_jobs_today,
                COALESCE(SUM(run.closed_job_count), 0) AS closed_jobs_today,
                COALESCE(SUM(run.target_job_count), 0) AS target_jobs_today,
                COALESCE(SUM(run.review_job_count), 0) AS review_jobs_today
-        FROM jobpush.crawl_runs run
+        FROM ranked_runs run
         JOIN jobpush.career_sites site USING (site_id)
         JOIN jobpush.crawl_targets target USING (consolidation_key)
-        CROSS JOIN chicago_day
-        WHERE run.started_at >= chicago_day.start_at
-          AND target.priority_tier = ANY(%s)
+        WHERE target.priority_tier = ANY(%s)
         GROUP BY target.priority_tier
         ORDER BY CASE target.priority_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END
         """,
@@ -733,16 +736,20 @@ def live_crawl_status() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         WITH chicago_day AS (
             SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), today_runs AS (
+            SELECT run.*,
+                   ROW_NUMBER() OVER (PARTITION BY run.site_id ORDER BY run.started_at DESC, run.run_id DESC) AS latest_rank
+            FROM jobpush.crawl_runs run CROSS JOIN chicago_day
+            WHERE run.started_at >= chicago_day.start_at
         ), today AS (
-            SELECT COUNT(*) AS attempted,
-                   COUNT(*) FILTER (WHERE run.status='succeeded') AS succeeded,
-                   COUNT(*) FILTER (WHERE run.status='failed') AS failed,
+            SELECT COUNT(*) FILTER (WHERE latest_rank=1) AS attempted,
+                   COUNT(*) FILTER (WHERE latest_rank=1 AND status='succeeded') AS succeeded,
+                   COUNT(*) FILTER (WHERE latest_rank=1 AND status='failed') AS failed,
                    COALESCE(SUM(run.parsed_job_count), 0) AS parsed_jobs,
                    COALESCE(SUM(run.new_job_count), 0) AS new_jobs,
                    COALESCE(SUM(run.closed_job_count), 0) AS closed_jobs,
                    MAX(run.finished_at) FILTER (WHERE run.status='succeeded') AS latest_success_at
-            FROM jobpush.crawl_runs run CROSS JOIN chicago_day
-            WHERE run.started_at >= chicago_day.start_at
+            FROM today_runs run
         ), due AS (
             SELECT COUNT(*) FILTER (WHERE is_due AND crawl_status <> 'running') AS due_sites
             FROM jobpush.crawl_schedule_queue
@@ -2246,7 +2253,7 @@ if selected_page == "Home":
         )
         live_cols = st.columns(5)
         live_cols[0].metric("Succeeded today", f"{succeeded:,}")
-        live_cols[1].metric("Failed attempts today", f"{failed:,}")
+        live_cols[1].metric("Sites still failed today", f"{failed:,}")
         live_cols[2].metric("Jobs parsed", f"{int(row.get('parsed_jobs', 0) or 0):,}")
         live_cols[3].metric("New jobs", f"{int(row.get('new_jobs', 0) or 0):,}")
         live_cols[4].metric("Closed jobs", f"{int(row.get('closed_jobs', 0) or 0):,}")
