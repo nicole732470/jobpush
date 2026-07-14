@@ -2437,6 +2437,11 @@ if selected_page == "Jobs to apply":
     effective_company_search = company_search_filter.strip()
     role_choice = filter_cols[1].selectbox("Role", ["All"] + JOB_ROLE_FILTER_OPTIONS)
     seniority_choice = filter_cols[2].selectbox("Seniority", list(SENIORITY_FILTER_LABELS))
+    include_non_targets = st.toggle(
+        "Include review / non-target jobs",
+        value=False,
+        help="Off by default: Jobs to apply queries target jobs only.",
+    )
     selected_status_label = st.selectbox(
         "Application status",
         ["All"] + list(APPLICATION_STATUS_OPTIONS.keys()),
@@ -2487,7 +2492,9 @@ if selected_page == "Jobs to apply":
     effective_start_date = datetime(2000, 1, 1).date() if search_mode else job_start_date
     effective_end_date = chicago_today if search_mode else job_end_date
     effective_tiers = ("P0", "P1", "P2", "P3") if search_mode else job_tiers
-    effective_role_statuses = ("target", "review", "non_target") if search_mode else role_statuses
+    effective_role_statuses = (
+        ("target", "review", "non_target") if include_non_targets else ("target",)
+    )
     effective_app_statuses = tuple(APPLICATION_STATUS_OPTIONS.values()) if search_mode else job_app_statuses
     row_offset = (page_number - 1) * page_size
 
