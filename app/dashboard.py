@@ -1478,7 +1478,7 @@ def import_manual_career_site(consolidation_key: str, raw_url: str, notes: str) 
 
 def trigger_inline_due_crawl(limit: int = 1) -> tuple[bool, str]:
     if os.environ.get("JOBPUSH_ENABLE_INLINE_CRAWL") != "1":
-        return False, "Inline crawl is disabled; site was marked due now and the scheduler/GitHub Action will pick it up."
+        return False, "Inline crawl is disabled; site was marked due now and the nightly scheduler will pick it up."
     try:
         result = subprocess.run(
             ["bash", "db/run_due_crawl_batch.sh", str(limit)],
@@ -1498,7 +1498,7 @@ def trigger_inline_site_crawl(site_id: int | None) -> tuple[bool, str]:
     if not site_id:
         return trigger_inline_due_crawl(1)
     if os.environ.get("JOBPUSH_ENABLE_INLINE_CRAWL") != "1":
-        return False, "Inline crawl is disabled; site was marked due now and the scheduler/GitHub Action will pick it up."
+        return False, "Inline crawl is disabled; site was marked due now and the nightly scheduler will pick it up."
     env = os.environ.copy()
     env["SITE_ID_FILTER"] = str(int(site_id))
     try:

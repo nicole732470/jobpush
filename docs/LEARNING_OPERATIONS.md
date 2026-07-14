@@ -34,7 +34,7 @@ flowchart TB
 | 2026-06-30 | Audit ML/hardware/seniority false-positive clusters and profile questions | Review P0, then Chicago/LinkedIn/large-sponsor candidates; calculate precision |
 | 2026-07-07 | Second weekly audit; compare unresolved and override rates | Audit structured ATS decisions and wrong-company/domain patterns |
 | 2026-07-23 | Monthly activation-readiness review for shared profile | Decide whether any structured-ATS segment qualifies for controlled auto-verification |
-| Hourly | No human action; title rules run only after a crawl | GitHub Actions checks due sites; requests follow P0=24h, P1=72h, P2=168h |
+| Daily at 1:00 AM Chicago | No human action; title rules run after crawling | EC2 drains due sites using P0=24h, P1=48h, P2=96h, P3=168h |
 | Weekly while new | Review highest-volume unresolved and regressions | Review new P0/potential-P0 candidates and alerts |
 | Monthly after stable | Drift and 5–10% audit sample | Precision, adapter health, US scope, and 5–10% auto-decision audit |
 

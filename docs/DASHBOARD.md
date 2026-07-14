@@ -67,7 +67,7 @@ Codex token.
   `crawl_status = 'pending'`. The dashboard host sets
   `JOBPUSH_ENABLE_INLINE_CRAWL=1`, so the app immediately attempts to crawl the
   specific verified/imported `site_id` via `SITE_ID_FILTER`; if inline crawl is
-  disabled, the scheduler/GitHub Action picks it up from `crawl_schedule_queue`;
+  disabled, the nightly EC2 scheduler picks it up from `crawl_schedule_queue`;
 - **Scoring rules** page showing P0/P1/P2/P3 definitions, score components, the
   company-to-schedulable-site coverage funnel, score distributions, and the
   relationship between LCA/SOC target labels and `target_role_score`; SOC and
@@ -148,7 +148,7 @@ flowchart LR
     WRITES --> SITE["review_career_site / manual import -> career_sites"]
     WRITES --> TIER["set_manual_crawl_priority -> crawl_priority_overrides + crawl_targets"]
     SITE --> DUE["next_crawl_at = now(), crawl_status = pending"]
-    DUE --> SCHED["GitHub Action / scheduler consumes crawl_schedule_queue"]
+    DUE --> SCHED["Nightly EC2 scheduler consumes crawl_schedule_queue"]
 ```
 
 Dashboard actions are database operations, not silent code edits:

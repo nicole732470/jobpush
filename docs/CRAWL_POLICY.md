@@ -61,8 +61,8 @@ office identifiers exist.
 ## 4. Scheduling and batches
 
 P tier chooses ordering and eventual frequency; it does not change parsing.
-Production intervals are P0 every 24 hours, P1 every 72 hours, and P2 every
-168 hours. GitHub Actions checks hourly, but a site enters the run queue
+Production intervals are P0 every 24 hours, P1 every 48 hours, P2 every
+96 hours, and P3 every 168 hours. The nightly EC2 timer drains sites that enter the run queue
 only when all of these are true:
 
 - `verification_status = 'verified'` came from either a human decision or an

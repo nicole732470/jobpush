@@ -219,16 +219,12 @@ Migration 048 adds `crawl_schedule_queue`, `crawl_adapter_health`, and
 bash db/run_due_crawl_batch.sh 10
 ```
 
-GitHub Actions workflow `.github/workflows/crawl-due-sites.yml` is the
-production scheduler. It checks hourly, then dispatches the existing batch to
-EC2 through SSM. GitHub receives no stored AWS access key: it assumes a
-repository-and-main-branch-scoped OIDC role created by
-`deploy/setup_github_actions_oidc.sh`.
+The EC2 systemd timer installed by `deploy/install_crawl_scheduler_via_ssm.sh`
+is the production scheduler. It starts at 1:00 AM America/Chicago and drains
+the due queue continuously.
 
-The hourly check is cheap; actual requests occur only at the P-tier interval.
 Successful runs advance `next_crawl_at`. Failed runs use exponential backoff
-capped at 24 hours. The former EC2 `jobpush-crawl.timer` must remain disabled
-while GitHub Actions is active so a batch is never dispatched twice.
+capped at 24 hours.
 
 The first scheduled production batch on 2026-06-23 completed 7/7 sites without
 failure. Five adapter types had a 100% trailing-seven-day success rate and no
