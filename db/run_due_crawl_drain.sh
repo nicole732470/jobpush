@@ -55,6 +55,9 @@ fi
 echo "==> daily crawl health analysis and safe recovery"
 bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
 
+echo "==> rediscover stale Greenhouse/Ashby/Lever boards (daily capped)"
+bash "$SCRIPT_DIR/run_rediscover_failed_ats.sh" "${ATS_REDISCOVERY_LIMIT:-25}"
+
 echo "==> export today's newly crawled target jobs and email JSON"
 JOBPUSH_CRAWL_COMPLETE=1 bash "$SCRIPT_DIR/run_daily_job_export.sh"
 
