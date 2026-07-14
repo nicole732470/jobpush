@@ -15,6 +15,7 @@ MAX_ATTACHMENT_BYTES="${JOBPUSH_MAX_EMAIL_ATTACHMENT_BYTES:-24000000}"
 WORKERS="${JOBPUSH_JD_WORKERS:-8}"
 JD_LIMIT="${JOBPUSH_JD_LIMIT:-0}"
 SKIP_EMAIL="${JOBPUSH_SKIP_EMAIL:-0}"
+SKIP_EXPORT="${JOBPUSH_SKIP_EXPORT:-0}"
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -105,6 +106,11 @@ COMMIT;
 SQL
 else
   printf '%s\n' '{"processed":0,"succeeded":0,"failed":0,"by_ats":{},"failure_reasons":{}}' > "$SCRAPE_REPORT"
+fi
+
+if [[ "$SKIP_EXPORT" == "1" ]]; then
+  (( TO_FETCH > 0 )) && exit 0
+  exit 10
 fi
 
 "${PSQL[@]}" -qAt -v ON_ERROR_STOP=1 -c "
