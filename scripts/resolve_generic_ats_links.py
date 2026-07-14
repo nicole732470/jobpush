@@ -53,7 +53,8 @@ SAME_SITE_HOP_HINTS = re.compile(
 )
 SAME_SITE_HOP_PATH = re.compile(
     r"/(?:jobs?|careers?|openings?|positions?|opportunities|vacanc(?:y|ies)|"
-    r"hiring|join-?us|work-with-us|search)(?:/|$|\?)",
+    r"hiring|join-?us|work-with-us|search|apply|recruit(?:ing|ment)?|"
+    r"employment|opps?)(?:/|$|\?)",
     re.I,
 )
 URL_RE = re.compile(r"https?://[^\\\"'<> )\]]+")
@@ -276,7 +277,7 @@ def resolve_page_tree(
     visited: set[str] = set()
     queue: list[str] = [source_url]
 
-    for depth in range(0, 2):  # landing page + one hop level
+    for depth in range(0, 3):  # landing page + up to two same-site hops
         next_queue: list[str] = []
         for page_url in queue:
             key = page_url.split("#", 1)[0].rstrip("/")
@@ -318,13 +319,14 @@ def resolve_page_tree(
                 if current is None or candidate["candidate_score"] > current["candidate_score"]:
                     deduped[url] = candidate
 
-            if depth == 0 and not deduped:
+            # Explore same-site hops whenever the current page has no ATS hits yet.
+            if not deduped:
                 for hop_url, _score in hops[:max_hops]:
                     hop_key = hop_url.split("#", 1)[0].rstrip("/")
                     if hop_key not in visited:
                         next_queue.append(hop_url)
 
-        if deduped or depth > 0:
+        if deduped:
             break
         queue = next_queue
         if not queue:
