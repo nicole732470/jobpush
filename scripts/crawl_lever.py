@@ -40,6 +40,12 @@ def company_token(url: str) -> str:
     return parts[0]
 
 
+def api_origin(url: str) -> str:
+    """Lever keeps EU-hosted boards on a separate public API origin."""
+    host = (urlsplit(url).hostname or "").lower()
+    return "https://api.eu.lever.co" if host == "jobs.eu.lever.co" else "https://api.lever.co"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
@@ -49,7 +55,7 @@ def main() -> int:
 
     started = time.monotonic()
     token = company_token(args.url)
-    endpoint = f"https://api.lever.co/v0/postings/{token}?mode=json"
+    endpoint = f"{api_origin(args.url)}/v0/postings/{token}?mode=json"
     request = Request(endpoint, headers={"User-Agent": "JobPush/0.1", "Accept": "application/json"})
     with urlopen(request, timeout=30) as response:
         status = response.status
