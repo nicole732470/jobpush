@@ -1526,6 +1526,9 @@ def jobs(
     row_limit: int,
     row_offset: int = 0,
     seniority_bucket: str | None = None,
+    role_family: str | None = None,
+    location_bucket: str | None = None,
+    city_search: str = "",
 ) -> pd.DataFrame:
     company_search = normalize_search_query(company_search)
     company_mode = bool(company_search)
@@ -1543,6 +1546,13 @@ def jobs(
         list(app_statuses),
         seniority_bucket,
         seniority_bucket,
+        role_family,
+        role_family,
+        role_family,
+        location_bucket,
+        location_bucket,
+        city_search.strip(),
+        city_search.strip(),
         int(row_limit),
         int(row_offset),
     ])
@@ -1580,6 +1590,13 @@ def jobs(
           AND job.role_status = ANY(%s)
           AND COALESCE(action.action_status, 'new') = ANY(%s)
           AND (%s::text IS NULL OR job.seniority_bucket = %s)
+          AND (
+              %s::text IS NULL
+              OR (%s = 'title:' AND job.role_family LIKE 'title:%%')
+              OR job.role_family = %s
+          )
+          AND (%s::text IS NULL OR job.location_bucket = %s)
+          AND (%s = '' OR COALESCE(job.location, '') ILIKE '%%' || %s || '%%')
         ORDER BY job.first_seen_at DESC, job.canonical_name, job.title
         LIMIT %s
         OFFSET %s
@@ -2004,93 +2021,28 @@ TRACK_LABEL_TO_VALUE = {label: value for value, label in TRACK_VALUE_TO_LABEL.it
 TRACK_LABEL_TO_VALUE["Track 5 · Possible Target / Unclassified"] = "stack_5_possible_target"
 
 
-def _normalize_title_for_role(title: str) -> str:
-    return re.sub(r"\s+", " ", title.lower().replace("-", " ").replace("/", " ")).strip()
-
-
-def classify_job_role_from_title(title: str | None) -> str:
-    """Classify a job for dashboard filters from the posting title only."""
-    if not title:
-        return "Other"
-    t = _normalize_title_for_role(title)
-    if re.search(r"\b(intern(ship)?|co op|co-op)\b", t):
-        return "Internship"
-    if re.search(r"technical program manager|\btpm\b|program manager", t):
-        return "Program Manager"
-    if re.search(
-        r"information technology project manager|technical project manager|it project manager|project manager",
-        t,
-    ):
-        return "Project Manager"
-    if "production manager" not in t and re.search(
-        r"technical product manager|product manager|product owner",
-        t,
-    ):
-        return "Product Manager"
-    if re.search(r"forward deployed engineer|forward-deployed engineer", t):
-        return "Forward Deployed Engineer"
-    if re.search(r"ai full stack|ai engineer|gtm engineer", t):
-        return "Applied AI / GTM"
-    if re.search(
-        r"system engineer|systems engineer|systems analyst|information system",
-        t,
-    ):
-        return "Systems Engineering"
-    if re.search(
-        r"software engineer|software developer|fullstack|full stack",
-        t,
-    ):
-        return "Software Engineering"
-    if re.search(r"data scientist|machine learning|\bml engineer\b", t):
-        return "Data Science / ML"
-    if re.search(
-        r"data engineer|analytics engineer|data architect|database administrator|database admin",
-        t,
-    ):
-        return "Data Engineering"
-    if re.search(r"data analyst|business intelligence|\bbi analyst\b", t):
-        return "Data Analytics / BI"
-    if re.search(r"business analyst", t):
-        return "Business Analyst"
-    if re.search(r"operations analyst|strategy analyst", t):
-        return "Strategy / Operations"
-    if re.search(
-        r"customer success|technical account|relationship manager",
-        t,
-    ):
-        return "Customer Success"
-    if re.search(r"technical support|technical specialist|technical expert", t):
-        return "Technical Support"
-    if re.search(r"marketing", t):
-        return "Marketing"
-    if re.search(r"sales", t):
-        return "Sales"
-    if re.search(r"financial analyst", t):
-        return "Financial Analyst"
-    return "Other"
-
-
-JOB_ROLE_FILTER_OPTIONS = [
-    "Product Manager",
-    "Program Manager",
-    "Project Manager",
-    "Software Engineering",
-    "Data Science / ML",
-    "Data Engineering",
-    "Data Analytics / BI",
-    "Business Analyst",
-    "Systems Engineering",
-    "Customer Success",
-    "Marketing",
-    "Sales",
-    "Applied AI / GTM",
-    "Forward Deployed Engineer",
-    "Strategy / Operations",
-    "Technical Support",
-    "Financial Analyst",
-    "Internship",
-    "Other",
-]
+JOB_ROLE_FILTER_VALUES = {
+    "Product Manager": "product_manager",
+    "Program Manager": "program_manager",
+    "Project Manager": "project_manager",
+    "Software Engineering": "software_engineering",
+    "Data Science / ML": "data_science_ml",
+    "Data Engineering / Architecture": "data_engineering",
+    "Data Analytics / BI": "data_analytics_bi",
+    "Business Analyst": "business_analyst",
+    "Systems Engineering": "systems_engineering",
+    "Customer Success / Technical Account": "customer_success",
+    "Marketing": "marketing",
+    "Sales": "sales",
+    "Applied AI / GTM Engineering": "applied_ai",
+    "Forward Deployed Engineer": "forward_deployed_engineer",
+    "Strategy / Operations": "strategy_operations",
+    "Technical Support / Specialist": "technical_support",
+    "Financial Analyst": "financial_analyst",
+    "Internship": "internship",
+    "Other": "title:",
+}
+JOB_ROLE_FILTER_OPTIONS = list(JOB_ROLE_FILTER_VALUES)
 
 
 def role_family_label(value: str | None) -> str:
@@ -2489,28 +2441,30 @@ if selected_page == "Jobs to apply":
         else (APPLICATION_STATUS_OPTIONS[selected_status_label],)
     )
     search_mode = bool(effective_company_search)
-    effective_start_date = datetime(2000, 1, 1).date() if search_mode else job_start_date
-    effective_end_date = chicago_today if search_mode else job_end_date
-    effective_tiers = ("P0", "P1", "P2", "P3") if search_mode else job_tiers
     effective_role_statuses = (
         ("target", "review", "non_target") if include_non_targets else ("target",)
     )
-    effective_app_statuses = tuple(APPLICATION_STATUS_OPTIONS.values()) if search_mode else job_app_statuses
     row_offset = (page_number - 1) * page_size
 
     job_frame = jobs(
-        effective_start_date,
-        effective_end_date,
+        job_start_date,
+        job_end_date,
         effective_company_search,
-        effective_tiers,
+        job_tiers,
         effective_role_statuses,
-        effective_app_statuses,
+        job_app_statuses,
         page_size,
         row_offset,
         seniority_bucket=(
-            None if search_mode or seniority_choice == "All"
+            None if seniority_choice == "All"
             else SENIORITY_FILTER_LABELS[seniority_choice]
         ),
+        role_family=(None if role_choice == "All" else JOB_ROLE_FILTER_VALUES[role_choice]),
+        location_bucket=(
+            None if location_choice == "All"
+            else LOCATION_FILTER_LABELS[location_choice]
+        ),
+        city_search=city_search_filter,
     )
     if job_frame.empty:
         if search_mode:
@@ -2529,18 +2483,7 @@ if selected_page == "Jobs to apply":
     else:
         job_frame = job_frame.copy()
         job_frame["first_seen_ct"] = pd.to_datetime(job_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
-        job_frame["role_label"] = job_frame["title"].apply(classify_job_role_from_title)
-
-        if not search_mode and role_choice != "All":
-            job_frame = job_frame[job_frame["role_label"] == role_choice]
-        if location_choice != "All":
-            job_frame = job_frame[job_frame["location_bucket"] == LOCATION_FILTER_LABELS[location_choice]]
-        city_search = city_search_filter.strip()
-        if city_search:
-            job_frame = job_frame[
-                job_frame["location"].fillna("").str.contains(city_search, case=False, regex=False)
-            ]
-        job_frame = job_frame.sort_values(["first_seen_at"], ascending=[False])
+        job_frame["role_label"] = job_frame["role_family"].apply(role_family_label)
 
         display_columns = [
             "first_seen_ct", "canonical_name", "priority_tier", "priority_score",
