@@ -48,5 +48,8 @@ fi
 echo "==> daily crawl health analysis and safe recovery"
 bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
 
+echo "==> enrich new/changed jobs and generate daily ChatGPT export"
+bash "$SCRIPT_DIR/run_daily_job_export.sh"
+
 remaining="$(due_count)"
 echo "Nightly crawl drain completed at $(date -u +%FT%TZ); batches=$completed_batches remaining_due=$remaining"
