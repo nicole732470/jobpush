@@ -29,7 +29,8 @@ def main() -> int:
     message.set_content(
         "Job Push daily export is attached.\n\n"
         "The nightly crawl and classification are complete.\n"
-        f"Today's new target jobs: {report['exported_jobs']}\n"
+        f"Scope: {report['scope']}\n"
+        f"Target jobs: {report['exported_jobs']}\n"
     )
     message.add_attachment(
         attachment.read_bytes(), maintype="application", subtype="json", filename=attachment.name

@@ -8,14 +8,19 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 EXPORT_DATE="${1:-$(TZ=America/Chicago date +%F)}"
 EXPORT_DIR="${JOBPUSH_DAILY_EXPORT_DIR:-$REPO_DIR/daily_exports}"
-EMAIL_TO="${JOBPUSH_EXPORT_EMAIL:-nicole732470@gmail.com,yuli2026@u.northwestern.edu}"
+EMAIL_TO="${JOBPUSH_EXPORT_EMAIL:-yuli2026@u.northwestern.edu}"
 EMAIL_FROM="${JOBPUSH_EXPORT_FROM_EMAIL:-nicole732470@gmail.com}"
+EXPORT_SCOPE="${JOBPUSH_EXPORT_SCOPE:-new_target_jobs_only}"
 MAX_ATTACHMENT_BYTES="${JOBPUSH_MAX_EMAIL_ATTACHMENT_BYTES:-24000000}"
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 [[ "$EXPORT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "export date must be YYYY-MM-DD" >&2; exit 2; }
+[[ "$EXPORT_SCOPE" == "new_target_jobs_only" || "$EXPORT_SCOPE" == "all_active_target" ]] || { echo "invalid JOBPUSH_EXPORT_SCOPE" >&2; exit 2; }
 mkdir -p "$EXPORT_DIR"
+
+DATE_FILTER="AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date"
+[[ "$EXPORT_SCOPE" == "all_active_target" ]] && DATE_FILTER=""
 
 if [[ "${JOBPUSH_CRAWL_COMPLETE:-0}" != "1" ]]; then
   REMAINING_DUE="$("${PSQL[@]}" -qAt -c "SELECT count(*) FROM jobpush.crawl_schedule_queue WHERE is_due AND crawl_status <> 'running';")"
@@ -49,14 +54,14 @@ SES_REQUEST="$WORK_DIR/ses_request.json"
   JOIN jobpush.job_title_labels label USING(normalized_title)
   WHERE posting.active
     AND label.classification_status='target'
-    AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date
+    $DATE_FILTER
   ORDER BY posting.first_seen_at DESC, target.canonical_name, posting.title
 " > "$JSON_LINES"
 
 jq -s . "$JSON_LINES" > "$EXPORT_JSON"
 EXPORTED="$(jq length "$EXPORT_JSON")"
-jq -n --arg date "$EXPORT_DATE" --argjson exported "$EXPORTED" \
-  '{export_date:$date, scope:"new_target_jobs_only", exported_jobs:$exported}' > "$REPORT_JSON"
+jq -n --arg date "$EXPORT_DATE" --arg scope "$EXPORT_SCOPE" --argjson exported "$EXPORTED" \
+  '{export_date:$date, scope:$scope, exported_jobs:$exported}' > "$REPORT_JSON"
 
 EMAIL_STATUS="pending"
 EMAIL_ERROR=""
@@ -77,13 +82,13 @@ else
 fi
 
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -v export_path="$EXPORT_JSON" \
-  -v exported="$EXPORTED" -v email_status="$EMAIL_STATUS" -v email_error="$EMAIL_ERROR" <<'SQL'
+  -v exported="$EXPORTED" -v scope="$EXPORT_SCOPE" -v email_status="$EMAIL_STATUS" -v email_error="$EMAIL_ERROR" <<'SQL'
 INSERT INTO jobpush.daily_job_exports(
   export_date,status,export_path,jobs_discovered,jobs_processed,successful_jd_retrieval,
   skipped_jobs,failed_jobs,exported_jobs,report,email_status,email_error,started_at,finished_at
 ) VALUES (
   :'export_date','succeeded',:'export_path',:exported,:exported,0,0,0,:exported,
-  jsonb_build_object('scope','new_target_jobs_only','exported_jobs',:exported),
+  jsonb_build_object('scope',:'scope','exported_jobs',:exported),
   :'email_status',NULLIF(:'email_error',''),now(),now()
 )
 ON CONFLICT(export_date) DO UPDATE SET
@@ -93,4 +98,4 @@ ON CONFLICT(export_date) DO UPDATE SET
   email_error=EXCLUDED.email_error,started_at=now(),finished_at=now();
 SQL
 
-echo "Daily target export complete: date=$EXPORT_DATE jobs=$EXPORTED email=$EMAIL_STATUS"
+echo "Daily target export complete: date=$EXPORT_DATE scope=$EXPORT_SCOPE jobs=$EXPORTED email=$EMAIL_STATUS"
