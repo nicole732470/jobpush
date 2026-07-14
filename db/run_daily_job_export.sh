@@ -17,6 +17,12 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 [[ "$EXPORT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "export date must be YYYY-MM-DD" >&2; exit 2; }
 mkdir -p "$EXPORT_DIR"
 
+REMAINING_DUE="$("${PSQL[@]}" -qAt -c "SELECT count(*) FROM jobpush.crawl_schedule_queue WHERE is_due AND crawl_status <> 'running';")"
+if (( REMAINING_DUE > 0 )); then
+  echo "Daily export withheld: $REMAINING_DUE due sites remain after the crawl." >&2
+  exit 1
+fi
+
 JSON_LINES="$WORK_DIR/jobs.jsonl"
 EXPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.json"
 REPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.report.json"
