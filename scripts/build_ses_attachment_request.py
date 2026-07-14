@@ -28,11 +28,8 @@ def main() -> int:
     message["To"] = ", ".join(recipients)
     message.set_content(
         "Job Push daily export is attached.\n\n"
-        f"Jobs discovered: {report['jobs_discovered']}\n"
-        f"Jobs processed: {report['jobs_processed']}\n"
-        f"Successful JD retrieval: {report['successful_jd_retrieval']}\n"
-        f"Failed jobs: {report['failed_jobs']}\n"
-        f"Exported jobs: {report['exported_jobs']}\n"
+        "The nightly crawl and classification are complete.\n"
+        f"Today's new target jobs: {report['exported_jobs']}\n"
     )
     message.add_attachment(
         attachment.read_bytes(), maintype="application", subtype="json", filename=attachment.name
