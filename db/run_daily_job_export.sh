@@ -16,6 +16,8 @@ WORKERS="${JOBPUSH_JD_WORKERS:-8}"
 JD_LIMIT="${JOBPUSH_JD_LIMIT:-0}"
 SKIP_EMAIL="${JOBPUSH_SKIP_EMAIL:-0}"
 SKIP_EXPORT="${JOBPUSH_SKIP_EXPORT:-0}"
+JD_INPUT_FILE="${JOBPUSH_JD_INPUT_FILE:-}"
+SKIP_JD_FETCH="${JOBPUSH_SKIP_JD_FETCH:-0}"
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -44,7 +46,12 @@ REPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.report.json"
 SES_REQUEST="$WORK_DIR/ses_request.json"
 EMAIL_FILES="$WORK_DIR/email_files"
 
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
+if [[ "$SKIP_JD_FETCH" == "1" ]]; then
+  printf '%s\n' 'site_id,external_job_id,source_fingerprint,source_type,company,title,location,employment_type,posted_text,job_url,first_seen_date' > "$TARGETS"
+elif [[ -n "$JD_INPUT_FILE" ]]; then
+  cp "$JD_INPUT_FILE" "$TARGETS"
+else
+  "${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
   WITH candidates AS (
     SELECT posting.site_id,posting.external_job_id,site.source_type,target.canonical_name AS company,
            posting.title,COALESCE(posting.location,'') AS location,
@@ -69,6 +76,7 @@ EMAIL_FILES="$WORK_DIR/email_files"
   ORDER BY site_id,external_job_id
   LIMIT NULLIF('$JD_LIMIT','0')::integer
 ) TO '$TARGETS' WITH (FORMAT csv, HEADER true)"
+fi
 
 TO_FETCH=$(( $(wc -l < "$TARGETS") - 1 ))
 if (( TO_FETCH > 0 )); then

@@ -47,7 +47,7 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
     guess_ats_sites.py \
     evaluate_title_classifier_variants.py \
     classify_job_titles_ai.py \
-    train_local_title_classifier.py market_scope.py; do
+    train_local_title_classifier.py market_scope.py slice_csv.py; do
     [[ -f "$REPO_DIR/scripts/$script" ]] && cp "$REPO_DIR/scripts/$script" "$STAGING/scripts/$script"
   done
 fi
