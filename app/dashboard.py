@@ -766,52 +766,6 @@ def crawl_completion_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
-def p1_blocker_distribution() -> pd.DataFrame:
-    return query(
-        """
-        WITH site_rollup AS (
-            SELECT consolidation_key,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed,
-                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type = 'generic_html') AS generic_candidates,
-                   COUNT(*) FILTER (WHERE verification_status = 'unverified' AND source_type <> 'generic_html') AS structured_candidates,
-                   COUNT(*) FILTER (WHERE verification_status = 'unverified') AS unverified_candidates
-            FROM jobpush.career_sites
-            GROUP BY consolidation_key
-        ), due AS (
-            SELECT consolidation_key, COUNT(*) FILTER (WHERE is_due) AS due_sites
-            FROM jobpush.crawl_schedule_queue
-            GROUP BY consolidation_key
-        ), classified AS (
-            SELECT target.consolidation_key,
-                   CASE
-                       WHEN COALESCE(site.has_success, FALSE) THEN 'successfully_crawled'
-                       WHEN COALESCE(site.has_failed, FALSE) THEN 'adapter_or_site_failed'
-                       WHEN COALESCE(due.due_sites, 0) > 0 THEN 'enabled_waiting_for_scheduler'
-                       WHEN COALESCE(site.has_enabled_site, FALSE) THEN 'enabled_not_due_yet'
-                       WHEN COALESCE(site.structured_candidates, 0) > 0 THEN 'structured_candidate_not_enabled'
-                       WHEN COALESCE(site.generic_candidates, 0) > 0 THEN 'generic_html_needs_resolution'
-                       WHEN target.discovery_status = 'pending' THEN 'not_searched_yet'
-                       ELSE 'searched_no_usable_candidate'
-                   END AS crawl_state
-            FROM jobpush.crawl_targets target
-            LEFT JOIN site_rollup site USING (consolidation_key)
-            LEFT JOIN due USING (consolidation_key)
-            WHERE target.enabled AND target.priority_tier = 'P1'
-        )
-        SELECT crawl_state,
-               COUNT(*) AS companies,
-               ROUND(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (), 0), 2) AS pct
-        FROM classified
-        GROUP BY crawl_state
-        ORDER BY companies DESC, crawl_state
-        """
-    )
-
-
-@st.cache_data(ttl=60)
 def crawl_state_by_tier(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
@@ -912,48 +866,6 @@ def generic_blocker_template_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
                  companies DESC, template_family
         """,
         (list(tiers),),
-    )
-
-
-@st.cache_data(ttl=60)
-def p1_rank_coverage() -> pd.DataFrame:
-    return query(
-        """
-        WITH ranked AS (
-            SELECT target.*,
-                   ROW_NUMBER() OVER (
-                       ORDER BY priority_score DESC NULLS LAST, canonical_name
-                   ) AS priority_rank
-            FROM jobpush.crawl_targets target
-            WHERE target.enabled AND target.priority_tier = 'P1'
-        ), site_rollup AS (
-            SELECT consolidation_key,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled) AS has_enabled_site,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_crawled_at IS NOT NULL) AS has_attempt,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND last_success_at IS NOT NULL) AS has_success,
-                   BOOL_OR(verification_status = 'verified' AND crawl_enabled AND crawl_status = 'failed') AS has_failed
-            FROM jobpush.career_sites
-            GROUP BY consolidation_key
-        ), cohorts AS (
-            SELECT 'P1 top 500' AS cohort, * FROM ranked WHERE priority_rank <= 500
-            UNION ALL
-            SELECT 'P1 top 1000' AS cohort, * FROM ranked WHERE priority_rank <= 1000
-            UNION ALL
-            SELECT 'All P1' AS cohort, * FROM ranked
-        )
-        SELECT cohort,
-               COUNT(*) AS companies,
-               COUNT(*) FILTER (WHERE COALESCE(site.has_enabled_site, FALSE)) AS enabled_site_companies,
-               COUNT(*) FILTER (WHERE COALESCE(site.has_attempt, FALSE)) AS attempted_companies,
-               COUNT(*) FILTER (WHERE COALESCE(site.has_success, FALSE)) AS succeeded_companies,
-               COUNT(*) FILTER (WHERE COALESCE(site.has_failed, FALSE)) AS failed_companies,
-               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site.has_success, FALSE)) / NULLIF(COUNT(*), 0), 2) AS success_pct,
-               ROUND(100.0 * COUNT(*) FILTER (WHERE COALESCE(site.has_attempt, FALSE)) / NULLIF(COUNT(*), 0), 2) AS attempted_pct
-        FROM cohorts
-        LEFT JOIN site_rollup site USING (consolidation_key)
-        GROUP BY cohort
-        ORDER BY CASE cohort WHEN 'P1 top 500' THEN 0 WHEN 'P1 top 1000' THEN 1 ELSE 2 END
-        """
     )
 
 
@@ -1330,8 +1242,6 @@ def clear_dashboard_caches() -> None:
         today_crawl_progress,
         recent_crawl_runs,
         crawl_completion_summary,
-        p1_blocker_distribution,
-        p1_rank_coverage,
         current_failure_reasons,
         ml_status,
         p1_score_distribution,
@@ -2306,6 +2216,32 @@ if selected_page == "Crawl monitor":
     rollout_cols[2].metric("Attempted", f"{selected_attempted:,}", f"{(100 * selected_attempted / selected_total):.1f}%" if selected_total else " ")
     rollout_cols[3].metric("Due / waiting", f"{selected_waiting:,}", " ")
 
+    completion = crawl_completion_summary(tiers)
+    progress = today_crawl_progress(tiers)
+    recent = recent_crawl_runs(tiers, limit=20)
+    enabled_companies = int(completion["companies_with_enabled_site"].sum()) if not completion.empty else 0
+    attempted_today = int(progress["companies_attempted_today"].sum()) if not progress.empty else 0
+    succeeded_today = int(progress["companies_succeeded_today"].sum()) if not progress.empty else 0
+    parsed_today = int(progress["parsed_jobs_today"].sum()) if not progress.empty else 0
+    new_today = int(progress["new_jobs_today"].sum()) if not progress.empty else 0
+    latest_started = recent.iloc[0]["started_ct"] if not recent.empty else None
+    latest_status = str(recent.iloc[0]["status"]) if not recent.empty else "no runs"
+    current_cols = st.columns(5)
+    current_cols[0].metric("Crawlable companies", f"{enabled_companies:,}")
+    current_cols[1].metric("Attempted today", f"{attempted_today:,}", f"{(100 * attempted_today / enabled_companies):.1f}% of crawlable" if enabled_companies else None)
+    current_cols[2].metric("Succeeded today", f"{succeeded_today:,}")
+    current_cols[3].metric("Jobs parsed today", f"{parsed_today:,}", f"{new_today:,} new")
+    current_cols[4].metric(
+        "Latest crawl (Chicago)",
+        pd.to_datetime(latest_started).strftime("%b %d %I:%M %p") if pd.notna(latest_started) else "Never",
+        latest_status,
+    )
+
+    st.subheader("Today by priority tier")
+    st.dataframe(completion, hide_index=True, use_container_width=True, height=240)
+    st.subheader("Latest crawl runs")
+    st.dataframe(recent, hide_index=True, use_container_width=True, height=360)
+
     st.dataframe(rollout, hide_index=True, use_container_width=True)
     with st.expander("这些状态是什么意思？"):
         st.markdown(
@@ -2357,21 +2293,6 @@ ORDER BY target.priority_tier;
     else:
         st.caption("This separates true corporate careers pages from missed structured ATS domains. Missed structured domains are the cheapest parser/classifier wins.")
         st.dataframe(template_frame, hide_index=True, use_container_width=True, height=260)
-
-    left, right = st.columns([1, 1])
-    with left:
-        st.subheader("P1 blockers")
-        blockers = p1_blocker_distribution()
-        if blockers.empty:
-            st.info("No P1 companies found.")
-        else:
-            st.bar_chart(blockers.set_index("crawl_state")["companies"], height=330)
-            st.dataframe(blockers, hide_index=True, use_container_width=True)
-    with right:
-        st.subheader("P1 top-rank coverage")
-        rank_coverage = p1_rank_coverage()
-        st.dataframe(rank_coverage, hide_index=True, use_container_width=True, height=260)
-        st.caption("Top 500 / Top 1000 是按 priority_score 从高到低排序，用来判断最值得先跑的一批推进到哪里了。")
 
     st.subheader("Current crawl failure reasons")
     failure_reasons = current_failure_reasons()
