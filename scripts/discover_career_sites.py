@@ -62,6 +62,8 @@ EXCLUDED_DOMAINS = {
     "careers.innospark.vc", "jobs.kleinerperkins.com", "careers.peakxv.com",
     "jobs.forerunnerventures.com", "careers.sorensoncap.com",
     "careers.aixventures.com", "careers.nvp.com",
+    "careers.asq.org", "careers.computer.org", "illinoisjoblink.illinois.gov",
+    "lgbtgreatcareers.com",
 }
 COMPANY_STOPWORDS = {
     "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation",
