@@ -990,6 +990,21 @@ def current_failure_reasons() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def crawl_health_history() -> pd.DataFrame:
+    return query(
+        """
+        SELECT started_at AT TIME ZONE 'America/Chicago' AS started_ct,
+               status, stale_runs_recovered, transient_sites_requeued,
+               stale_urls_demoted, chronic_sites_quarantined,
+               failed_sites_remaining, failure_groups::text AS remaining_failure_groups
+        FROM jobpush.crawl_health_runs
+        ORDER BY started_at DESC
+        LIMIT 14
+        """
+    )
+
+
+@st.cache_data(ttl=60)
 def ml_status() -> tuple[pd.DataFrame, pd.DataFrame]:
     title_labels = query(
         """
@@ -2405,6 +2420,20 @@ ORDER BY target.priority_tier;
         st.dataframe(template_frame, hide_index=True, use_container_width=True, height=260)
 
     st.subheader("Current crawl failure reasons")
+    health_history = crawl_health_history()
+    if health_history.empty:
+        st.info("Daily crawl health check has not run yet.")
+    else:
+        latest_health = health_history.iloc[0]
+        health_cols = st.columns(5)
+        health_cols[0].metric("Stale runs recovered", f"{int(latest_health['stale_runs_recovered']):,}")
+        health_cols[1].metric("Transient requeued", f"{int(latest_health['transient_sites_requeued']):,}")
+        health_cols[2].metric("404 URLs demoted", f"{int(latest_health['stale_urls_demoted']):,}")
+        health_cols[3].metric("Chronic quarantined", f"{int(latest_health['chronic_sites_quarantined']):,}")
+        health_cols[4].metric("Failures remaining", f"{int(latest_health['failed_sites_remaining']):,}")
+        with st.expander("Daily health history and remaining failure groups"):
+            st.dataframe(health_history, hide_index=True, use_container_width=True)
+
     failure_reasons = current_failure_reasons()
     if failure_reasons.empty:
         st.success("No currently failed enabled sites.")
