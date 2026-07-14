@@ -2057,6 +2057,11 @@ JOB_ROLE_FILTER_VALUES = {
     "Other": "title:",
 }
 JOB_ROLE_FILTER_OPTIONS = list(JOB_ROLE_FILTER_VALUES)
+NON_TARGET_JOB_ROLE_FILTERS = {
+    "Program Manager",
+    "Project Manager",
+    "Software Engineering",
+}
 
 
 def role_family_label(value: str | None) -> str:
@@ -2393,6 +2398,15 @@ if selected_page == "Jobs to apply":
     st.caption(
         "Review target jobs, update application status, and open application links from one page."
     )
+    include_non_targets = st.toggle(
+        "Include review / non-target jobs",
+        value=False,
+        help="Off by default: Jobs to apply queries target jobs only.",
+    )
+    visible_role_options = [
+        role for role in JOB_ROLE_FILTER_OPTIONS
+        if include_non_targets or role not in NON_TARGET_JOB_ROLE_FILTERS
+    ]
     filter_cols = st.columns(3)
     company_search_filter = filter_cols[0].text_input(
         "Company",
@@ -2401,13 +2415,8 @@ if selected_page == "Jobs to apply":
         key="jobs-global-search",
     )
     effective_company_search = company_search_filter.strip()
-    role_choice = filter_cols[1].selectbox("Role", ["All"] + JOB_ROLE_FILTER_OPTIONS)
+    role_choice = filter_cols[1].selectbox("Role", ["All"] + visible_role_options)
     seniority_choice = filter_cols[2].selectbox("Seniority", list(SENIORITY_FILTER_LABELS))
-    include_non_targets = st.toggle(
-        "Include review / non-target jobs",
-        value=False,
-        help="Off by default: Jobs to apply queries target jobs only.",
-    )
     selected_status_label = st.selectbox(
         "Application status",
         ["All"] + list(APPLICATION_STATUS_OPTIONS.keys()),
