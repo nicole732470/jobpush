@@ -68,12 +68,15 @@ else
     LEFT JOIN jobpush.job_description_snapshots snapshot USING(site_id,external_job_id)
     WHERE posting.active AND label.classification_status='target' $DATE_FILTER
   )
-  SELECT site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
+  SELECT DISTINCT ON (job_url)
+         site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
          employment_type,posted_text,job_url,first_seen_date
   FROM candidates
   WHERE saved_fingerprint IS NULL OR saved_fingerprint<>source_fingerprint
      OR (scrape_status='failed' AND attempt_count<9)
-  ORDER BY site_id,external_job_id
+  ORDER BY job_url,
+           (saved_fingerprint=source_fingerprint AND scrape_status='succeeded') DESC NULLS LAST,
+           site_id,external_job_id
   LIMIT NULLIF('$JD_LIMIT','0')::integer
 ) TO '$TARGETS' WITH (FORMAT csv, HEADER true)"
 fi
@@ -156,7 +159,9 @@ fi
   ORDER BY posting.first_seen_at DESC, target.canonical_name, posting.title
 " > "$JSON_LINES"
 
-jq -s . "$JSON_LINES" > "$EXPORT_JSON"
+# A posting may temporarily exist under more than one site record while site
+# consolidation catches up. Never send or process the same job URL twice.
+jq -s 'unique_by(.job_url)' "$JSON_LINES" > "$EXPORT_JSON"
 EXPORTED="$(jq length "$EXPORT_JSON")"
 FULL_JD="$(jq '[.[]|select(.description_complete==true)]|length' "$EXPORT_JSON")"
 FAILED_JD=$(( EXPORTED - FULL_JD ))

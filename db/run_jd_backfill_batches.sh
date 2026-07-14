@@ -31,12 +31,15 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
     LEFT JOIN jobpush.job_description_snapshots snapshot USING(site_id,external_job_id)
     WHERE posting.active AND label.classification_status='target'
   )
-  SELECT site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
+  SELECT DISTINCT ON (job_url)
+         site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
          employment_type,posted_text,job_url,first_seen_date
   FROM candidates
   WHERE saved_fingerprint IS NULL OR saved_fingerprint<>source_fingerprint
      OR (scrape_status='failed' AND attempt_count<9)
-  ORDER BY site_id,external_job_id
+  ORDER BY job_url,
+           (saved_fingerprint=source_fingerprint AND scrape_status='succeeded') DESC NULLS LAST,
+           site_id,external_job_id
 ) TO '$QUEUE' WITH (FORMAT csv, HEADER true)"
 
 TOTAL="$(python3 -c 'import csv,sys; print(sum(1 for _ in csv.DictReader(open(sys.argv[1], newline="", encoding="utf-8"))))' "$QUEUE")"
