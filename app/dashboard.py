@@ -2246,7 +2246,7 @@ if selected_page == "Home":
         )
         live_cols = st.columns(5)
         live_cols[0].metric("Succeeded today", f"{succeeded:,}")
-        live_cols[1].metric("Failed today", f"{failed:,}")
+        live_cols[1].metric("Failed attempts today", f"{failed:,}")
         live_cols[2].metric("Jobs parsed", f"{int(row.get('parsed_jobs', 0) or 0):,}")
         live_cols[3].metric("New jobs", f"{int(row.get('new_jobs', 0) or 0):,}")
         live_cols[4].metric("Closed jobs", f"{int(row.get('closed_jobs', 0) or 0):,}")
