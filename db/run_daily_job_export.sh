@@ -15,6 +15,9 @@ MAX_ATTACHMENT_BYTES="${JOBPUSH_MAX_EMAIL_ATTACHMENT_BYTES:-24000000}"
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
+[[ "$EXPORT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "export date must be YYYY-MM-DD" >&2; exit 2; }
+[[ "$TARGET_LIMIT" =~ ^[0-9]+$ ]] || { echo "JOBPUSH_JD_LIMIT must be a non-negative integer" >&2; exit 2; }
+
 TARGETS="$WORK_DIR/targets.csv"
 RESULTS="$WORK_DIR/results.csv"
 SCRAPE_REPORT="$WORK_DIR/scrape_report.json"
@@ -29,8 +32,14 @@ INSERT INTO jobpush.daily_job_exports(export_date,status,started_at,finished_at,
 VALUES (:'export_date','running',now(),NULL,NULL,NULL)
 ON CONFLICT(export_date) DO UPDATE SET status='running',started_at=now(),finished_at=NULL,email_status=NULL,email_error=NULL;
 SQL
+mark_failed() {
+  local code=$?
+  "${PSQL[@]}" -q -c "UPDATE jobpush.daily_job_exports SET status='failed',finished_at=now() WHERE export_date='$EXPORT_DATE';" || true
+  exit "$code"
+}
+trap mark_failed ERR
 
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -v target_limit="$TARGET_LIMIT" -c "\copy (
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
   WITH candidates AS (
     SELECT posting.*, site.source_type, target.canonical_name AS company,
            md5(concat_ws(E'\\x1f', posting.title, posting.location, posting.category,
@@ -40,7 +49,7 @@ SQL
     JOIN jobpush.crawl_targets target USING(consolidation_key)
     WHERE posting.active
       AND (
-        (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = :'export_date'::date
+        (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = '$EXPORT_DATE'::date
         OR EXISTS (
           SELECT 1 FROM jobpush.job_description_snapshots snapshot
           WHERE snapshot.site_id=posting.site_id AND snapshot.external_job_id=posting.external_job_id
@@ -57,11 +66,11 @@ SQL
          COALESCE(posted_text,'') AS posted_text,job_url,
          (first_seen_at AT TIME ZONE 'America/Chicago')::date AS first_seen_date
   FROM candidates ORDER BY first_seen_at,site_id,external_job_id
-  LIMIT NULLIF(:'target_limit','0')::integer
+  LIMIT NULLIF('$TARGET_LIMIT','0')::integer
 ) TO '$TARGETS' WITH (FORMAT csv, HEADER true)"
 
-DISCOVERED="$("${PSQL[@]}" -qAt -v export_date="$EXPORT_DATE" -c \
-  "SELECT count(*) FROM jobpush.job_postings WHERE active AND (first_seen_at AT TIME ZONE 'America/Chicago')::date=:'export_date'::date;")"
+DISCOVERED="$("${PSQL[@]}" -qAt -c \
+  "SELECT count(*) FROM jobpush.job_postings WHERE active AND (first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date;")"
 PROCESSED=$(( $(wc -l < "$TARGETS") - 1 ))
 SKIPPED=$(( DISCOVERED > PROCESSED ? DISCOVERED - PROCESSED : 0 ))
 
@@ -105,7 +114,7 @@ else
   printf '%s\n' '{"processed":0,"succeeded":0,"failed":0,"by_ats":{},"failure_reasons":{}}' > "$SCRAPE_REPORT"
 fi
 
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -c "\copy (
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
   SELECT target.canonical_name AS company,posting.title,COALESCE(posting.location,'') AS location,
          COALESCE(snapshot.work_arrangement,'') AS work_arrangement,
          COALESCE(posting.employment_type,'') AS employment_type,
@@ -122,7 +131,7 @@ fi
   JOIN jobpush.career_sites site USING(site_id)
   JOIN jobpush.crawl_targets target USING(consolidation_key)
   WHERE posting.active AND snapshot.scrape_status='succeeded'
-    AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date=:'export_date'::date
+    AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date
   ORDER BY posting.first_seen_at,posting.site_id,posting.external_job_id
 ) TO '$EXPORT_CSV' WITH (FORMAT csv, HEADER true)"
 
@@ -166,3 +175,4 @@ WHERE export_date=:'export_date';
 SQL
 
 echo "Daily export complete: path=$EXPORT_JSON size=$FILE_SIZE discovered=$DISCOVERED processed=$PROCESSED exported=$EXPORTED failed=$FAILED email=$EMAIL_STATUS"
+trap - ERR
