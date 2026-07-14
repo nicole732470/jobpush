@@ -64,4 +64,4 @@ bash "$SCRIPT_DIR/run_apply_career_site_auto_trust.sh"
 
 snapshot after
 echo "=== Site-growth workflow completed mode=$MODE at $(date -u +%FT%TZ) ==="
-echo "Newly enabled sites are now due and will be ingested by jobpush-crawl.timer."
+echo "Newly enabled sites are now due and will be ingested by the next nightly crawl."

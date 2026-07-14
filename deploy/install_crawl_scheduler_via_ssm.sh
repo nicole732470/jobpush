@@ -10,25 +10,24 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/jobpush}"
 
 SERVICE=$(base64 <<'UNIT' | tr -d '\n'
 [Unit]
-Description=JobPush due career-site crawl batch
+Description=JobPush nightly due career-site crawl drain
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
-ExecStart=/bin/bash -lc 'git pull --ff-only origin main && bash db/run_due_crawl_batch.sh 50'
-TimeoutStartSec=3600
+ExecStart=/bin/bash -lc 'git pull --ff-only origin main && bash db/run_due_crawl_drain.sh'
+TimeoutStartSec=43200
 UNIT
 )
 
 TIMER=$(base64 <<'UNIT' | tr -d '\n'
 [Unit]
-Description=Run JobPush due crawl check every 15 minutes during rollout
+Description=Run JobPush due-site crawl drain nightly at 1 AM Chicago time
 
 [Timer]
-OnCalendar=*:0/15
-RandomizedDelaySec=2m
+OnCalendar=*-*-* 01:00:00 America/Chicago
 Persistent=true
 Unit=jobpush-crawl.service
 
