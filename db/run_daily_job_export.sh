@@ -46,7 +46,7 @@ trap mark_failed ERR
                posting.job_url, posting.description_snippet, posting.posted_text, posting.employment_type)) AS source_fingerprint
     FROM jobpush.job_postings posting
     JOIN jobpush.career_sites site USING(site_id)
-    JOIN jobpush.crawl_targets target USING(consolidation_key)
+    JOIN jobpush.crawl_targets target ON target.consolidation_key=site.consolidation_key
     WHERE posting.active
       AND (
         (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date = '$EXPORT_DATE'::date
@@ -129,7 +129,7 @@ fi
   FROM jobpush.job_postings posting
   JOIN jobpush.job_description_snapshots snapshot USING(site_id,external_job_id)
   JOIN jobpush.career_sites site USING(site_id)
-  JOIN jobpush.crawl_targets target USING(consolidation_key)
+  JOIN jobpush.crawl_targets target ON target.consolidation_key=site.consolidation_key
   WHERE posting.active AND snapshot.scrape_status='succeeded'
     AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date
   ORDER BY posting.first_seen_at,posting.site_id,posting.external_job_id
