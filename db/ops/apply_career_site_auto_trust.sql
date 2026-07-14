@@ -118,9 +118,9 @@ WHERE EXISTS (
 UPDATE jobpush.career_sites site
 SET crawl_interval_hours = CASE target.priority_tier
         WHEN 'P0' THEN 24
-        WHEN 'P1' THEN 72
-        WHEN 'P2' THEN 168
-        WHEN 'P3' THEN 336
+        WHEN 'P1' THEN 48
+        WHEN 'P2' THEN 96
+        WHEN 'P3' THEN 168
     END,
     next_crawl_at = COALESCE(site.next_crawl_at, now()),
     updated_at = now()
