@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 EXPORT_DATE="${1:-$(TZ=America/Chicago date +%F)}"
 EXPORT_DIR="${JOBPUSH_DAILY_EXPORT_DIR:-$REPO_DIR/daily_exports}"
 WORKERS="${JOBPUSH_JD_WORKERS:-8}"
+TARGET_LIMIT="${JOBPUSH_JD_LIMIT:-0}"
 EMAIL_TO="${JOBPUSH_EXPORT_EMAIL:-nicole732470@gmail.com,yuli2026@u.northwestern.edu}"
 EMAIL_FROM="${JOBPUSH_EXPORT_FROM_EMAIL:-nicole732470@gmail.com}"
 MAX_ATTACHMENT_BYTES="${JOBPUSH_MAX_EMAIL_ATTACHMENT_BYTES:-24000000}"
@@ -29,7 +30,7 @@ VALUES (:'export_date','running',now(),NULL,NULL,NULL)
 ON CONFLICT(export_date) DO UPDATE SET status='running',started_at=now(),finished_at=NULL,email_status=NULL,email_error=NULL;
 SQL
 
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -c "\copy (
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -v target_limit="$TARGET_LIMIT" -c "\copy (
   WITH candidates AS (
     SELECT posting.*, site.source_type, target.canonical_name AS company,
            md5(concat_ws(E'\\x1f', posting.title, posting.location, posting.category,
@@ -56,6 +57,7 @@ SQL
          COALESCE(posted_text,'') AS posted_text,job_url,
          (first_seen_at AT TIME ZONE 'America/Chicago')::date AS first_seen_date
   FROM candidates ORDER BY first_seen_at,site_id,external_job_id
+  LIMIT NULLIF(:'target_limit','0')::integer
 ) TO '$TARGETS' WITH (FORMAT csv, HEADER true)"
 
 DISCOVERED="$("${PSQL[@]}" -qAt -v export_date="$EXPORT_DATE" -c \
