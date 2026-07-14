@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 echo "==> post-crawl title classification"
+bash "$SCRIPT_DIR/run_reapply_latest_title_rules.sh"
 bash "$SCRIPT_DIR/run_local_title_ml.sh"
 
 echo "==> refresh recent crawl target/review counts"
