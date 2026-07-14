@@ -30,7 +30,7 @@ EXPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.json"
 REPORT_JSON="$EXPORT_DIR/$EXPORT_DATE.report.json"
 SES_REQUEST="$WORK_DIR/ses_request.json"
 
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
+"${PSQL[@]}" -qAt -v ON_ERROR_STOP=1 -c "
   SELECT jsonb_strip_nulls(jsonb_build_object(
     'company', target.canonical_name,
     'title', posting.title,
@@ -51,7 +51,7 @@ SES_REQUEST="$WORK_DIR/ses_request.json"
     AND label.classification_status='target'
     AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date
   ORDER BY posting.first_seen_at DESC, target.canonical_name, posting.title
-) TO '$JSON_LINES'"
+" > "$JSON_LINES"
 
 jq -s . "$JSON_LINES" > "$EXPORT_JSON"
 EXPORTED="$(jq length "$EXPORT_JSON")"
