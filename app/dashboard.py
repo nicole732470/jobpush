@@ -2147,10 +2147,11 @@ ROLE_FAMILY_OPTIONS = [
 
 EMPLOYMENT_BUCKET_OPTIONS = ["internship", "entry_level", "full_time_or_unknown", "full_time", "part_time", "contract"]
 LOCATION_BUCKET_OPTIONS = ["chicago_or_illinois", "remote", "other_us", "location_not_listed"]
-SENIORITY_BUCKET_OPTIONS = ["internship", "entry_level", "regular_full_time", "senior_or_leadership"]
+SENIORITY_BUCKET_OPTIONS = ["internship", "new_grad", "entry_level", "regular_full_time", "senior_or_leadership"]
 SENIORITY_FILTER_LABELS = {
     "All": None,
     "Internship": "internship",
+    "New grad": "new_grad",
     "Entry level": "entry_level",
     "Regular": "regular_full_time",
     "Senior": "senior_or_leadership",
