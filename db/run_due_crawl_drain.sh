@@ -45,16 +45,16 @@ if (( completed_batches > 0 )); then
   bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
 fi
 
-echo "==> daily crawl health analysis and safe recovery"
-bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
-
 remaining="$(due_count)"
 if (( remaining > 0 )); then
-  echo "Daily export withheld: $remaining due sites remain after the crawl." >&2
+  echo "Daily export withheld: $remaining sites from this crawl remain unprocessed." >&2
   exit 1
 fi
 
+echo "==> daily crawl health analysis and safe recovery"
+bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
+
 echo "==> export today's newly crawled target jobs and email JSON"
-bash "$SCRIPT_DIR/run_daily_job_export.sh"
+JOBPUSH_CRAWL_COMPLETE=1 bash "$SCRIPT_DIR/run_daily_job_export.sh"
 
 echo "Nightly crawl drain completed at $(date -u +%FT%TZ); batches=$completed_batches remaining_due=$remaining"
