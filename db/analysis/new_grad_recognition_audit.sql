@@ -1,5 +1,19 @@
 \pset pager off
 
+\echo '=== New-grad jobs by role status ==='
+SELECT role_status, count(*) AS active_jobs, count(DISTINCT consolidation_key) AS companies
+FROM jobpush.dashboard_jobs_fast
+WHERE seniority_bucket = 'new_grad'
+GROUP BY 1
+ORDER BY active_jobs DESC;
+
+\echo '=== Target new-grad titles ==='
+SELECT normalized_title, count(*) AS active_jobs, count(DISTINCT consolidation_key) AS companies
+FROM jobpush.dashboard_jobs_fast
+WHERE seniority_bucket = 'new_grad' AND role_status = 'target'
+GROUP BY 1
+ORDER BY active_jobs DESC, normalized_title;
+
 \echo '=== Current new-grad titles ==='
 SELECT normalized_title, count(*) AS active_jobs, count(DISTINCT consolidation_key) AS companies
 FROM jobpush.dashboard_jobs_fast

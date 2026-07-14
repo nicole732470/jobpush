@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import os
 from pathlib import Path
 import re
@@ -1516,6 +1516,20 @@ def trigger_inline_site_crawl(site_id: int | None) -> tuple[bool, str]:
 
 
 @st.cache_data(ttl=60)
+def earliest_active_job_date() -> date:
+    frame = query(
+        """
+        SELECT COALESCE(
+            MIN(first_seen_at AT TIME ZONE 'America/Chicago')::date,
+            (NOW() AT TIME ZONE 'America/Chicago')::date
+        ) AS earliest_date
+        FROM jobpush.dashboard_jobs_fast
+        """
+    )
+    return pd.to_datetime(frame.iloc[0]["earliest_date"]).date()
+
+
+@st.cache_data(ttl=60)
 def jobs(
     start_date,
     end_date,
@@ -2399,10 +2413,11 @@ if selected_page == "Jobs to apply":
         ["All"] + list(APPLICATION_STATUS_OPTIONS.keys()),
     )
     filter_cols_2 = st.columns(6)
+    earliest_job_date = earliest_active_job_date()
     date_window = filter_cols_2[0].date_input(
         "First seen",
-        value=(chicago_today - timedelta(days=6), chicago_today),
-        min_value=chicago_today - timedelta(days=365),
+        value=(earliest_job_date, chicago_today),
+        min_value=earliest_job_date,
         max_value=chicago_today,
     )
     priority_choice = filter_cols_2[1].selectbox(
