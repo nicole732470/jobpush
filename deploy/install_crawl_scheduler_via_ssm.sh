@@ -17,6 +17,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
+ExecCondition=/bin/bash -lc 'if [[ -e /var/lib/jobpush/skip-next-crawl ]]; then rm -f /var/lib/jobpush/skip-next-crawl; exit 1; fi'
 ExecStart=/usr/bin/flock -n /run/jobpush-crawl.lock /bin/bash db/run_due_crawl_drain.sh
 TimeoutStartSec=43200
 UNIT
@@ -43,6 +44,7 @@ COMMAND_ID=$(aws ssm send-command \
   --parameters commands="[
 \"set -euo pipefail\",
 \"if [[ ! -d '$INSTALL_DIR/.git' ]]; then git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
+\"mkdir -p /var/lib/jobpush\",
 \"echo '$SERVICE' | base64 -d > /etc/systemd/system/jobpush-crawl.service\",
 \"echo '$TIMER' | base64 -d > /etc/systemd/system/jobpush-crawl.timer\",
 \"systemctl daemon-reload\",
