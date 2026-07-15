@@ -20,12 +20,45 @@ from urllib.request import Request, urlopen
 SKIP_TAGS = {"script", "style", "nav", "footer", "header", "aside", "noscript", "svg"}
 JD_HINTS = ("job-description", "jobdescription", "job_description", "description", "job-details", "jobdetails")
 
+INVALID_PAGE_PATTERNS = (
+    ("redirect response", r'^\s*\{\s*"widget"\s*:\s*"redirect"'),
+    ("login page", r"sign in - google accounts|forgot email\?|not your computer\?"),
+    ("inactive career page", r"inactive career page|account is no longer active"),
+    ("job detail loading placeholder", r"current openings\s+loading position details"),
+    ("job listing page", r"displaying\s+\d+\s+to\s+\d+|view open positions|open positions\s+skip to content"),
+)
+
 
 def clean_text(value: str) -> str:
     value = html.unescape(re.sub(r"<[^>]+>", " ", value or ""))
     value = re.sub(r"[\t\r ]+", " ", value)
     value = re.sub(r" *\n+ *", "\n", value)
     return value.strip()
+
+
+def description_quality_error(description: str) -> str:
+    """Return why text is not a complete, reviewable job description."""
+    text = clean_text(description)
+    lowered = text.casefold()
+    for reason, pattern in INVALID_PAGE_PATTERNS:
+        if re.search(pattern, lowered, re.DOTALL):
+            return reason
+    if len(text) < 400:
+        return f"job description shorter than 400 characters ({len(text)})"
+
+    role_signals = (
+        r"responsibilit", r"what you(?:'|’)ll [^.\n:]{0,40}(?:do|work on)", r"you will", r"about the role",
+        r"duties", r"the role", r"key functions", r"the opportunity",
+    )
+    qualification_signals = (
+        r"qualifications", r"requirements", r"what you bring", r"what we(?:'|’)re looking for",
+        r"experience", r"skills", r"minimum qualifications", r"preferred qualifications",
+    )
+    if not any(re.search(pattern, lowered) for pattern in role_signals):
+        return "missing role or responsibility content"
+    if not any(re.search(pattern, lowered) for pattern in qualification_signals):
+        return "missing qualification or experience content"
+    return ""
 
 
 def json_objects(value):
@@ -190,6 +223,36 @@ def greenhouse_fields(raw: str) -> dict:
     }
 
 
+def smartrecruiters_url(row: dict) -> str:
+    parsed = urlsplit(row["job_url"])
+    if parsed.hostname == "api.smartrecruiters.com" and "/postings/" in parsed.path:
+        return row["job_url"]
+    token = row.get("source_key", "")
+    job_id = row.get("external_job_id", "")
+    if not token or not job_id:
+        raise ValueError("missing SmartRecruiters company token or job id")
+    return f"https://api.smartrecruiters.com/v1/companies/{token}/postings/{job_id}"
+
+
+def smartrecruiters_fields(raw: str) -> dict:
+    job = json.loads(raw)
+    sections = (job.get("jobAd") or {}).get("sections") or {}
+    parts = []
+    for key in ("jobDescription", "qualifications", "additionalInformation"):
+        section = sections.get(key) or {}
+        title = clean_text(str(section.get("title") or ""))
+        text = clean_text(str(section.get("text") or ""))
+        if text:
+            parts.append("\n".join(part for part in (title, text) if part))
+    return {
+        "cleaned_description": "\n\n".join(parts),
+        "apply_url": str(job.get("applyUrl") or job.get("postingUrl") or ""),
+        "work_arrangement": str((job.get("location") or {}).get("remote") or ""),
+        "salary_text": "",
+        "posted_date": str(job.get("releasedDate") or "")[:10],
+    }
+
+
 def ashby_url(row: dict) -> str:
     token = row.get("source_key", "")
     if not token:
@@ -213,6 +276,26 @@ def ashby_fields(raw: str, external_job_id: str) -> dict:
     }
 
 
+def google_fields(raw: str) -> dict:
+    parser = JobPageParser()
+    parser.feed(raw)
+    fields = structured_fields(parser)
+    description = fields["cleaned_description"]
+    start = description.find("Minimum qualifications")
+    if start < 0:
+        start = description.find("About the job")
+    if start < 0:
+        raise ValueError("Google detail page did not contain job qualifications")
+    end_markers = (
+        "Information collected and processed as part of your Google Careers profile",
+        "Google is proud to be an equal opportunity",
+    )
+    end = min((position for marker in end_markers
+               if (position := description.find(marker, start)) >= 0), default=len(description))
+    fields["cleaned_description"] = description[start:end].strip()
+    return fields
+
+
 def workday_url(row: dict) -> str:
     parsed = urlsplit(row["job_url"])
     parts = [part for part in parsed.path.split("/") if part]
@@ -229,6 +312,8 @@ def workday_url(row: dict) -> str:
 
 def workday_fields(raw: str) -> dict:
     payload = json.loads(raw)
+    if payload.get("widget") == "redirect":
+        raise ValueError("Workday detail endpoint returned redirect metadata")
     job = payload.get("jobPostingInfo") or payload
     description = job.get("jobDescription") or job.get("description") or ""
     return {
@@ -250,6 +335,8 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
                 fetch_url = oracle_detail_url(row["job_url"])
             elif source_type == "greenhouse":
                 fetch_url = greenhouse_url(row)
+            elif source_type == "smartrecruiters":
+                fetch_url = smartrecruiters_url(row)
             elif source_type == "ashby":
                 fetch_url = ashby_url(row)
             elif source_type == "workday":
@@ -270,16 +357,21 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
                 fields = oracle_fields(raw)
             elif source_type == "greenhouse":
                 fields = greenhouse_fields(raw)
+            elif source_type == "smartrecruiters":
+                fields = smartrecruiters_fields(raw)
             elif source_type == "ashby":
                 fields = ashby_fields(raw, row["external_job_id"])
             elif source_type == "workday":
                 fields = workday_fields(raw)
+            elif source_type == "google_jobs":
+                fields = google_fields(raw)
             else:
                 parser = JobPageParser()
                 parser.feed(raw)
                 fields = structured_fields(parser)
-            if len(fields["cleaned_description"]) < 100:
-                raise ValueError("cleaned job description shorter than 100 characters")
+            quality_error = description_quality_error(fields["cleaned_description"])
+            if quality_error:
+                raise ValueError(quality_error)
             return {
                 **result, **fields, "raw_html": raw, "content_type": content_type,
                 "http_status": status, "scrape_status": "succeeded", "scrape_error": "",

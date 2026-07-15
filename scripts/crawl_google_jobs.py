@@ -10,7 +10,7 @@ import json
 import re
 import time
 from pathlib import Path
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 FIELDS = ["external_job_id", "title", "normalized_title", "location", "category",
@@ -31,6 +31,11 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def public_job_url(job_id: str, title: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-")
+    return f"https://www.google.com/about/careers/applications/jobs/results/{quote(job_id)}-{quote(slug)}"
+
+
 def fetch(url: str, timeout: int) -> tuple[str, int]:
     request = Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html"})
     with urlopen(request, timeout=timeout) as response:
@@ -48,7 +53,7 @@ def parse_jobs(body: str) -> list[dict[str, str]]:
     for idx, match in enumerate(starts):
         chunk = body[match.start(): starts[idx + 1].start() if idx + 1 < len(starts) else match.start() + 30000]
         title = clean(json.loads(f'"{match.group("title")}"'))
-        job_url = clean(json.loads(f'"{match.group("url")}"')).replace(r"\u003d", "=").replace(r"\u0026", "&")
+        job_url = public_job_url(match.group("id"), title)
         locations = []
         for loc in re.findall(r'\["([^"]+?,\s*[A-Z]{2},\s*USA)"', chunk):
             if loc not in locations:

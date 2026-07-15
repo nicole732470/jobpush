@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPORT_DATE="${1:-$(TZ=America/Chicago date +%F)}"
 BATCH_SIZE="${JOBPUSH_JD_BATCH_SIZE:-50}"
 WORKERS="${JOBPUSH_JD_WORKERS:-4}"
+JD_PARSER_VERSION="${JOBPUSH_JD_PARSER_VERSION:-jd-v2-complete-content}"
 WORK_DIR="$(mktemp -d -t jobpush-jd-backfill.XXXXXX)"
 QUEUE="$WORK_DIR/queue.csv"
 BATCH="$WORK_DIR/batch.csv"
@@ -21,7 +22,7 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
            COALESCE(posting.employment_type,'') AS employment_type,
            COALESCE(posting.posted_text,'') AS posted_text,posting.job_url,
            (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date AS first_seen_date,
-           md5(concat_ws(E'\\x1f',posting.title,posting.location,posting.category,posting.job_url,
+           md5(concat_ws(E'\\x1f','$JD_PARSER_VERSION',posting.title,posting.location,posting.category,posting.job_url,
                posting.description_snippet,posting.posted_text,posting.employment_type)) AS source_fingerprint,
            snapshot.source_fingerprint AS saved_fingerprint,snapshot.scrape_status,snapshot.attempt_count
     FROM jobpush.job_postings_us posting

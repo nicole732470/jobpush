@@ -18,6 +18,7 @@ SKIP_EMAIL="${JOBPUSH_SKIP_EMAIL:-0}"
 SKIP_EXPORT="${JOBPUSH_SKIP_EXPORT:-0}"
 JD_INPUT_FILE="${JOBPUSH_JD_INPUT_FILE:-}"
 SKIP_JD_FETCH="${JOBPUSH_SKIP_JD_FETCH:-0}"
+JD_PARSER_VERSION="${JOBPUSH_JD_PARSER_VERSION:-jd-v2-complete-content}"
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -58,7 +59,7 @@ else
            COALESCE(posting.employment_type,'') AS employment_type,
            COALESCE(posting.posted_text,'') AS posted_text,posting.job_url,
            (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date AS first_seen_date,
-           md5(concat_ws(E'\\x1f',posting.title,posting.location,posting.category,posting.job_url,
+           md5(concat_ws(E'\\x1f','$JD_PARSER_VERSION',posting.title,posting.location,posting.category,posting.job_url,
                posting.description_snippet,posting.posted_text,posting.employment_type)) AS source_fingerprint,
            snapshot.source_fingerprint AS saved_fingerprint,snapshot.scrape_status,snapshot.attempt_count
     FROM jobpush.job_postings_us posting
@@ -151,7 +152,7 @@ fi
   JOIN jobpush.job_title_labels label USING(normalized_title)
   JOIN jobpush.job_description_snapshots snapshot
     ON snapshot.site_id=posting.site_id AND snapshot.external_job_id=posting.external_job_id
-   AND snapshot.source_fingerprint=md5(concat_ws(E'\\x1f',posting.title,posting.location,posting.category,
+   AND snapshot.source_fingerprint=md5(concat_ws(E'\\x1f','$JD_PARSER_VERSION',posting.title,posting.location,posting.category,
        posting.job_url,posting.description_snippet,posting.posted_text,posting.employment_type))
    AND snapshot.scrape_status='succeeded'
   WHERE posting.active

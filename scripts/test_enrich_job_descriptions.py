@@ -3,8 +3,8 @@ import json
 import unittest
 
 from enrich_job_descriptions import (
-    JobPageParser, ashby_fields, greenhouse_fields, greenhouse_url,
-    oracle_fields, structured_fields, workday_fields, workday_url,
+    JobPageParser, ashby_fields, description_quality_error, google_fields, greenhouse_fields, greenhouse_url,
+    oracle_fields, smartrecruiters_fields, smartrecruiters_url, structured_fields, workday_fields, workday_url,
 )
 
 
@@ -43,6 +43,19 @@ class JobDescriptionParserTest(unittest.TestCase):
         result = greenhouse_fields(json.dumps({"content": "<p>Build useful products. " * 12 + "</p>", "absolute_url": "https://example.test/job"}))
         self.assertIn("Build useful products", result["cleaned_description"])
 
+    def test_smartrecruiters_public_api(self):
+        row = {"source_key": "ExampleCo", "external_job_id": "abc", "job_url": "https://careers.smartrecruiters.com/ExampleCo"}
+        self.assertEqual(smartrecruiters_url(row), "https://api.smartrecruiters.com/v1/companies/ExampleCo/postings/abc")
+        result = smartrecruiters_fields(json.dumps({
+            "jobAd": {"sections": {
+                "jobDescription": {"title": "Responsibilities", "text": "<p>Own AI products. " * 30 + "</p>"},
+                "qualifications": {"title": "Qualifications", "text": "Five years of product experience and AI skills."},
+            }},
+            "applyUrl": "https://example.test/apply", "releasedDate": "2026-07-14T00:00:00Z",
+        }))
+        self.assertIn("Own AI products", result["cleaned_description"])
+        self.assertIn("Qualifications", result["cleaned_description"])
+
     def test_ashby_board_job(self):
         result = ashby_fields(json.dumps({"jobs": [{"id": "abc", "descriptionHtml": "<p>Own AI workflows. " * 12 + "</p>"}]}), "abc")
         self.assertIn("Own AI workflows", result["cleaned_description"])
@@ -52,6 +65,37 @@ class JobDescriptionParserTest(unittest.TestCase):
         self.assertEqual(workday_url(row), "https://nike.wd1.myworkdayjobs.com/wday/cxs/nike/nke/job/Beaverton/Business-Analyst_R-1")
         result = workday_fields(json.dumps({"jobPostingInfo": {"jobDescription": "<p>Analyze product data. " * 12 + "</p>"}}))
         self.assertIn("Analyze product data", result["cleaned_description"])
+
+    def test_rejects_false_success_pages(self):
+        self.assertIn("redirect", description_quality_error(
+            '{"widget":"redirect","url":"/site/job/example","externalSpa":true}'))
+        self.assertEqual("login page", description_quality_error(
+            "Sign in - Google Accounts Forgot email? Not your computer? " * 20))
+        self.assertEqual("inactive career page", description_quality_error(
+            "JazzHR - Inactive Career Page This account is no longer active. " * 20))
+        self.assertIn("shorter", description_quality_error("Only a salary fragment."))
+
+    def test_accepts_complete_jd(self):
+        description = (
+            "About the role. You will own the product roadmap and partner with engineering. "
+            "Responsibilities include customer research, prioritization, and launch measurement. "
+            "Qualifications: five years of product experience and strong communication skills. " * 4
+        )
+        self.assertEqual("", description_quality_error(description))
+
+    def test_google_detail_removes_search_results_chrome(self):
+        page = """<html><body>
+        <div>Jobs search results Other unrelated job Showing 1 to 20 of 3000 rows</div>
+        <main><h2>Minimum qualifications</h2><p>Five years of product experience and AI skills.</p>
+        <h2>About the job</h2><p>You will own the product roadmap and partner with engineering.</p>
+        <h2>Responsibilities</h2><p>Define strategy, interview users, and measure product quality.</p>
+        <p>Qualifications include communication and technical product experience.</p>
+        <p>""" + ("Build reliable AI products with customers. " * 12) + """</p>
+        <p>Google is proud to be an equal opportunity employer.</p></main></body></html>"""
+        result = google_fields(page)
+        self.assertTrue(result["cleaned_description"].startswith("Minimum qualifications"))
+        self.assertNotIn("Other unrelated job", result["cleaned_description"])
+        self.assertNotIn("equal opportunity employer", result["cleaned_description"])
 
 
 if __name__ == "__main__":
