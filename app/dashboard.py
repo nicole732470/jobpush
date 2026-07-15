@@ -1632,54 +1632,6 @@ def jobs(
 
 
 @st.cache_data(ttl=60)
-def job_descriptions(
-    search: str,
-    tiers: tuple[str, ...],
-    row_limit: int,
-    row_offset: int = 0,
-) -> pd.DataFrame:
-    search = normalize_search_query(search)
-    return query(
-        """
-        WITH page AS MATERIALIZED (
-            SELECT fast.site_id, fast.external_job_id, fast.canonical_name, fast.priority_tier,
-                   fast.title, fast.location, fast.employment_type, fast.canonical_role,
-                   fast.first_seen_at, fast.last_seen_at, fast.job_url
-            FROM jobpush.dashboard_jobs_fast fast
-            WHERE fast.role_status = 'target'
-              AND fast.priority_tier = ANY(%s)
-              AND (%s = '' OR concat_ws(' ', fast.canonical_name, fast.title, fast.location)
-                   ILIKE '%%' || %s || '%%')
-            ORDER BY fast.first_seen_at DESC, fast.canonical_name, fast.title
-            LIMIT %s OFFSET %s
-        )
-        SELECT page.*,
-               snapshot.apply_url, snapshot.work_arrangement, snapshot.salary_text,
-               snapshot.posted_date, snapshot.scraped_at
-        FROM page
-        JOIN jobpush.job_description_snapshots snapshot USING (site_id, external_job_id)
-        WHERE snapshot.scrape_status = 'succeeded'
-          AND snapshot.cleaned_description IS NOT NULL
-        ORDER BY page.first_seen_at DESC, page.canonical_name, page.title
-        """,
-        (list(tiers), search, search, int(row_limit), int(row_offset)),
-    )
-
-
-@st.cache_data(ttl=300)
-def job_description_text(site_id: int, external_job_id: str) -> str:
-    frame = query(
-        """
-        SELECT cleaned_description
-        FROM jobpush.job_description_snapshots
-        WHERE site_id = %s AND external_job_id = %s AND scrape_status = 'succeeded'
-        """,
-        (site_id, external_job_id),
-    )
-    return "" if frame.empty else str(frame.iloc[0]["cleaned_description"] or "")
-
-
-@st.cache_data(ttl=60)
 def job_description_export(search: str, tiers: tuple[str, ...]) -> pd.DataFrame:
     search = normalize_search_query(search)
     return query(
@@ -1701,12 +1653,6 @@ def job_description_export(search: str, tiers: tuple[str, ...]) -> pd.DataFrame:
         """,
         (list(tiers), search, search),
     )
-
-
-@st.cache_data(ttl=60)
-def all_target_jd_json() -> tuple[str, int]:
-    frame = job_description_export("", ("P0", "P1", "P2", "P3"))
-    return frame.to_json(orient="records", force_ascii=False, date_format="iso"), len(frame)
 
 
 def copy_full_jd_button(description: str, label: str = "Copy full JD") -> None:
@@ -2739,22 +2685,11 @@ if selected_page == "Jobs to apply":
         )
 
 if selected_page == "JD library":
-    st.subheader("JD library")
-    st.caption("只展示当前最终 Target 且已完整抓到 JD 的岗位；历史重复快照、Review、非 Target 和失败 JD 不会出现在这里。")
-    if st.button("Prepare all current Target JDs as JSON", key="jd-library-copy-all-prepare"):
-        full_json, job_count = all_target_jd_json()
-        st.session_state["jd-library-copy-all-json"] = full_json
-        st.session_state["jd-library-copy-all-count"] = job_count
-    full_library_json = st.session_state.get("jd-library-copy-all-json")
-    if full_library_json:
-        job_count = int(st.session_state["jd-library-copy-all-count"])
-        st.caption(f"Prepared {job_count:,} complete current Target JDs · {len(full_library_json) / 1024 / 1024:.1f} MB")
-        copy_full_jd_button(full_library_json, "Copy all current Target JDs (JSON)")
-    jd_filters = st.columns(4)
+    st.subheader("JD JSON copy")
+    st.caption("只做一件事：按筛选条件把当前最终 Target 的完整 JD 整包复制给 ChatGPT。不会加载或展示岗位表。")
+    jd_filters = st.columns(2)
     jd_search = jd_filters[0].text_input("Company / title / location", key="jd-library-search")
     jd_tier_choice = jd_filters[1].selectbox("Priority tier", ["All", "P0", "P1", "P2", "P3", "P0 + P1"], key="jd-library-tier")
-    jd_page_size = int(jd_filters[2].selectbox("Page size", [25, 50, 100], index=1, key="jd-library-size"))
-    jd_page_number = int(jd_filters[3].number_input("Page", min_value=1, value=1, step=1, key="jd-library-page"))
     jd_tiers = {
         "All": ("P0", "P1", "P2", "P3"),
         "P0": ("P0",),
@@ -2763,46 +2698,17 @@ if selected_page == "JD library":
         "P3": ("P3",),
         "P0 + P1": ("P0", "P1"),
     }[jd_tier_choice]
-    jd_frame = job_descriptions(jd_search, jd_tiers, jd_page_size, (jd_page_number - 1) * jd_page_size)
-    if jd_frame.empty:
-        st.info("No complete JD matches the current filters.")
-    else:
-        jd_frame = jd_frame.copy()
-        jd_frame["first_seen_ct"] = pd.to_datetime(jd_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
-        jd_event = st.dataframe(
-            jd_frame[["first_seen_ct", "canonical_name", "priority_tier", "title", "location", "work_arrangement", "employment_type", "job_url"]],
-            hide_index=True,
-            use_container_width=True,
-            height=520,
-            column_config={"job_url": st.column_config.LinkColumn("Job link", display_text="Open ↗")},
-            on_select="rerun",
-            selection_mode="single-row",
-            key="jd-library-table",
-        )
-        selected_rows = jd_event.selection.rows if jd_event and jd_event.selection else []
-        if selected_rows:
-            selected_jd = jd_frame.iloc[int(selected_rows[0])]
-            st.markdown(f"#### {selected_jd['canonical_name']} · {selected_jd['title']}")
-            st.caption(f"{selected_jd['location'] or 'Location not listed'} · [Open job]({selected_jd['job_url']})")
-            full_jd = job_description_text(int(selected_jd["site_id"]), str(selected_jd["external_job_id"]))
-            copy_full_jd_button(full_jd)
-            st.code(full_jd, language=None)
-            st.download_button(
-                "Download this JD (TXT)",
-                full_jd.encode("utf-8"),
-                file_name=f"{selected_jd['canonical_name']} - {selected_jd['title']}.txt".replace("/", "-"),
-                mime="text/plain",
-                key=f"jd-download-{selected_jd['site_id']}-{selected_jd['external_job_id']}",
-            )
-        if st.button("Prepare CSV of all matching JDs", key="jd-library-export"):
-            export_frame = job_description_export(jd_search, jd_tiers)
-            st.download_button(
-                "Download all matching JDs (CSV)",
-                csv_bytes(export_frame),
-                file_name=f"jobpush_complete_jds_{chicago_today}.csv",
-                mime="text/csv",
-                key="jd-library-export-download",
-            )
+    payload_filters = (normalize_search_query(jd_search), jd_tiers)
+    if st.button("Prepare JSON for current filters", key="jd-library-copy-all-prepare"):
+        export_frame = job_description_export(jd_search, jd_tiers)
+        st.session_state["jd-library-copy-all-json"] = export_frame.to_json(orient="records", force_ascii=False, date_format="iso")
+        st.session_state["jd-library-copy-all-count"] = len(export_frame)
+        st.session_state["jd-library-copy-all-filters"] = payload_filters
+    full_library_json = st.session_state.get("jd-library-copy-all-json")
+    if full_library_json and st.session_state.get("jd-library-copy-all-filters") == payload_filters:
+        job_count = int(st.session_state["jd-library-copy-all-count"])
+        st.caption(f"Prepared {job_count:,} complete JDs · {len(full_library_json) / 1024 / 1024:.1f} MB")
+        copy_full_jd_button(full_library_json, "Copy all matching JDs (JSON)")
 
 if selected_page == "Title review":
     st.subheader("Title samples for improving the classifier")
