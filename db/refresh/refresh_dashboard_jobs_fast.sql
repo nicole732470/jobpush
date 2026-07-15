@@ -2,6 +2,9 @@
 -- pipeline; rebuilding it from historical postings makes the dashboard slow.
 BEGIN;
 
+SET LOCAL enable_hashjoin = off;
+SET LOCAL enable_mergejoin = off;
+
 WITH current_postings AS MATERIALIZED (
   SELECT fast.site_id, fast.external_job_id, posting.normalized_title,
          posting.title, posting.location, posting.category, posting.job_url,
