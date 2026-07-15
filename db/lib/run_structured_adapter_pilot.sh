@@ -158,9 +158,11 @@ ON CONFLICT(site_id,external_job_id) DO UPDATE SET
   category=EXCLUDED.category,job_url=EXCLUDED.job_url,
   description_snippet=EXCLUDED.description_snippet,market_scope=EXCLUDED.market_scope,
   posted_text=EXCLUDED.posted_text,employment_type=EXCLUDED.employment_type,
-  active=TRUE,last_seen_at=now(),closed_at=NULL,last_run_id=$RUN_ID,updated_at=now();
+  active=TRUE,last_seen_at=now(),closed_at=NULL,closure_verified_at=NULL,
+  last_run_id=$RUN_ID,updated_at=now();
 
-UPDATE jobpush.job_postings p SET active=FALSE,closed_at=now(),last_run_id=$RUN_ID,updated_at=now()
+UPDATE jobpush.job_postings p SET active=FALSE,closed_at=now(),closure_verified_at=now(),
+  last_run_id=$RUN_ID,updated_at=now()
 FROM confirmed_closed closed
 WHERE p.site_id=$SITE_ID AND p.external_job_id=closed.external_job_id
   AND p.active AND p.market_scope='US';
