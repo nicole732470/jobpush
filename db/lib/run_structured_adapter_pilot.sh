@@ -100,10 +100,10 @@ PY
 )
 
 # A temporary parser/API regression must not close every previously active job.
-ACTIVE_JOB_COUNT="$("${PSQL[@]}" -qAt -c \
-  "SELECT count(*) FROM jobpush.job_postings WHERE site_id=$SITE_ID AND active AND market_scope='US';")"
-if (( PARSED_COUNT == 0 && ACTIVE_JOB_COUNT > 0 )); then
-  echo "zero-result guard: parser returned 0 jobs for a site with $ACTIVE_JOB_COUNT active US jobs" > "$ADAPTER_STDERR"
+ACTIVE_JOB_EXISTS="$("${PSQL[@]}" -qAt -c \
+  "SELECT EXISTS(SELECT 1 FROM jobpush.job_postings WHERE site_id=$SITE_ID AND active AND market_scope='US');")"
+if [[ "$PARSED_COUNT" == "0" && "$ACTIVE_JOB_EXISTS" == "t" ]]; then
+  echo "zero-result guard: parser returned 0 jobs for a site with active US jobs" > "$ADAPTER_STDERR"
   false
 fi
 
