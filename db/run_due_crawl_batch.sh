@@ -7,6 +7,8 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 
 LIMIT="${1:-10}"
 [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]] || { echo "limit must be a positive integer" >&2; exit 2; }
+CRAWL_WORKERS="${CRAWL_WORKERS:-3}"
+[[ "$CRAWL_WORKERS" =~ ^[1-9][0-9]*$ ]] || { echo "CRAWL_WORKERS must be a positive integer" >&2; exit 2; }
 SITE_ID_FILTER="${SITE_ID_FILTER:-}"
 SOURCE_TYPE_FILTER="${SOURCE_TYPE_FILTER:-}"
 PRIORITY_TIER_FILTER="${PRIORITY_TIER_FILTER:-}"
@@ -49,6 +51,24 @@ if [[ ${#DUE_SITES[@]} -eq 0 ]]; then
 fi
 
 failures=0
+if (( CRAWL_WORKERS > 1 && ${#DUE_SITES[@]} > 1 )) && [[ -z "$SITE_ID_FILTER" ]]; then
+  # Network waits dominate these crawls; three workers fit the 2-vCPU host
+  # without multiplying the post-crawl classification work.
+  for ((offset=0; offset<${#DUE_SITES[@]}; offset+=CRAWL_WORKERS)); do
+    pids=()
+    for ((index=offset; index<offset+CRAWL_WORKERS && index<${#DUE_SITES[@]}; index++)); do
+      IFS=$'\t' read -r _ _ _ _ site_id <<< "${DUE_SITES[$index]}"
+      CRAWL_WORKERS=1 SITE_ID_FILTER="$site_id" SKIP_POST_CRAWL_TITLE_ML=1 \
+        STRICT_CRAWL_FAILURES=1 bash "$0" 1 &
+      pids+=("$!")
+    done
+    for pid in "${pids[@]}"; do
+      if ! wait "$pid"; then
+        failures=$((failures + 1))
+      fi
+    done
+  done
+else
 for row in "${DUE_SITES[@]}"; do
   IFS=$'\t' read -r consolidation_key source_type priority_tier scope_method site_id <<< "$row"
   case "$source_type" in
@@ -132,6 +152,7 @@ for row in "${DUE_SITES[@]}"; do
     failures=$((failures + 1))
   fi
 done
+fi
 
 echo "Completed ${#DUE_SITES[@]} due sites; failures=$failures"
 successes=$((${#DUE_SITES[@]} - failures))

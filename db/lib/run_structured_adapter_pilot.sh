@@ -38,7 +38,8 @@ IFS=$'\t' read -r SITE_ID SITE_URL < <("${PSQL[@]}" -qAtF $'\t' -c \
 "${PSQL[@]}" -q -c \
   "UPDATE jobpush.crawl_batches SET status='failed',
       failed_target_count=GREATEST(failed_target_count,1), finished_at=COALESCE(finished_at,now())
-   WHERE cohort='$COHORT' AND status='running';"
+   WHERE cohort='$COHORT' AND status='running'
+     AND started_at < now() - interval '2 hours';"
 
 BATCH_NAME="$COHORT-site${SITE_ID}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 BATCH_ID=$("${PSQL[@]}" -Atc \
