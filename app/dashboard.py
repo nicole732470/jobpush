@@ -119,7 +119,7 @@ st.markdown(
 
 
 @st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
-def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
+def apply_job_summary() -> pd.DataFrame:
     return query(
         """
         WITH chicago_day AS (
@@ -128,8 +128,7 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
             SELECT job.*, COALESCE(action.action_status, 'new') AS application_status
             FROM jobpush.dashboard_jobs_fast job
             LEFT JOIN jobpush.job_application_actions action USING (site_id, external_job_id)
-            WHERE job.priority_tier = ANY(%s)
-              AND job.role_status = 'target'
+            WHERE job.role_status = 'target'
               AND COALESCE(action.action_status, 'new') = ANY(%s)
         ), closed_today AS (
             SELECT COALESCE(sum(run.closed_job_count), 0) AS closed_jobs_today
@@ -137,8 +136,7 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
             JOIN jobpush.career_sites site USING (site_id)
             JOIN jobpush.crawl_targets target USING (consolidation_key)
             CROSS JOIN chicago_day
-            WHERE target.priority_tier = ANY(%s)
-              AND run.started_at >= chicago_day.start_at
+            WHERE run.started_at >= chicago_day.start_at
         )
         SELECT
             count(*) AS open_target_jobs,
@@ -149,15 +147,38 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
                 WHERE COALESCE(location, '') ILIKE '%%chicago%%'
                    OR COALESCE(location, '') ILIKE '%%illinois%%'
                    OR COALESCE(location, '') ~* '(^|[,/ -])IL($|[,/ -])'
-            ) AS chicago_or_il_jobs,
-            count(*) FILTER (
-                WHERE canonical_role = 'candidate_profile_track: product'
-                   OR normalized_title LIKE '%%product%%manager%%'
-            ) AS product_manager_jobs
+            ) AS chicago_or_il_jobs
         FROM open_jobs
         CROSS JOIN chicago_day
         """,
-        (list(tiers), list(OPEN_APPLICATION_STATUSES), list(tiers)),
+        (list(OPEN_APPLICATION_STATUSES),),
+    )
+
+
+@st.cache_data(ttl=HOME_CACHE_TTL_SECONDS)
+def daily_site_growth_summary() -> pd.DataFrame:
+    return query(
+        """
+        WITH chicago_day AS (
+            SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
+        ), latest_today_run AS (
+            SELECT DISTINCT ON (run.site_id) run.site_id, run.status
+            FROM jobpush.crawl_runs run CROSS JOIN chicago_day
+            WHERE run.started_at >= chicago_day.start_at
+            ORDER BY run.site_id, run.started_at DESC, run.run_id DESC
+        )
+        SELECT
+            COUNT(*) FILTER (
+                WHERE site.verification_status = 'verified'
+                  AND site.crawl_enabled
+                  AND site.reviewed_at >= chicago_day.start_at
+            ) AS new_crawl_sites_today,
+            COUNT(*) FILTER (WHERE site.created_at >= chicago_day.start_at) AS discovered_sites_today,
+            COUNT(*) FILTER (WHERE latest_today_run.status = 'failed') AS failed_crawl_sites_today
+        FROM jobpush.career_sites site
+        CROSS JOIN chicago_day
+        LEFT JOIN latest_today_run USING (site_id)
+        """
     )
 
 
@@ -2253,15 +2274,23 @@ def load_current_jobs() -> pd.DataFrame:
     return jobs(start_date, end_date, "", tiers, role_statuses, app_statuses, row_limit)
 
 if selected_page == "Home":
-    summary = apply_job_summary(tiers)
+    summary = apply_job_summary()
     summary_row = summary.iloc[0] if not summary.empty else pd.Series(dtype="int64")
+    growth = daily_site_growth_summary()
+    growth_row = growth.iloc[0] if not growth.empty else pd.Series(dtype="int64")
     metric_columns = st.columns(5)
-    metric_columns[0].metric(f"Open target jobs · {selected_tier_label}", f"{int(summary_row.get('open_target_jobs', 0)):,}")
-    metric_columns[1].metric("Newly discovered today", f"{int(summary_row.get('new_target_jobs_today', 0)):,}")
-    metric_columns[2].metric("Target closed today", f"{int(summary_row.get('closed_jobs_today', 0)):,}")
-    metric_columns[3].metric("Product Manager", f"{int(summary_row.get('product_manager_jobs', 0)):,}")
-    metric_columns[4].metric("Companies", f"{int(summary_row.get('companies', 0)):,}")
-    st.caption("Home counts active US target jobs that are still open for application. “Newly discovered” means JobPush first saw the posting today, not necessarily the employer posted it today.")
+    metric_columns[0].metric("Current target jobs", f"{int(summary_row.get('open_target_jobs', 0)):,}")
+    metric_columns[1].metric("New target jobs today", f"{int(summary_row.get('new_target_jobs_today', 0)):,}")
+    metric_columns[2].metric("Target jobs disappeared today", f"{int(summary_row.get('closed_jobs_today', 0)):,}")
+    metric_columns[3].metric("New crawl sites today", f"{int(growth_row.get('new_crawl_sites_today', 0)):,}")
+    metric_columns[4].metric("Crawl sites failed today", f"{int(growth_row.get('failed_crawl_sites_today', 0)):,}")
+    st.caption(
+        "岗位只统计当前仍可申请的 Target。今天新增按首次发现计算；消失只在上次存在、这次确认不存在时计入。"
+    )
+    st.caption(
+        f"每日扩量成果：今天发现 {int(growth_row.get('discovered_sites_today', 0)):,} 个候选站点，"
+        f"其中 {int(growth_row.get('new_crawl_sites_today', 0)):,} 个已验证并加入抓取队列。"
+    )
 
     status_summary = application_status_summary(tiers)
     if not status_summary.empty:
