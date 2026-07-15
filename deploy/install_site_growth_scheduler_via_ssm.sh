@@ -17,7 +17,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
-ExecStart=/bin/bash -lc 'git pull --ff-only origin main && MODE=daily bash db/run_site_growth_workflow.sh'
+ExecStart=/bin/bash -lc 'MODE=daily bash db/run_site_growth_workflow.sh'
 TimeoutStartSec=7200
 UNIT
 )
@@ -46,7 +46,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
-ExecStart=/bin/bash -lc 'git pull --ff-only origin main && MODE=monthly ATS_GUESS_LIMIT=1500 GENERIC_RESOLVE_LIMIT=3000 bash db/run_site_growth_workflow.sh'
+ExecStart=/bin/bash -lc 'MODE=monthly ATS_GUESS_LIMIT=1500 GENERIC_RESOLVE_LIMIT=3000 bash db/run_site_growth_workflow.sh'
 TimeoutStartSec=43200
 UNIT
 )
@@ -72,7 +72,7 @@ COMMAND_ID=$(aws ssm send-command \
   --document-name AWS-RunShellScript \
   --parameters commands="[
 \"set -euo pipefail\",
-\"if [[ -d '$INSTALL_DIR/.git' ]]; then git -C '$INSTALL_DIR' fetch origin main && git -C '$INSTALL_DIR' checkout main && git -C '$INSTALL_DIR' pull --ff-only origin main; else git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
+\"if [[ ! -d '$INSTALL_DIR/.git' ]]; then git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
 \"echo '$DAILY_SERVICE' | base64 -d > /etc/systemd/system/jobpush-site-growth.service\",
 \"echo '$DAILY_TIMER' | base64 -d > /etc/systemd/system/jobpush-site-growth.timer\",
 \"echo '$MONTHLY_SERVICE' | base64 -d > /etc/systemd/system/jobpush-site-growth-monthly.service\",

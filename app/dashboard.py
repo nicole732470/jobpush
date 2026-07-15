@@ -1632,7 +1632,12 @@ def jobs(
 
 
 @st.cache_data(ttl=60)
-def job_description_export(search: str, tiers: tuple[str, ...]) -> pd.DataFrame:
+def job_description_export(
+    search: str,
+    tiers: tuple[str, ...],
+    start_date: date,
+    end_date: date,
+) -> pd.DataFrame:
     search = normalize_search_query(search)
     return query(
         """
@@ -1647,11 +1652,13 @@ def job_description_export(search: str, tiers: tuple[str, ...]) -> pd.DataFrame:
           AND fast.priority_tier = ANY(%s)
           AND snapshot.scrape_status = 'succeeded'
           AND snapshot.cleaned_description IS NOT NULL
+          AND fast.first_seen_at >= (%s::date::timestamp AT TIME ZONE 'America/Chicago')
+          AND fast.first_seen_at < (((%s::date + 1)::timestamp) AT TIME ZONE 'America/Chicago')
           AND (%s = '' OR concat_ws(' ', fast.canonical_name, fast.title, fast.location)
                ILIKE '%%' || %s || '%%')
         ORDER BY fast.first_seen_at DESC, fast.canonical_name, fast.title
         """,
-        (list(tiers), search, search),
+        (list(tiers), start_date, end_date, search, search),
     )
 
 
@@ -2687,9 +2694,15 @@ if selected_page == "Jobs to apply":
 if selected_page == "JD library":
     st.subheader("JD JSON copy")
     st.caption("只做一件事：按筛选条件把当前最终 Target 的完整 JD 整包复制给 ChatGPT。不会加载或展示岗位表。")
-    jd_filters = st.columns(2)
+    jd_filters = st.columns(3)
     jd_search = jd_filters[0].text_input("Company / title / location", key="jd-library-search")
     jd_tier_choice = jd_filters[1].selectbox("Priority tier", ["All", "P0", "P1", "P2", "P3", "P0 + P1"], key="jd-library-tier")
+    jd_dates = jd_filters[2].date_input(
+        "First seen (Chicago)",
+        value=(chicago_today, chicago_today),
+        max_value=chicago_today,
+        key="jd-library-dates",
+    )
     jd_tiers = {
         "All": ("P0", "P1", "P2", "P3"),
         "P0": ("P0",),
@@ -2698,9 +2711,11 @@ if selected_page == "JD library":
         "P3": ("P3",),
         "P0 + P1": ("P0", "P1"),
     }[jd_tier_choice]
-    payload_filters = (normalize_search_query(jd_search), jd_tiers)
+    jd_start_date = jd_dates[0] if isinstance(jd_dates, tuple) else jd_dates
+    jd_end_date = jd_dates[1] if isinstance(jd_dates, tuple) and len(jd_dates) > 1 else jd_start_date
+    payload_filters = (normalize_search_query(jd_search), jd_tiers, jd_start_date, jd_end_date)
     if st.button("Prepare JSON for current filters", key="jd-library-copy-all-prepare"):
-        export_frame = job_description_export(jd_search, jd_tiers)
+        export_frame = job_description_export(jd_search, jd_tiers, jd_start_date, jd_end_date)
         st.session_state["jd-library-copy-all-json"] = export_frame.to_json(orient="records", force_ascii=False, date_format="iso")
         st.session_state["jd-library-copy-all-count"] = len(export_frame)
         st.session_state["jd-library-copy-all-filters"] = payload_filters
