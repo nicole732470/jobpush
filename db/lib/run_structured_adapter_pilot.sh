@@ -89,12 +89,13 @@ elif [[ "$SCOPE_METHOD" == "local_filter" ]]; then
 else
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 fi
-IFS=$'\t' read -r REQUESTS PAGES RAW_COUNT PARSED_COUNT DUPLICATES HTTP_STATUS LATENCY_MS < <(
+IFS=$'\t' read -r REQUESTS PAGES RAW_COUNT PARSED_COUNT DUPLICATES HTTP_STATUS LATENCY_MS SOURCE_FILTERED < <(
   python3 - "$METRICS_JSON" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1],encoding="utf-8"))
 print("\t".join(str(d[k]) for k in ("requests_count","pages_fetched","raw_job_count",
-      "parsed_job_count","duplicate_count","last_http_status","latency_ms")))
+      "parsed_job_count","duplicate_count","last_http_status","latency_ms")) +
+      "\t" + str(d.get("source_filtered", False)).lower())
 PY
 )
 
@@ -106,7 +107,7 @@ if (( PARSED_COUNT == 0 && ACTIVE_JOB_COUNT > 0 )); then
   false
 fi
 
-"${PSQL[@]}" <<SQL
+"${PSQL[@]}" -v source_filtered="$SOURCE_FILTERED" <<SQL
 BEGIN;
 CREATE TEMP TABLE crawl_stage (
   external_job_id TEXT,title TEXT,normalized_title TEXT,location TEXT,category TEXT,
@@ -127,8 +128,13 @@ USING crawl_stage b
 WHERE a.ctid < b.ctid
   AND a.external_job_id = b.external_job_id;
 
+\if :source_filtered
+\copy (SELECT p.external_job_id,p.job_url FROM jobpush.job_postings p WHERE false) TO '$MISSING_JOBS_CSV' WITH (FORMAT csv, HEADER true)
+\! cp '$MISSING_JOBS_CSV' '$CONFIRMED_CLOSED_CSV'; printf '{"checked":0,"closed":0,"kept":0,"errors":0,"source_filtered":true}\n' > '$CLOSURE_METRICS_JSON'
+\else
 \copy (SELECT p.external_job_id,p.job_url FROM jobpush.job_postings p WHERE p.site_id=$SITE_ID AND p.active AND p.market_scope='US' AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id)) TO '$MISSING_JOBS_CSV' WITH (FORMAT csv, HEADER true)
 \! python3 "$REPO_DIR/scripts/verify_closed_job_links.py" "$MISSING_JOBS_CSV" "$CONFIRMED_CLOSED_CSV" > "$CLOSURE_METRICS_JSON"
+\endif
 
 CREATE TEMP TABLE confirmed_closed (external_job_id TEXT PRIMARY KEY) ON COMMIT DROP;
 \copy confirmed_closed FROM '$CONFIRMED_CLOSED_CSV' WITH (FORMAT csv, HEADER true)
@@ -172,6 +178,24 @@ UPDATE jobpush.job_postings p SET active=FALSE,closed_at=now(),closure_verified_
 FROM confirmed_closed closed
 WHERE p.site_id=$SITE_ID AND p.external_job_id=closed.external_job_id
   AND p.active AND p.market_scope='US';
+\if :source_filtered
+-- These jobs disappeared because the board's source scope was narrowed, not
+-- because their links were verified closed. Retire them without fake closure
+-- timestamps or thousands of detail-page requests.
+UPDATE jobpush.job_postings p
+SET active=FALSE,closed_at=NULL,closure_verified_at=NULL,last_run_id=$RUN_ID,updated_at=now()
+WHERE p.site_id=$SITE_ID AND p.active
+  AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id);
+
+DELETE FROM jobpush.dashboard_jobs_fast fast
+WHERE fast.site_id=$SITE_ID
+  AND NOT EXISTS (
+    SELECT 1 FROM jobpush.job_postings posting
+    WHERE posting.site_id=fast.site_id
+      AND posting.external_job_id=fast.external_job_id
+      AND posting.active AND posting.market_scope='US'
+  );
+\endif
 INSERT INTO jobpush.job_title_labels(normalized_title)
 SELECT DISTINCT normalized_title FROM crawl_stage ON CONFLICT DO NOTHING;
 

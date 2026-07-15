@@ -19,6 +19,19 @@ from market_scope import classify_market_scope
 FIELDS = ["external_job_id", "title", "normalized_title", "location", "category",
           "job_url", "description_snippet", "market_scope", "posted_text", "employment_type"]
 
+# TJX's global board is 95% store operations. Fetch only its corporate job
+# families at the API, instead of downloading 9,000+ retail jobs per run.
+SITE_FACETS = {
+    ("tjx", "TJX_EXTERNAL"): {
+        "jobFamilyGroup": [
+            "7d770955258e1000a7fd6e81b64e0000",  # Information Technology
+            "7d770955258e1000a7fd69192fa40001",  # Business Services
+            "7d770955258e1000a7fd6cb3f0140000",  # Finance
+            "7d770955258e1000a7fd69b2b24a0001",  # Customer Excellence
+        ]
+    }
+}
+
 
 def clean(value: str | None) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
@@ -67,6 +80,10 @@ def workday_site_from_path(path: str) -> str | None:
     return parts[0]
 
 
+def workday_applied_facets(tenant: str, site: str) -> dict[str, list[str]]:
+    return SITE_FACETS.get((tenant.casefold(), site), {})
+
+
 def resolve_workday_url(url: str, timeout: int = 30):
     """Resolve root/detail Workday URLs to the public board slug."""
     parsed = urlsplit(url)
@@ -100,6 +117,7 @@ def main() -> int:
     if not tenant or not site:
         raise ValueError(f"Cannot derive Workday tenant/site from {args.url}")
     endpoint = f"{parsed.scheme}://{parsed.netloc}/wday/cxs/{tenant}/{site}/jobs"
+    applied_facets = workday_applied_facets(tenant, site)
 
     rows: dict[str, dict[str, str]] = {}
     offset = 0
@@ -109,7 +127,8 @@ def main() -> int:
     raw_job_count = 0
     while offset < total:
         payload, last_status = post_json(endpoint, {
-            "appliedFacets": {}, "limit": args.page_size, "offset": offset, "searchText": ""
+            "appliedFacets": applied_facets, "limit": args.page_size,
+            "offset": offset, "searchText": ""
         })
         requests_count += 1
         total = int(payload.get("total", 0))
@@ -148,6 +167,7 @@ def main() -> int:
     print(json.dumps({"status": "succeeded", "requests_count": requests_count,
                       "pages_fetched": requests_count, "raw_job_count": raw_job_count,
                       "parsed_job_count": len(rows), "duplicate_count": raw_job_count - len(rows),
+                      "source_filtered": bool(applied_facets),
                       "last_http_status": last_status,
                       "latency_ms": round((time.monotonic() - started) * 1000)}))
     return 0

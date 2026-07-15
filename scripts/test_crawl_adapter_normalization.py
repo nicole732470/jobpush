@@ -3,7 +3,7 @@ import unittest
 
 from crawl_icims import search_url
 from crawl_rippling import board_url
-from crawl_workday import workday_site_from_path
+from crawl_workday import workday_applied_facets, workday_site_from_path
 
 
 class AdapterNormalizationTest(unittest.TestCase):
@@ -21,6 +21,11 @@ class AdapterNormalizationTest(unittest.TestCase):
 
     def test_workday_locale_and_detail(self):
         self.assertEqual(workday_site_from_path("/en-US/acme/job/Chicago/R-1"), "acme")
+
+    def test_tjx_uses_corporate_source_filter(self):
+        facets = workday_applied_facets("tjx", "TJX_EXTERNAL")
+        self.assertEqual(len(facets["jobFamilyGroup"]), 4)
+        self.assertEqual(workday_applied_facets("acme", "Jobs"), {})
 
 
 if __name__ == "__main__":
