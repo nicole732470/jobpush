@@ -5,8 +5,7 @@ BEGIN;
 -- active company/site record as its representative.
 CREATE OR REPLACE VIEW jobpush.crawl_schedule_queue AS
 WITH candidates AS (
-  SELECT target.priority_tier,target.priority_score,target.consolidation_key,
-         target.canonical_name,site.*,
+  SELECT target.priority_tier,target.priority_score,target.canonical_name,site.*,
          CASE
            WHEN site.source_type IN ('greenhouse','lever','ashby','smartrecruiters','workable')
              THEN site.source_type || ':' || lower(coalesce(nullif(site.source_key,''),site.site_url))
@@ -41,13 +40,13 @@ WITH candidates AS (
          ) AS board_rank
   FROM candidates
 )
-SELECT priority_tier,priority_score,consolidation_key,canonical_name,site_id,
-       source_type,site_url,scope_method,
-       CASE priority_tier WHEN 'P0' THEN 24 WHEN 'P1' THEN 48 WHEN 'P2' THEN 96 WHEN 'P3' THEN 168 END AS recommended_interval_hours,
-       last_crawled_at,last_success_at,next_crawl_at,
-       coalesce(next_crawl_at,now())<=now() AS is_due,
-       consecutive_failures,crawl_status
-FROM ranked WHERE board_rank=1;
+SELECT ranked.priority_tier,ranked.priority_score,ranked.consolidation_key,ranked.canonical_name,ranked.site_id,
+       ranked.source_type,ranked.site_url,ranked.scope_method,
+       CASE ranked.priority_tier WHEN 'P0' THEN 24 WHEN 'P1' THEN 48 WHEN 'P2' THEN 96 WHEN 'P3' THEN 168 END AS recommended_interval_hours,
+       ranked.last_crawled_at,ranked.last_success_at,ranked.next_crawl_at,
+       coalesce(ranked.next_crawl_at,now())<=now() AS is_due,
+       ranked.consecutive_failures,ranked.crawl_status
+FROM ranked WHERE ranked.board_rank=1;
 
 -- Hide historical cross-site duplicates immediately. Raw rows remain for
 -- audit and can still be closed by their source-specific crawl history.
