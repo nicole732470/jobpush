@@ -138,7 +138,12 @@ WITH counts AS (
   FROM crawl_stage s LEFT JOIN jobpush.job_postings p
     ON p.site_id=$SITE_ID AND p.external_job_id=s.external_job_id
 ), closed AS (
-  SELECT count(*) closed_count FROM confirmed_closed
+  SELECT count(*) AS closed_count
+  FROM confirmed_closed closed
+  JOIN jobpush.job_postings posting
+    ON posting.site_id=$SITE_ID AND posting.external_job_id=closed.external_job_id
+  JOIN jobpush.job_title_labels label USING(normalized_title)
+  WHERE label.classification_status='target'
 )
 UPDATE jobpush.crawl_runs r SET new_job_count=counts.new_count,
   updated_job_count=counts.updated_count,closed_job_count=closed.closed_count

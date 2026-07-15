@@ -775,6 +775,7 @@ def live_crawl_status() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         JOIN jobpush.career_sites site USING (site_id)
         JOIN jobpush.crawl_targets target USING (consolidation_key)
         WHERE run.status='running'
+          AND run.started_at >= now() - interval '2 hours'
         ORDER BY run.started_at DESC
         LIMIT 1
         """
@@ -2206,7 +2207,7 @@ if selected_page == "Home":
     metric_columns = st.columns(5)
     metric_columns[0].metric(f"Open target jobs · {selected_tier_label}", f"{int(summary_row.get('open_target_jobs', 0)):,}")
     metric_columns[1].metric("Newly discovered today", f"{int(summary_row.get('new_target_jobs_today', 0)):,}")
-    metric_columns[2].metric("Closed today", f"{int(summary_row.get('closed_jobs_today', 0)):,}")
+    metric_columns[2].metric("Target closed today", f"{int(summary_row.get('closed_jobs_today', 0)):,}")
     metric_columns[3].metric("Product Manager", f"{int(summary_row.get('product_manager_jobs', 0)):,}")
     metric_columns[4].metric("Companies", f"{int(summary_row.get('companies', 0)):,}")
     st.caption("Home counts active US target jobs that are still open for application. “Newly discovered” means JobPush first saw the posting today, not necessarily the employer posted it today.")
@@ -2240,7 +2241,10 @@ if selected_page == "Home":
 
         st.subheader("Live crawl progress")
         if current_frame.empty:
-            st.caption("当前没有站点正在爬取；下一次定时爬取为芝加哥时间凌晨 1:00。每 10 秒自动刷新。")
+            if due_sites:
+                st.caption(f"当前没有爬虫进程；仍有 {due_sites:,} 个站点待爬。下一次定时启动为芝加哥时间凌晨 1:00。每 10 秒自动刷新。")
+            else:
+                st.caption("当前没有爬虫进程，待爬站点已经清空。每 10 秒自动刷新。")
         else:
             current = current_frame.iloc[0]
             started = pd.to_datetime(current["started_ct"]).strftime("%I:%M:%S %p")
@@ -2251,14 +2255,14 @@ if selected_page == "Home":
 
         st.progress(
             min(max(progress_pct, 0.0), 1.0),
-            text=f"今日处理 {attempted:,} / 当前工作量 {total_work:,} · 剩余 due {due_sites:,}",
+            text=f"今天已尝试 {attempted:,} 个站点 · 现在仍待爬 {due_sites:,} 个站点",
         )
         live_cols = st.columns(5)
         live_cols[0].metric("Succeeded today", f"{succeeded:,}")
         live_cols[1].metric("Sites still failed today", f"{failed:,}")
         live_cols[2].metric("Jobs parsed", f"{int(row.get('parsed_jobs', 0) or 0):,}")
         live_cols[3].metric("New jobs", f"{int(row.get('new_jobs', 0) or 0):,}")
-        live_cols[4].metric("Closed jobs", f"{int(row.get('closed_jobs', 0) or 0):,}")
+        live_cols[4].metric("Target jobs closed", f"{int(row.get('closed_jobs', 0) or 0):,}")
         if not due_frame.empty:
             st.dataframe(due_frame, hide_index=True, use_container_width=True)
 
