@@ -21,12 +21,14 @@ WITH eligibility AS MATERIALIZED (
 ), classified AS MATERIALIZED (
   SELECT site_id, external_job_id,
          CASE
+           WHEN classification_status = 'non_target' THEN 'non_target'
            WHEN scrape_status = 'succeeded' AND explicit_no_sponsorship THEN 'non_target'
            WHEN scrape_status = 'succeeded' THEN COALESCE(classification_status, 'review')
            ELSE 'review'
          END AS role_status,
          CASE
-           WHEN scrape_status = 'succeeded' AND NOT explicit_no_sponsorship
+           WHEN classification_status <> 'non_target'
+                AND scrape_status = 'succeeded' AND NOT explicit_no_sponsorship
            THEN canonical_role ELSE NULL END AS canonical_role
   FROM eligibility
 )
