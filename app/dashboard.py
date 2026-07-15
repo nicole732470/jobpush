@@ -1630,6 +1630,37 @@ def jobs(
 
 
 @st.cache_data(ttl=60)
+def job_descriptions(
+    search: str,
+    tiers: tuple[str, ...],
+    row_limit: int,
+    row_offset: int = 0,
+) -> pd.DataFrame:
+    search = normalize_search_query(search)
+    return query(
+        """
+        SELECT fast.site_id, fast.external_job_id, fast.canonical_name, fast.priority_tier,
+               fast.title, fast.location, fast.employment_type, fast.canonical_role,
+               fast.first_seen_at, fast.last_seen_at, fast.job_url,
+               snapshot.apply_url, snapshot.work_arrangement, snapshot.salary_text,
+               snapshot.posted_date, snapshot.scraped_at,
+               snapshot.cleaned_description AS complete_job_description
+        FROM jobpush.dashboard_jobs_fast fast
+        JOIN jobpush.job_description_snapshots snapshot USING (site_id, external_job_id)
+        WHERE fast.role_status = 'target'
+          AND fast.priority_tier = ANY(%s)
+          AND snapshot.scrape_status = 'succeeded'
+          AND NULLIF(snapshot.cleaned_description, '') IS NOT NULL
+          AND (%s = '' OR concat_ws(' ', fast.canonical_name, fast.title, fast.location)
+               ILIKE '%%' || %s || '%%')
+        ORDER BY fast.first_seen_at DESC, fast.canonical_name, fast.title
+        LIMIT %s OFFSET %s
+        """,
+        (list(tiers), search, search, int(row_limit), int(row_offset)),
+    )
+
+
+@st.cache_data(ttl=60)
 def company_jobs(company: str) -> pd.DataFrame:
     company = normalize_search_query(company)
     return query(
@@ -2185,6 +2216,7 @@ row_limit = 300
 PAGE_LABELS = [
     "Home",
     "Jobs to apply",
+    "JD library",
     "Crawl monitor",
     "Title review",
     "Site review",
@@ -2639,6 +2671,62 @@ if selected_page == "Jobs to apply":
             file_name=f"jobpush_jobs_to_apply_{chicago_today}.csv",
             mime="text/csv",
         )
+
+if selected_page == "JD library":
+    st.subheader("JD library")
+    st.caption("只展示当前最终 Target 且已完整抓到 JD 的岗位；历史重复快照、Review、非 Target 和失败 JD 不会出现在这里。")
+    jd_filters = st.columns(4)
+    jd_search = jd_filters[0].text_input("Company / title / location", key="jd-library-search")
+    jd_tier_choice = jd_filters[1].selectbox("Priority tier", ["All", "P0", "P1", "P2", "P3", "P0 + P1"], key="jd-library-tier")
+    jd_page_size = int(jd_filters[2].selectbox("Page size", [25, 50, 100], index=1, key="jd-library-size"))
+    jd_page_number = int(jd_filters[3].number_input("Page", min_value=1, value=1, step=1, key="jd-library-page"))
+    jd_tiers = {
+        "All": ("P0", "P1", "P2", "P3"),
+        "P0": ("P0",),
+        "P1": ("P1",),
+        "P2": ("P2",),
+        "P3": ("P3",),
+        "P0 + P1": ("P0", "P1"),
+    }[jd_tier_choice]
+    jd_frame = job_descriptions(jd_search, jd_tiers, jd_page_size, (jd_page_number - 1) * jd_page_size)
+    if jd_frame.empty:
+        st.info("No complete JD matches the current filters.")
+    else:
+        jd_frame = jd_frame.copy()
+        jd_frame["first_seen_ct"] = pd.to_datetime(jd_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
+        jd_frame["jd_length"] = jd_frame["complete_job_description"].str.len()
+        jd_event = st.dataframe(
+            jd_frame[["first_seen_ct", "canonical_name", "priority_tier", "title", "location", "work_arrangement", "employment_type", "jd_length", "job_url"]],
+            hide_index=True,
+            use_container_width=True,
+            height=520,
+            column_config={"job_url": st.column_config.LinkColumn("Job link", display_text="Open ↗"), "jd_length": st.column_config.NumberColumn("JD characters")},
+            on_select="rerun",
+            selection_mode="single-row",
+            key="jd-library-table",
+        )
+        selected_rows = jd_event.selection.rows if jd_event and jd_event.selection else []
+        if selected_rows:
+            selected_jd = jd_frame.iloc[int(selected_rows[0])]
+            st.markdown(f"#### {selected_jd['canonical_name']} · {selected_jd['title']}")
+            st.caption(f"{selected_jd['location'] or 'Location not listed'} · [Open job]({selected_jd['job_url']})")
+            st.code(selected_jd["complete_job_description"], language=None)
+            st.download_button(
+                "Download this JD (TXT)",
+                str(selected_jd["complete_job_description"]).encode("utf-8"),
+                file_name=f"{selected_jd['canonical_name']} - {selected_jd['title']}.txt".replace("/", "-"),
+                mime="text/plain",
+                key=f"jd-download-{selected_jd['site_id']}-{selected_jd['external_job_id']}",
+            )
+        if st.button("Prepare CSV of all matching JDs", key="jd-library-export"):
+            export_frame = job_descriptions(jd_search, jd_tiers, 10000)
+            st.download_button(
+                "Download all matching JDs (CSV)",
+                csv_bytes(export_frame.drop(columns=["site_id", "external_job_id"], errors="ignore")),
+                file_name=f"jobpush_complete_jds_{chicago_today}.csv",
+                mime="text/csv",
+                key="jd-library-export-download",
+            )
 
 if selected_page == "Title review":
     st.subheader("Title samples for improving the classifier")
