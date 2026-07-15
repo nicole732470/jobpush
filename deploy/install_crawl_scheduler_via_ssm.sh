@@ -17,6 +17,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
+Environment=JOBPUSH_SEND_DAILY_EMAIL=1
+Environment=JOBPUSH_EXPORT_EMAIL=yuli2026@u.northwestern.edu
 ExecCondition=/bin/bash -lc 'if [[ -e /var/lib/jobpush/skip-next-crawl ]]; then rm -f /var/lib/jobpush/skip-next-crawl; exit 1; fi'
 ExecStart=/usr/bin/flock -n /run/jobpush-crawl.lock /bin/bash db/run_due_crawl_drain.sh
 TimeoutStartSec=43200
