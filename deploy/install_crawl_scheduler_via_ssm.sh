@@ -42,7 +42,7 @@ COMMAND_ID=$(aws ssm send-command \
   --document-name AWS-RunShellScript \
   --parameters commands="[
 \"set -euo pipefail\",
-\"if [[ -d '$INSTALL_DIR/.git' ]]; then git -C '$INSTALL_DIR' fetch origin main && git -C '$INSTALL_DIR' checkout main && git -C '$INSTALL_DIR' pull --ff-only origin main; else git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
+\"if [[ ! -d '$INSTALL_DIR/.git' ]]; then git clone --branch main '$REPO_URL' '$INSTALL_DIR'; fi\",
 \"echo '$SERVICE' | base64 -d > /etc/systemd/system/jobpush-crawl.service\",
 \"echo '$TIMER' | base64 -d > /etc/systemd/system/jobpush-crawl.timer\",
 \"systemctl daemon-reload\",
