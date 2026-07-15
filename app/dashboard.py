@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from datetime import date, datetime, timedelta
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from db import execute, query
 
@@ -1653,15 +1655,68 @@ def job_descriptions(
         )
         SELECT page.*,
                snapshot.apply_url, snapshot.work_arrangement, snapshot.salary_text,
-               snapshot.posted_date, snapshot.scraped_at,
-               snapshot.cleaned_description AS complete_job_description
+               snapshot.posted_date, snapshot.scraped_at
         FROM page
         JOIN jobpush.job_description_snapshots snapshot USING (site_id, external_job_id)
         WHERE snapshot.scrape_status = 'succeeded'
-          AND NULLIF(snapshot.cleaned_description, '') IS NOT NULL
+          AND snapshot.cleaned_description IS NOT NULL
         ORDER BY page.first_seen_at DESC, page.canonical_name, page.title
         """,
         (list(tiers), search, search, int(row_limit), int(row_offset)),
+    )
+
+
+@st.cache_data(ttl=300)
+def job_description_text(site_id: int, external_job_id: str) -> str:
+    frame = query(
+        """
+        SELECT cleaned_description
+        FROM jobpush.job_description_snapshots
+        WHERE site_id = %s AND external_job_id = %s AND scrape_status = 'succeeded'
+        """,
+        (site_id, external_job_id),
+    )
+    return "" if frame.empty else str(frame.iloc[0]["cleaned_description"] or "")
+
+
+@st.cache_data(ttl=60)
+def job_description_export(search: str, tiers: tuple[str, ...]) -> pd.DataFrame:
+    search = normalize_search_query(search)
+    return query(
+        """
+        SELECT fast.canonical_name, fast.priority_tier, fast.title, fast.location,
+               fast.employment_type, fast.canonical_role, fast.first_seen_at,
+               fast.last_seen_at, fast.job_url, snapshot.apply_url,
+               snapshot.work_arrangement, snapshot.salary_text, snapshot.posted_date,
+               snapshot.scraped_at, snapshot.cleaned_description AS complete_job_description
+        FROM jobpush.dashboard_jobs_fast fast
+        JOIN jobpush.job_description_snapshots snapshot USING (site_id, external_job_id)
+        WHERE fast.role_status = 'target'
+          AND fast.priority_tier = ANY(%s)
+          AND snapshot.scrape_status = 'succeeded'
+          AND snapshot.cleaned_description IS NOT NULL
+          AND (%s = '' OR concat_ws(' ', fast.canonical_name, fast.title, fast.location)
+               ILIKE '%%' || %s || '%%')
+        ORDER BY fast.first_seen_at DESC, fast.canonical_name, fast.title
+        """,
+        (list(tiers), search, search),
+    )
+
+
+def copy_full_jd_button(description: str) -> None:
+    encoded = base64.b64encode(description.encode("utf-8")).decode("ascii")
+    components.html(
+        f"""
+        <button id="copy-jd" style="background:#111827;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font:14px sans-serif">Copy full JD</button>
+        <script>
+        document.getElementById("copy-jd").onclick = async function() {{
+          const text = new TextDecoder().decode(Uint8Array.from(atob("{encoded}"), c => c.charCodeAt(0)));
+          try {{ await navigator.clipboard.writeText(text); this.textContent = "Copied full JD"; }}
+          catch (_) {{ this.textContent = "Use the copy icon below"; }}
+        }};
+        </script>
+        """,
+        height=44,
     )
 
 
@@ -2699,13 +2754,12 @@ if selected_page == "JD library":
     else:
         jd_frame = jd_frame.copy()
         jd_frame["first_seen_ct"] = pd.to_datetime(jd_frame["first_seen_at"], utc=True).dt.tz_convert("America/Chicago").dt.strftime("%Y-%m-%d %I:%M %p")
-        jd_frame["jd_length"] = jd_frame["complete_job_description"].str.len()
         jd_event = st.dataframe(
-            jd_frame[["first_seen_ct", "canonical_name", "priority_tier", "title", "location", "work_arrangement", "employment_type", "jd_length", "job_url"]],
+            jd_frame[["first_seen_ct", "canonical_name", "priority_tier", "title", "location", "work_arrangement", "employment_type", "job_url"]],
             hide_index=True,
             use_container_width=True,
             height=520,
-            column_config={"job_url": st.column_config.LinkColumn("Job link", display_text="Open ↗"), "jd_length": st.column_config.NumberColumn("JD characters")},
+            column_config={"job_url": st.column_config.LinkColumn("Job link", display_text="Open ↗")},
             on_select="rerun",
             selection_mode="single-row",
             key="jd-library-table",
@@ -2715,19 +2769,21 @@ if selected_page == "JD library":
             selected_jd = jd_frame.iloc[int(selected_rows[0])]
             st.markdown(f"#### {selected_jd['canonical_name']} · {selected_jd['title']}")
             st.caption(f"{selected_jd['location'] or 'Location not listed'} · [Open job]({selected_jd['job_url']})")
-            st.code(selected_jd["complete_job_description"], language=None)
+            full_jd = job_description_text(int(selected_jd["site_id"]), str(selected_jd["external_job_id"]))
+            copy_full_jd_button(full_jd)
+            st.code(full_jd, language=None)
             st.download_button(
                 "Download this JD (TXT)",
-                str(selected_jd["complete_job_description"]).encode("utf-8"),
+                full_jd.encode("utf-8"),
                 file_name=f"{selected_jd['canonical_name']} - {selected_jd['title']}.txt".replace("/", "-"),
                 mime="text/plain",
                 key=f"jd-download-{selected_jd['site_id']}-{selected_jd['external_job_id']}",
             )
         if st.button("Prepare CSV of all matching JDs", key="jd-library-export"):
-            export_frame = job_descriptions(jd_search, jd_tiers, 10000)
+            export_frame = job_description_export(jd_search, jd_tiers)
             st.download_button(
                 "Download all matching JDs (CSV)",
-                csv_bytes(export_frame.drop(columns=["site_id", "external_job_id"], errors="ignore")),
+                csv_bytes(export_frame),
                 file_name=f"jobpush_complete_jds_{chicago_today}.csv",
                 mime="text/csv",
                 key="jd-library-export-download",
