@@ -1639,22 +1639,27 @@ def job_descriptions(
     search = normalize_search_query(search)
     return query(
         """
-        SELECT fast.site_id, fast.external_job_id, fast.canonical_name, fast.priority_tier,
-               fast.title, fast.location, fast.employment_type, fast.canonical_role,
-               fast.first_seen_at, fast.last_seen_at, fast.job_url,
+        WITH page AS MATERIALIZED (
+            SELECT fast.site_id, fast.external_job_id, fast.canonical_name, fast.priority_tier,
+                   fast.title, fast.location, fast.employment_type, fast.canonical_role,
+                   fast.first_seen_at, fast.last_seen_at, fast.job_url
+            FROM jobpush.dashboard_jobs_fast fast
+            WHERE fast.role_status = 'target'
+              AND fast.priority_tier = ANY(%s)
+              AND (%s = '' OR concat_ws(' ', fast.canonical_name, fast.title, fast.location)
+                   ILIKE '%%' || %s || '%%')
+            ORDER BY fast.first_seen_at DESC, fast.canonical_name, fast.title
+            LIMIT %s OFFSET %s
+        )
+        SELECT page.*,
                snapshot.apply_url, snapshot.work_arrangement, snapshot.salary_text,
                snapshot.posted_date, snapshot.scraped_at,
                snapshot.cleaned_description AS complete_job_description
-        FROM jobpush.dashboard_jobs_fast fast
+        FROM page
         JOIN jobpush.job_description_snapshots snapshot USING (site_id, external_job_id)
-        WHERE fast.role_status = 'target'
-          AND fast.priority_tier = ANY(%s)
-          AND snapshot.scrape_status = 'succeeded'
+        WHERE snapshot.scrape_status = 'succeeded'
           AND NULLIF(snapshot.cleaned_description, '') IS NOT NULL
-          AND (%s = '' OR concat_ws(' ', fast.canonical_name, fast.title, fast.location)
-               ILIKE '%%' || %s || '%%')
-        ORDER BY fast.first_seen_at DESC, fast.canonical_name, fast.title
-        LIMIT %s OFFSET %s
+        ORDER BY page.first_seen_at DESC, page.canonical_name, page.title
         """,
         (list(tiers), search, search, int(row_limit), int(row_offset)),
     )
