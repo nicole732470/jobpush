@@ -2,7 +2,9 @@
 -- Application status stays live via job_application_actions in the dashboard query.
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS jobpush.dashboard_jobs_fast AS
+DROP TABLE IF EXISTS jobpush.dashboard_jobs_fast;
+
+CREATE TABLE jobpush.dashboard_jobs_fast AS
 WITH ranked_targets AS (
     SELECT consolidation_key, priority_score,
            ROW_NUMBER() OVER (
@@ -25,8 +27,15 @@ WITH ranked_targets AS (
         posting.location,
         posting.category,
         posting.employment_type,
-        COALESCE(label.classification_status, 'review') AS role_status,
-        label.canonical_role,
+        CASE
+            WHEN snapshot.scrape_status = 'succeeded'
+                 AND jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description) THEN 'non_target'
+            WHEN snapshot.scrape_status = 'succeeded' THEN COALESCE(label.classification_status, 'review')
+            ELSE 'review'
+        END AS role_status,
+        CASE WHEN snapshot.scrape_status = 'succeeded'
+                  AND NOT jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description)
+             THEN label.canonical_role ELSE NULL END AS canonical_role,
         posting.first_seen_at,
         posting.last_seen_at,
         posting.job_url
@@ -34,6 +43,10 @@ WITH ranked_targets AS (
     JOIN jobpush.crawl_targets target USING (consolidation_key)
     LEFT JOIN ranked_targets ranked USING (consolidation_key)
     LEFT JOIN jobpush.job_title_labels label USING (normalized_title)
+    LEFT JOIN jobpush.job_description_snapshots snapshot
+      ON snapshot.site_id = posting.site_id AND snapshot.external_job_id = posting.external_job_id
+     AND snapshot.source_fingerprint = md5(concat_ws(E'\x1f','jd-v2-complete-content',posting.title,posting.location,
+           posting.category,posting.job_url,posting.description_snippet,posting.posted_text,posting.employment_type))
 )
 SELECT
     site_id,

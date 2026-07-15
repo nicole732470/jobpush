@@ -159,7 +159,7 @@ fi
     AND label.classification_status='target'
     -- Require a complete JD and remove only explicit no-sponsorship language.
     -- A single occurrence of "visa" or "sponsor" never excludes a job.
-    AND coalesce(snapshot.cleaned_description,'') !~* '((unable|cannot|can not|will not|do not|does not|not able to|no longer).{0,80}(sponsor|sponsorship)|(no|without).{0,50}(visa|employment|work authorization).{0,50}sponsorship|(visa|employment|work authorization).{0,50}sponsorship.{0,40}(not available|unavailable|not provided)|must.{0,80}(authorized|eligible).{0,100}without.{0,50}sponsorship|not.{0,30}eligible.{0,50}(visa )?sponsorship|sponsorship.{0,40}(is )?not (available|offered|provided))'
+    AND NOT jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description)
     $DATE_FILTER
   ORDER BY posting.first_seen_at DESC, target.canonical_name, posting.title
 " > "$JSON_LINES"
