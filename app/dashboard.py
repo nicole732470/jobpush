@@ -123,20 +123,20 @@ def apply_job_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
         WITH chicago_day AS (
             SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
         ), open_jobs AS (
-            SELECT *
-            FROM jobpush.dashboard_jobs
-            WHERE priority_tier = ANY(%s)
-              AND role_status = 'target'
-              AND application_status = ANY(%s)
+            SELECT job.*, COALESCE(action.action_status, 'new') AS application_status
+            FROM jobpush.dashboard_jobs_fast job
+            LEFT JOIN jobpush.job_application_actions action USING (site_id, external_job_id)
+            WHERE job.priority_tier = ANY(%s)
+              AND job.role_status = 'target'
+              AND COALESCE(action.action_status, 'new') = ANY(%s)
         ), closed_today AS (
-            SELECT count(*) AS closed_jobs_today
-            FROM jobpush.job_postings posting
+            SELECT COALESCE(sum(run.closed_job_count), 0) AS closed_jobs_today
+            FROM jobpush.crawl_runs run
+            JOIN jobpush.career_sites site USING (site_id)
             JOIN jobpush.crawl_targets target USING (consolidation_key)
-            JOIN jobpush.job_title_labels label USING (normalized_title)
             CROSS JOIN chicago_day
             WHERE target.priority_tier = ANY(%s)
-              AND label.classification_status = 'target'
-              AND posting.closed_at >= chicago_day.start_at
+              AND run.started_at >= chicago_day.start_at
         )
         SELECT
             count(*) AS open_target_jobs,
@@ -164,11 +164,12 @@ def application_status_summary(tiers: tuple[str, ...]) -> pd.DataFrame:
     return query(
         """
         WITH counts AS (
-            SELECT application_status, count(*) AS jobs
-            FROM jobpush.dashboard_jobs
-            WHERE priority_tier = ANY(%s)
-              AND role_status = 'target'
-            GROUP BY application_status
+            SELECT COALESCE(action.action_status, 'new') AS application_status, count(*) AS jobs
+            FROM jobpush.dashboard_jobs_fast job
+            LEFT JOIN jobpush.job_application_actions action USING (site_id, external_job_id)
+            WHERE job.priority_tier = ANY(%s)
+              AND job.role_status = 'target'
+            GROUP BY COALESCE(action.action_status, 'new')
         )
         SELECT application_status,
                jobs,
@@ -196,10 +197,11 @@ def target_job_mix_summary(tiers: tuple[str, ...], app_statuses: tuple[str, ...]
             SELECT ((NOW() AT TIME ZONE 'America/Chicago')::date AT TIME ZONE 'America/Chicago') AS start_at
         ), base AS (
             SELECT canonical_role, normalized_title, first_seen_at
-            FROM jobpush.dashboard_jobs
-            WHERE priority_tier = ANY(%s)
-              AND role_status = 'target'
-              AND application_status = ANY(%s)
+            FROM jobpush.dashboard_jobs_fast job
+            LEFT JOIN jobpush.job_application_actions action USING (site_id, external_job_id)
+            WHERE job.priority_tier = ANY(%s)
+              AND job.role_status = 'target'
+              AND COALESCE(action.action_status, 'new') = ANY(%s)
         ), classified AS (
             SELECT
                 first_seen_at,
@@ -435,19 +437,17 @@ def daily_activity(tiers: tuple[str, ...]) -> pd.DataFrame:
                 count(*) AS new_jobs,
                 count(*) FILTER (WHERE job.role_status = 'target') AS new_target_jobs,
                 count(*) FILTER (WHERE job.role_status = 'review') AS new_review_jobs
-            FROM jobpush.dashboard_jobs job
+            FROM jobpush.dashboard_jobs_fast job
             WHERE job.priority_tier = ANY(%s)
             GROUP BY 1
         ), closed AS (
             SELECT
-                (posting.closed_at AT TIME ZONE 'America/Chicago')::date AS activity_date,
-                count(*) AS closed_jobs
-            FROM jobpush.job_postings posting
+                (run.started_at AT TIME ZONE 'America/Chicago')::date AS activity_date,
+                COALESCE(sum(run.closed_job_count), 0) AS closed_jobs
+            FROM jobpush.crawl_runs run
+            JOIN jobpush.career_sites site USING (site_id)
             JOIN jobpush.crawl_targets target USING (consolidation_key)
-            JOIN jobpush.job_title_labels label USING (normalized_title)
-            WHERE posting.closed_at IS NOT NULL
-              AND target.priority_tier = ANY(%s)
-              AND label.classification_status = 'target'
+            WHERE target.priority_tier = ANY(%s)
             GROUP BY 1
         ), runs AS (
             SELECT
