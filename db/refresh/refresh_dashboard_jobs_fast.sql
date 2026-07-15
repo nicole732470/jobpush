@@ -2,9 +2,8 @@
 -- Application status stays live via job_application_actions in the dashboard query.
 BEGIN;
 
-DROP TABLE IF EXISTS jobpush.dashboard_jobs_fast;
-
-CREATE TABLE jobpush.dashboard_jobs_fast AS
+-- The initial CREATE TABLE remains for fresh installs only.
+CREATE TABLE IF NOT EXISTS jobpush.dashboard_jobs_fast AS
 WITH ranked_targets AS (
     SELECT consolidation_key, priority_score,
            ROW_NUMBER() OVER (
@@ -27,15 +26,8 @@ WITH ranked_targets AS (
         posting.location,
         posting.category,
         posting.employment_type,
-        CASE
-            WHEN snapshot.scrape_status = 'succeeded'
-                 AND jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description) THEN 'non_target'
-            WHEN snapshot.scrape_status = 'succeeded' THEN COALESCE(label.classification_status, 'review')
-            ELSE 'review'
-        END AS role_status,
-        CASE WHEN snapshot.scrape_status = 'succeeded'
-                  AND NOT jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description)
-             THEN label.canonical_role ELSE NULL END AS canonical_role,
+        COALESCE(label.classification_status, 'review') AS role_status,
+        label.canonical_role,
         posting.first_seen_at,
         posting.last_seen_at,
         posting.job_url
@@ -43,10 +35,6 @@ WITH ranked_targets AS (
     JOIN jobpush.crawl_targets target USING (consolidation_key)
     LEFT JOIN ranked_targets ranked USING (consolidation_key)
     LEFT JOIN jobpush.job_title_labels label USING (normalized_title)
-    LEFT JOIN jobpush.job_description_snapshots snapshot
-      ON snapshot.site_id = posting.site_id AND snapshot.external_job_id = posting.external_job_id
-     AND snapshot.source_fingerprint = md5(concat_ws(E'\x1f','jd-v2-complete-content',posting.title,posting.location,
-           posting.category,posting.job_url,posting.description_snippet,posting.posted_text,posting.employment_type))
 )
 SELECT
     site_id,
@@ -476,6 +464,27 @@ SELECT
     last_seen_at,
     job_url
 FROM base;
+
+-- Existing table is the platform's URL-deduplicated job inventory. Refresh
+-- eligibility in place; rebuilding from the historical raw view is too costly.
+UPDATE jobpush.dashboard_jobs_fast fast
+SET role_status = CASE
+      WHEN snapshot.scrape_status = 'succeeded'
+           AND jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description) THEN 'non_target'
+      WHEN snapshot.scrape_status = 'succeeded' THEN COALESCE(label.classification_status, 'review')
+      ELSE 'review'
+    END,
+    canonical_role = CASE
+      WHEN snapshot.scrape_status = 'succeeded'
+           AND NOT jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description)
+      THEN label.canonical_role ELSE NULL END
+FROM jobpush.job_postings posting
+LEFT JOIN jobpush.job_title_labels label USING (normalized_title)
+LEFT JOIN jobpush.job_description_snapshots snapshot
+  ON snapshot.site_id = posting.site_id AND snapshot.external_job_id = posting.external_job_id
+ AND snapshot.source_fingerprint = md5(concat_ws(E'\x1f','jd-v2-complete-content',posting.title,posting.location,
+       posting.category,posting.job_url,posting.description_snippet,posting.posted_text,posting.employment_type))
+WHERE posting.site_id = fast.site_id AND posting.external_job_id = fast.external_job_id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_dashboard_jobs_fast_job
     ON jobpush.dashboard_jobs_fast(site_id, external_job_id);
