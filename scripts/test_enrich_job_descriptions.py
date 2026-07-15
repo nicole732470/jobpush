@@ -57,8 +57,14 @@ class JobDescriptionParserTest(unittest.TestCase):
         self.assertIn("Qualifications", result["cleaned_description"])
 
     def test_ashby_board_job(self):
-        result = ashby_fields(json.dumps({"jobs": [{"id": "abc", "descriptionHtml": "<p>Own AI workflows. " * 12 + "</p>"}]}), "abc")
+        board = {"jobs": [
+            {"id": "abc", "descriptionHtml": "<p>Own AI workflows. " * 12 + "</p>"},
+            {"id": "other", "descriptionHtml": "<p>Unrelated posting.</p>"},
+        ]}
+        result = ashby_fields(json.dumps(board), "abc")
         self.assertIn("Own AI workflows", result["cleaned_description"])
+        self.assertIn('"id":"abc"', result["_raw_html"])
+        self.assertNotIn("Unrelated posting", result["_raw_html"])
 
     def test_workday_cxs_detail(self):
         row = {"job_url": "https://nike.wd1.myworkdayjobs.com/nke/job/Beaverton/Business-Analyst_R-1"}

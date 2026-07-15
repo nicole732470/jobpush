@@ -269,6 +269,10 @@ def ashby_fields(raw: str, external_job_id: str) -> dict:
     compensation = job.get("compensation") or job.get("compensationTierSummary")
     return {
         "cleaned_description": clean_text(str(job.get("descriptionHtml") or job.get("descriptionPlain") or "")),
+        # The endpoint returns the company's entire board. Persist only this
+        # posting so a batch does not retain the same multi-megabyte payload
+        # once for every job on that board.
+        "_raw_html": json.dumps(job, ensure_ascii=False, separators=(",", ":")),
         "apply_url": str(job.get("applyUrl") or job.get("jobUrl") or job.get("hostedUrl") or ""),
         "work_arrangement": str(job.get("workplaceType") or ""),
         "salary_text": json.dumps(compensation, ensure_ascii=False, separators=(",", ":")) if compensation else "",
@@ -372,8 +376,9 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
             quality_error = description_quality_error(fields["cleaned_description"])
             if quality_error:
                 raise ValueError(quality_error)
+            raw_html = fields.pop("_raw_html", raw)
             return {
-                **result, **fields, "raw_html": raw, "content_type": content_type,
+                **result, **fields, "raw_html": raw_html, "content_type": content_type,
                 "http_status": status, "scrape_status": "succeeded", "scrape_error": "",
             }
         except HTTPError as exc:
