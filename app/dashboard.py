@@ -1596,6 +1596,7 @@ def jobs(
         role_family,
         role_family,
         role_family,
+        role_family,
         location_bucket,
         location_bucket,
         city_search.strip(),
@@ -1640,6 +1641,7 @@ def jobs(
           AND (
               %s::text IS NULL
               OR (%s = 'title:' AND job.role_family LIKE 'title:%%')
+              OR (%s = 'title:associate' AND job.normalized_title LIKE '%%associate%%')
               OR job.role_family = %s
           )
           AND (%s::text IS NULL OR job.location_bucket = %s)
@@ -2120,6 +2122,7 @@ TRACK_LABEL_TO_VALUE["Track 5 · Possible Target / Unclassified"] = "stack_5_pos
 
 JOB_ROLE_FILTER_VALUES = {
     "Product Manager": "product_manager",
+    "Associate": "title:associate",
     "Program Manager": "program_manager",
     "Project Manager": "project_manager",
     "Software Engineering": "software_engineering",
