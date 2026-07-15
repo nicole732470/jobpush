@@ -17,7 +17,7 @@ bash "$SCRIPT_DIR/run_due_crawl_batch.sh" 1
 
 "${PSQL[@]}" -P pager=off -c \
   "SELECT count(*) AS uber_dashboard_jobs
-   FROM jobpush.dashboard_jobs
+   FROM jobpush.dashboard_jobs_fast
    WHERE consolidation_key = 'uber';"
 
 "${PSQL[@]}" -P pager=off -c \

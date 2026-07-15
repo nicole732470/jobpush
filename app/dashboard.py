@@ -1645,9 +1645,11 @@ def company_jobs(company: str) -> pd.DataFrame:
         SELECT job.canonical_name, job.priority_tier,
                ranked.priority_score, ranked.priority_rank_in_tier,
                job.title, job.location,
-               job.role_status, job.canonical_role, job.application_status,
+               job.role_status, job.canonical_role,
+               COALESCE(action.action_status, 'new') AS application_status,
                job.first_seen_at, job.last_seen_at, job.job_url
-        FROM jobpush.dashboard_jobs job
+        FROM jobpush.dashboard_jobs_fast job
+        LEFT JOIN jobpush.job_application_actions action USING (site_id, external_job_id)
         LEFT JOIN ranked_targets ranked USING (consolidation_key)
         LEFT JOIN jobpush.company_identity_search identity USING (consolidation_key)
         WHERE %s <> ''

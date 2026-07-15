@@ -79,6 +79,6 @@ python3 "$REPO_DIR/scripts/classify_job_titles_ai.py" \
    ORDER BY 1,2;"
 "${PSQL[@]}" -P pager=off -c \
   "SELECT role_status, count(*) AS active_us_jobs
-   FROM jobpush.dashboard_jobs
+   FROM jobpush.dashboard_jobs_fast
    GROUP BY 1
    ORDER BY 1;"
