@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import json
 import unittest
+from unittest.mock import patch
 
 from enrich_job_descriptions import (
-    JobPageParser, ashby_fields, description_quality_error, google_fields, greenhouse_fields, greenhouse_url,
+    JobPageParser, _ASHBY_CACHE, ashby_fields, description_quality_error, fetch_ashby_board, google_fields, greenhouse_fields, greenhouse_url,
     oracle_fields, smartrecruiters_fields, smartrecruiters_url, structured_fields, workday_fields, workday_url,
 )
 
@@ -65,6 +66,22 @@ class JobDescriptionParserTest(unittest.TestCase):
         self.assertIn("Own AI workflows", result["cleaned_description"])
         self.assertIn('"id":"abc"', result["_raw_html"])
         self.assertNotIn("Unrelated posting", result["_raw_html"])
+
+    def test_ashby_board_is_downloaded_once_per_batch(self):
+        class Headers:
+            def get_content_charset(self): return "utf-8"
+            def get(self, key, default=""): return "application/json" if key == "Content-Type" else default
+        class Response:
+            status = 200
+            headers = Headers()
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+            def read(self): return b'{"jobs":[]}'
+        _ASHBY_CACHE.clear()
+        with patch("enrich_job_descriptions.urlopen", return_value=Response()) as mocked:
+            fetch_ashby_board("https://example.test/board", 10)
+            fetch_ashby_board("https://example.test/board", 10)
+        self.assertEqual(1, mocked.call_count)
 
     def test_workday_cxs_detail(self):
         row = {"job_url": "https://nike.wd1.myworkdayjobs.com/nke/job/Beaverton/Business-Analyst_R-1"}

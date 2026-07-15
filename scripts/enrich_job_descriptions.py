@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import OrderedDict
 import csv
 import hashlib
 import html
@@ -9,6 +10,7 @@ from html.parser import HTMLParser
 import json
 import re
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -27,6 +29,10 @@ INVALID_PAGE_PATTERNS = (
     ("job detail loading placeholder", r"current openings\s+loading position details"),
     ("job listing page", r"displaying\s+\d+\s+to\s+\d+|view open positions|open positions\s+skip to content"),
 )
+
+_ASHBY_CACHE: OrderedDict[str, tuple[str, str, int]] = OrderedDict()
+_ASHBY_CACHE_LOCK = threading.Lock()
+_ASHBY_CACHE_SIZE = 2
 
 
 def clean_text(value: str) -> str:
@@ -260,6 +266,33 @@ def ashby_url(row: dict) -> str:
     return f"https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true"
 
 
+def fetch_ashby_board(url: str, timeout: int) -> tuple[str, str, int]:
+    # One Ashby response contains every posting on a board. Keep a very small
+    # cache so adjacent jobs reuse it without retaining many large boards.
+    with _ASHBY_CACHE_LOCK:
+        cached = _ASHBY_CACHE.get(url)
+        if cached is not None:
+            _ASHBY_CACHE.move_to_end(url)
+            return cached
+        request = Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; JobPush/1.0; job-description-export)",
+            "Accept": "application/json",
+        })
+        with urlopen(request, timeout=timeout) as response:
+            raw_bytes = response.read()
+            charset = response.headers.get_content_charset() or "utf-8"
+            value = (
+                raw_bytes.decode(charset, errors="replace").replace("\x00", ""),
+                response.headers.get("Content-Type", ""),
+                getattr(response, "status", 200),
+            )
+        _ASHBY_CACHE[url] = value
+        _ASHBY_CACHE.move_to_end(url)
+        while len(_ASHBY_CACHE) > _ASHBY_CACHE_SIZE:
+            _ASHBY_CACHE.popitem(last=False)
+        return value
+
+
 def ashby_fields(raw: str, external_job_id: str) -> dict:
     payload = json.loads(raw)
     job = next((item for item in payload.get("jobs", [])
@@ -347,16 +380,19 @@ def fetch(row: dict, timeout: int, retries: int) -> dict:
                 fetch_url = workday_url(row)
             else:
                 fetch_url = row["job_url"]
-            request = Request(fetch_url, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; JobPush/1.0; job-description-export)",
-                "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-            })
-            with urlopen(request, timeout=timeout) as response:
-                raw_bytes = response.read()
-                charset = response.headers.get_content_charset() or "utf-8"
-                raw = raw_bytes.decode(charset, errors="replace").replace("\x00", "")
-                content_type = response.headers.get("Content-Type", "")
-                status = getattr(response, "status", 200)
+            if source_type == "ashby":
+                raw, content_type, status = fetch_ashby_board(fetch_url, timeout)
+            else:
+                request = Request(fetch_url, headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; JobPush/1.0; job-description-export)",
+                    "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+                })
+                with urlopen(request, timeout=timeout) as response:
+                    raw_bytes = response.read()
+                    charset = response.headers.get_content_charset() or "utf-8"
+                    raw = raw_bytes.decode(charset, errors="replace").replace("\x00", "")
+                    content_type = response.headers.get("Content-Type", "")
+                    status = getattr(response, "status", 200)
             if source_type == "oracle_cloud":
                 fields = oracle_fields(raw)
             elif source_type == "greenhouse":
