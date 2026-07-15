@@ -27,8 +27,9 @@ SITE_FILTER=""
 if [[ -n "${SITE_ID:-}" ]]; then
   SITE_FILTER="AND site_id=$SITE_ID"
 fi
-IFS=$'\t' read -r SITE_ID SITE_URL < <("${PSQL[@]}" -qAtF $'\t' -c \
-  "SELECT site_id, site_url FROM jobpush.career_sites
+IFS=$'\t' read -r SITE_ID SITE_URL SOURCE_KEY < <("${PSQL[@]}" -qAtF $'\t' -c \
+  "SELECT site_id, site_url, COALESCE(source_key, '')
+   FROM jobpush.career_sites
    WHERE consolidation_key='$CONSOLIDATION_KEY' AND source_type='$SOURCE_TYPE'
      AND verification_status='verified' AND crawl_enabled
      $SITE_FILTER
@@ -79,15 +80,20 @@ fail_run() {
 }
 trap fail_run ERR
 
+BOARD_TOKEN_ARGS=()
+if [[ "$SOURCE_TYPE" == "greenhouse" && -n "${SOURCE_KEY:-}" ]]; then
+  BOARD_TOKEN_ARGS=(--board-token "$SOURCE_KEY")
+fi
+
 if [[ "$SOURCE_TYPE" == "icims" ]]; then
   ICIMS_TIMEOUT="${ICIMS_CRAWL_TIMEOUT:-30}"
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --country US --timeout "$ICIMS_TIMEOUT" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SOURCE_TYPE" == "generic_html" ]]; then
   python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 elif [[ "$SCOPE_METHOD" == "local_filter" ]]; then
-  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market unknown > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" "${BOARD_TOKEN_ARGS[@]}" --default-market unknown > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 else
-  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" --default-market US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
+  python3 "$REPO_DIR/$ADAPTER_SCRIPT" --url "$SITE_URL" --output "$JOBS_CSV" "${BOARD_TOKEN_ARGS[@]}" --default-market US > "$METRICS_JSON" 2> "$ADAPTER_STDERR"
 fi
 IFS=$'\t' read -r REQUESTS PAGES RAW_COUNT PARSED_COUNT DUPLICATES HTTP_STATUS LATENCY_MS SOURCE_FILTERED < <(
   python3 - "$METRICS_JSON" <<'PY'

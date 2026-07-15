@@ -34,8 +34,21 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def board_token(url: str) -> str:
-    parts = [part for part in urlsplit(url).path.split("/") if part]
+def board_token(url: str, explicit: str | None = None) -> str:
+    if explicit and explicit.strip():
+        return explicit.strip()
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    parts = [part for part in parsed.path.split("/") if part]
+    if host.endswith("greenhouse.io"):
+        if not parts:
+            raise ValueError(f"Cannot derive Greenhouse board token from {url}")
+        return parts[0]
+    # Branded Greenhouse careers pages, e.g. https://asana.com/jobs/all
+    if parts and parts[0].casefold() == "jobs":
+        label = host.removeprefix("www.").split(".")[0]
+        if label:
+            return label
     if not parts:
         raise ValueError(f"Cannot derive Greenhouse board token from {url}")
     return parts[0]
@@ -45,11 +58,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
     ap.add_argument("--output", required=True, type=Path)
+    ap.add_argument("--board-token", default=None,
+                    help="Explicit Greenhouse board token; preferred over URL parsing")
     ap.add_argument("--default-market", choices=("US", "non-US", "unknown"), default="unknown")
     args = ap.parse_args()
 
     started = time.monotonic()
-    endpoint = f"https://boards-api.greenhouse.io/v1/boards/{board_token(args.url)}/jobs?content=true"
+    token = board_token(args.url, args.board_token)
+    endpoint = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
     request = Request(endpoint, headers={"User-Agent": "JobPush/0.1", "Accept": "application/json"})
     with urlopen(request, timeout=30) as response:
         status = response.status
