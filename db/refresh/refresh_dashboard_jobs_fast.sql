@@ -2,6 +2,10 @@
 -- pipeline; rebuilding it from historical postings makes the dashboard slow.
 BEGIN;
 
+-- Snapshot rows are keyed by (site_id, external_job_id).  A hash join would
+-- scan every historical raw HTML blob; indexed lookups are far cheaper here.
+SET LOCAL enable_hashjoin = off;
+
 WITH eligibility AS MATERIALIZED (
   SELECT fast.site_id, fast.external_job_id,
          (snapshot.cleaned_description ILIKE '%sponsor%'
