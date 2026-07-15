@@ -21,19 +21,34 @@ def connection():
     )
 
 
+def discard_connection(conn) -> None:
+    if not conn.closed:
+        try:
+            conn.rollback()
+        except psycopg2.Error:
+            pass
+        conn.close()
+    connection.clear()
+
+
 def query(sql: str, params: tuple[Any, ...] = ()) -> pd.DataFrame:
-    conn = connection()
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute(sql, params)
-            rows = cursor.fetchall()
-            columns = [item.name for item in cursor.description]
-        conn.commit()
-        return pd.DataFrame(rows, columns=columns)
-    except Exception:
-        conn.rollback()
-        connection.clear()
-        raise
+    for attempt in range(2):
+        conn = connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                columns = [item.name for item in cursor.description]
+            conn.commit()
+            return pd.DataFrame(rows, columns=columns)
+        except (psycopg2.InterfaceError, psycopg2.OperationalError):
+            discard_connection(conn)
+            if attempt:
+                raise
+        except Exception:
+            discard_connection(conn)
+            raise
+    raise RuntimeError("database query retry exhausted")
 
 
 def execute(sql: str, params: tuple[Any, ...]) -> None:
@@ -43,6 +58,5 @@ def execute(sql: str, params: tuple[Any, ...]) -> None:
             cursor.execute(sql, params)
         conn.commit()
     except Exception:
-        conn.rollback()
-        connection.clear()
+        discard_connection(conn)
         raise
