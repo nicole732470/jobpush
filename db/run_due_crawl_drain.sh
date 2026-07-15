@@ -46,11 +46,10 @@ if (( completed_batches > 0 )); then
 fi
 
 remaining="$(due_count)"
-if (( completed_batches >= MAX_BATCHES && remaining > 0 )); then
-  echo "Daily export withheld: batch limit reached with $remaining due sites still queued." >&2
+if (( remaining > 0 )); then
+  echo "Daily export withheld: $remaining due sites are still queued." >&2
   exit 1
 fi
-(( remaining == 0 )) || echo "Crawl attempted all queued sites; $remaining failed/unsupported sites remain due for recovery."
 
 echo "==> daily crawl health analysis and safe recovery"
 bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
@@ -59,6 +58,10 @@ echo "==> rediscover stale Greenhouse/Ashby/Lever boards (daily capped)"
 bash "$SCRIPT_DIR/run_rediscover_failed_ats.sh" "${ATS_REDISCOVERY_LIMIT:-25}"
 
 echo "==> export today's newly crawled target jobs and email JSON"
-JOBPUSH_CRAWL_COMPLETE=1 bash "$SCRIPT_DIR/run_daily_job_export.sh"
+if [[ "${JOBPUSH_SKIP_DAILY_EXPORT:-0}" == "1" ]]; then
+  echo "Daily export skipped for this catch-up run."
+else
+  JOBPUSH_CRAWL_COMPLETE=1 bash "$SCRIPT_DIR/run_daily_job_export.sh"
+fi
 
 echo "Nightly crawl drain completed at $(date -u +%FT%TZ); batches=$completed_batches remaining_due=$remaining"
