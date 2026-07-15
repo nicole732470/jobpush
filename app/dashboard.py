@@ -1703,11 +1703,17 @@ def job_description_export(search: str, tiers: tuple[str, ...]) -> pd.DataFrame:
     )
 
 
-def copy_full_jd_button(description: str) -> None:
+@st.cache_data(ttl=60)
+def all_target_jd_json() -> tuple[str, int]:
+    frame = job_description_export("", ("P0", "P1", "P2", "P3"))
+    return frame.to_json(orient="records", force_ascii=False, date_format="iso"), len(frame)
+
+
+def copy_full_jd_button(description: str, label: str = "Copy full JD") -> None:
     encoded = base64.b64encode(description.encode("utf-8")).decode("ascii")
     components.html(
         f"""
-        <button id="copy-jd" style="background:#111827;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font:14px sans-serif">Copy full JD</button>
+        <button id="copy-jd" style="background:#111827;color:white;border:0;border-radius:8px;padding:8px 12px;cursor:pointer;font:14px sans-serif">{label}</button>
         <script>
         document.getElementById("copy-jd").onclick = async function() {{
           const text = new TextDecoder().decode(Uint8Array.from(atob("{encoded}"), c => c.charCodeAt(0)));
@@ -2735,6 +2741,15 @@ if selected_page == "Jobs to apply":
 if selected_page == "JD library":
     st.subheader("JD library")
     st.caption("只展示当前最终 Target 且已完整抓到 JD 的岗位；历史重复快照、Review、非 Target 和失败 JD 不会出现在这里。")
+    if st.button("Prepare all current Target JDs as JSON", key="jd-library-copy-all-prepare"):
+        full_json, job_count = all_target_jd_json()
+        st.session_state["jd-library-copy-all-json"] = full_json
+        st.session_state["jd-library-copy-all-count"] = job_count
+    full_library_json = st.session_state.get("jd-library-copy-all-json")
+    if full_library_json:
+        job_count = int(st.session_state["jd-library-copy-all-count"])
+        st.caption(f"Prepared {job_count:,} complete current Target JDs · {len(full_library_json) / 1024 / 1024:.1f} MB")
+        copy_full_jd_button(full_library_json, "Copy all current Target JDs (JSON)")
     jd_filters = st.columns(4)
     jd_search = jd_filters[0].text_input("Company / title / location", key="jd-library-search")
     jd_tier_choice = jd_filters[1].selectbox("Priority tier", ["All", "P0", "P1", "P2", "P3", "P0 + P1"], key="jd-library-tier")
