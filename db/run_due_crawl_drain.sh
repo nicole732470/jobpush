@@ -61,11 +61,18 @@ bash "$SCRIPT_DIR/run_daily_crawl_health.sh"
 echo "==> rediscover stale Greenhouse/Ashby/Lever boards (daily capped)"
 bash "$SCRIPT_DIR/run_rediscover_failed_ats.sh" "${ATS_REDISCOVERY_LIMIT:-25}"
 
-echo "==> export today's newly crawled target jobs and email JSON"
+echo "==> persist complete JDs for today's newly crawled target jobs"
+JOBPUSH_REFRESH_SINCE="$RUN_STARTED_AT" JOBPUSH_CRAWL_COMPLETE=1 \
+  bash "$SCRIPT_DIR/run_daily_jd_ingestion.sh"
+
+echo "==> optionally export today's target jobs; email is opt-in"
 if [[ "${JOBPUSH_SKIP_DAILY_EXPORT:-0}" == "1" ]]; then
-  echo "Daily export skipped for this catch-up run."
+  echo "Daily JSON export skipped; JD records are already persisted."
 else
+  SKIP_EMAIL=1
+  [[ "${JOBPUSH_SEND_DAILY_EMAIL:-0}" == "1" ]] && SKIP_EMAIL=0
   JOBPUSH_REFRESH_SINCE="$RUN_STARTED_AT" JOBPUSH_CRAWL_COMPLETE=1 \
+    JOBPUSH_SKIP_JD_FETCH=1 JOBPUSH_SKIP_EMAIL="$SKIP_EMAIL" \
     bash "$SCRIPT_DIR/run_daily_job_export.sh"
 fi
 

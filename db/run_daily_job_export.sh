@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# After the nightly crawl and title classification finish, email today's new target jobs as JSON.
+# Persist complete JDs, then optionally export today's target jobs and email the JSON.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +19,13 @@ SKIP_EXPORT="${JOBPUSH_SKIP_EXPORT:-0}"
 JD_INPUT_FILE="${JOBPUSH_JD_INPUT_FILE:-}"
 SKIP_JD_FETCH="${JOBPUSH_SKIP_JD_FETCH:-0}"
 JD_PARSER_VERSION="${JOBPUSH_JD_PARSER_VERSION:-jd-v2-complete-content}"
-REFRESH_SINCE="${JOBPUSH_REFRESH_SINCE:-$(date -u -d '24 hours ago' +%FT%TZ)}"
+if [[ -n "${JOBPUSH_REFRESH_SINCE:-}" ]]; then
+  REFRESH_SINCE="$JOBPUSH_REFRESH_SINCE"
+elif date -u -d '24 hours ago' +%FT%TZ >/dev/null 2>&1; then
+  REFRESH_SINCE="$(date -u -d '24 hours ago' +%FT%TZ)"
+else
+  REFRESH_SINCE="$(date -u -v-24H +%FT%TZ)"
+fi
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -103,16 +109,16 @@ CREATE TEMP TABLE jd_stage (
 ) ON COMMIT DROP;
 \copy jd_stage FROM '$RESULTS' WITH (FORMAT csv, HEADER true)
 INSERT INTO jobpush.job_description_snapshots (
-  site_id,external_job_id,source_fingerprint,raw_html,cleaned_description,content_type,
+  site_id,external_job_id,source_fingerprint,parser_version,raw_html,cleaned_description,content_type,
   apply_url,work_arrangement,salary_text,posted_date,scrape_status,scrape_error,
   http_status,attempt_count,scraped_at,updated_at
 )
-SELECT site_id,external_job_id,source_fingerprint,NULLIF(raw_html,''),NULLIF(cleaned_description,''),
+SELECT site_id,external_job_id,source_fingerprint,'$JD_PARSER_VERSION',NULLIF(raw_html,''),NULLIF(cleaned_description,''),
        NULLIF(content_type,''),NULLIF(apply_url,''),NULLIF(work_arrangement,''),NULLIF(salary_text,''),
        posted_date,scrape_status,NULLIF(scrape_error,''),NULLIF(http_status,0),attempt_count,scraped_at,now()
 FROM jd_stage
 ON CONFLICT(site_id,external_job_id) DO UPDATE SET
-  source_fingerprint=EXCLUDED.source_fingerprint,raw_html=EXCLUDED.raw_html,
+  source_fingerprint=EXCLUDED.source_fingerprint,parser_version=EXCLUDED.parser_version,raw_html=EXCLUDED.raw_html,
   cleaned_description=EXCLUDED.cleaned_description,content_type=EXCLUDED.content_type,
   apply_url=EXCLUDED.apply_url,work_arrangement=EXCLUDED.work_arrangement,
   salary_text=EXCLUDED.salary_text,posted_date=EXCLUDED.posted_date,
@@ -132,8 +138,8 @@ if (( TO_FETCH > 0 )); then
 fi
 
 if [[ "$SKIP_EXPORT" == "1" ]]; then
-  (( TO_FETCH > 0 )) && exit 0
-  exit 10
+  echo "JD ingestion complete: date=$EXPORT_DATE processed=$TO_FETCH export=skipped email=skipped"
+  exit 0
 fi
 
 "${PSQL[@]}" -qAt -v ON_ERROR_STOP=1 -c "
