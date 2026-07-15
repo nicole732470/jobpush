@@ -19,8 +19,7 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
   WITH current_target_keys AS MATERIALIZED (
     SELECT fast.site_id,fast.external_job_id
     FROM jobpush.dashboard_jobs_fast fast
-    JOIN jobpush.job_title_labels label USING(normalized_title)
-    WHERE label.classification_status='target'
+    WHERE fast.role_status='target'
   ), candidates AS (
     SELECT posting.site_id,posting.external_job_id,site.source_type,site.source_key,target.canonical_name AS company,
            posting.title,COALESCE(posting.location,'') AS location,
