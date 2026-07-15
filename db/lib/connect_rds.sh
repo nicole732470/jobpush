@@ -3,6 +3,8 @@
 # Source this file, then use "${PSQL[@]}" for commands.
 
 if [[ -z "${AWS_PROFILE:-}" ]] \
+    && { [[ -f "${AWS_CONFIG_FILE:-${HOME:-}/.aws/config}" ]] \
+         || [[ -f "${AWS_SHARED_CREDENTIALS_FILE:-${HOME:-}/.aws/credentials}" ]]; } \
     && command -v aws >/dev/null \
     && aws configure list-profiles 2>/dev/null | grep -qx 'jobpush-new'; then
   export AWS_PROFILE=jobpush-new

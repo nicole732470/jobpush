@@ -54,19 +54,20 @@ failures=0
 if (( CRAWL_WORKERS > 1 && ${#DUE_SITES[@]} > 1 )) && [[ -z "$SITE_ID_FILTER" ]]; then
   # Network waits dominate these crawls; three workers fit the 2-vCPU host
   # without multiplying the post-crawl classification work.
-  for ((offset=0; offset<${#DUE_SITES[@]}; offset+=CRAWL_WORKERS)); do
-    pids=()
-    for ((index=offset; index<offset+CRAWL_WORKERS && index<${#DUE_SITES[@]}; index++)); do
-      IFS=$'\t' read -r _ _ _ _ site_id <<< "${DUE_SITES[$index]}"
-      CRAWL_WORKERS=1 SITE_ID_FILTER="$site_id" SKIP_POST_CRAWL_TITLE_ML=1 \
-        STRICT_CRAWL_FAILURES=1 bash "$0" 1 &
-      pids+=("$!")
-    done
-    for pid in "${pids[@]}"; do
-      if ! wait "$pid"; then
-        failures=$((failures + 1))
-      fi
-    done
+  active_workers=0
+  for row in "${DUE_SITES[@]}"; do
+    IFS=$'\t' read -r _ _ _ _ site_id <<< "$row"
+    CRAWL_WORKERS=1 SITE_ID_FILTER="$site_id" SKIP_POST_CRAWL_TITLE_ML=1 \
+      STRICT_CRAWL_FAILURES=1 bash "$0" 1 &
+    active_workers=$((active_workers + 1))
+    if (( active_workers >= CRAWL_WORKERS )); then
+      if ! wait -n; then failures=$((failures + 1)); fi
+      active_workers=$((active_workers - 1))
+    fi
+  done
+  while (( active_workers > 0 )); do
+    if ! wait -n; then failures=$((failures + 1)); fi
+    active_workers=$((active_workers - 1))
   done
 else
 for row in "${DUE_SITES[@]}"; do
