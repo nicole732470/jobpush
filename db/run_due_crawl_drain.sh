@@ -41,14 +41,17 @@ for batch_number in $(seq 1 "$MAX_BATCHES"); do
   fi
 done
 
-if (( completed_batches > 0 )); then
-  bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
-fi
-
 remaining="$(due_count)"
 if (( remaining > 0 )); then
   echo "Daily export withheld: $remaining due sites are still queued." >&2
   exit 1
+fi
+
+# The crawl-complete boundary is the queue snapshot immediately after the
+# drain. Sites that become due during the slower classification/export phase
+# belong to the next scheduled run and must not invalidate this one.
+if (( completed_batches > 0 )); then
+  bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
 fi
 
 echo "==> daily crawl health analysis and safe recovery"
