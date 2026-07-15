@@ -17,7 +17,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/jobpush
-ExecStart=/bin/bash -lc 'git pull --ff-only origin main && bash db/run_due_crawl_drain.sh'
+ExecStart=/usr/bin/flock -n /run/jobpush-crawl.lock /bin/bash db/run_due_crawl_drain.sh
 TimeoutStartSec=43200
 UNIT
 )
