@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/connect_rds.sh
 source "$SCRIPT_DIR/lib/connect_rds.sh"
-REFRESH_SINCE="${JOBPUSH_REFRESH_SINCE:-24 hours ago}"
+REFRESH_SINCE="${JOBPUSH_REFRESH_SINCE:-$(date -u -d '24 hours ago' +%FT%TZ)}"
 
 echo "==> incremental post-crawl classification since $REFRESH_SINCE"
 
