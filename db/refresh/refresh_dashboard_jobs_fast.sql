@@ -1,19 +1,39 @@
 -- Refresh only live eligibility. The inventory is maintained by the crawl
 -- pipeline; rebuilding it from historical postings makes the dashboard slow.
+\if :{?refresh_since}
+\else
+\set refresh_since 'epoch'
+\endif
+
 BEGIN;
 
 -- Snapshot rows are keyed by (site_id, external_job_id).  A hash join would
 -- scan every historical raw HTML blob; indexed lookups are far cheaper here.
 SET LOCAL enable_hashjoin = off;
 
-WITH eligibility AS MATERIALIZED (
+WITH changed_keys AS MATERIALIZED (
+  SELECT site_id, external_job_id
+  FROM jobpush.dashboard_jobs_fast
+  WHERE first_seen_at >= :'refresh_since'::timestamptz
+  UNION
+  SELECT fast.site_id, fast.external_job_id
+  FROM jobpush.dashboard_jobs_fast fast
+  JOIN jobpush.job_title_labels label USING(normalized_title)
+  WHERE label.updated_at >= :'refresh_since'::timestamptz
+  UNION
+  SELECT fast.site_id, fast.external_job_id
+  FROM jobpush.job_description_snapshots snapshot
+  JOIN jobpush.dashboard_jobs_fast fast USING(site_id,external_job_id)
+  WHERE snapshot.updated_at >= :'refresh_since'::timestamptz
+), eligibility AS MATERIALIZED (
   SELECT fast.site_id, fast.external_job_id,
          (snapshot.cleaned_description ILIKE '%sponsor%'
           AND jobpush.is_explicit_no_sponsorship(snapshot.cleaned_description)) AS explicit_no_sponsorship,
          snapshot.scrape_status,
          label.classification_status,
          label.canonical_role
-  FROM jobpush.dashboard_jobs_fast fast
+  FROM changed_keys changed
+  JOIN jobpush.dashboard_jobs_fast fast USING(site_id,external_job_id)
   LEFT JOIN jobpush.job_title_labels label
     ON label.normalized_title = fast.normalized_title
   LEFT JOIN jobpush.job_description_snapshots snapshot
@@ -40,5 +60,3 @@ WHERE fast.site_id = classified.site_id AND fast.external_job_id = classified.ex
   AND (fast.role_status, fast.canonical_role) IS DISTINCT FROM (classified.role_status, classified.canonical_role);
 
 COMMIT;
-
-SELECT count(*) AS dashboard_jobs_fast_rows FROM jobpush.dashboard_jobs_fast;

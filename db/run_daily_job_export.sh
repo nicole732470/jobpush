@@ -19,6 +19,7 @@ SKIP_EXPORT="${JOBPUSH_SKIP_EXPORT:-0}"
 JD_INPUT_FILE="${JOBPUSH_JD_INPUT_FILE:-}"
 SKIP_JD_FETCH="${JOBPUSH_SKIP_JD_FETCH:-0}"
 JD_PARSER_VERSION="${JOBPUSH_JD_PARSER_VERSION:-jd-v2-complete-content}"
+REFRESH_SINCE="${JOBPUSH_REFRESH_SINCE:-24 hours ago}"
 WORK_DIR="$(mktemp -d -t jobpush-daily-export.XXXXXX)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -123,6 +124,11 @@ COMMIT;
 SQL
 else
   printf '%s\n' '{"processed":0,"succeeded":0,"failed":0,"by_ats":{},"failure_reasons":{}}' > "$SCRAPE_REPORT"
+fi
+
+if (( TO_FETCH > 0 )); then
+  "${PSQL[@]}" -v ON_ERROR_STOP=1 -v refresh_since="$REFRESH_SINCE" \
+    -f "$SCRIPT_DIR/refresh/refresh_dashboard_jobs_fast.sql"
 fi
 
 if [[ "$SKIP_EXPORT" == "1" ]]; then

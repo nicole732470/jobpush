@@ -4,18 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/connect_rds.sh
 source "$SCRIPT_DIR/lib/connect_rds.sh"
+REFRESH_SINCE="${JOBPUSH_REFRESH_SINCE:-24 hours ago}"
 
-echo "==> post-crawl title classification"
-bash "$SCRIPT_DIR/run_reapply_latest_title_rules.sh"
-bash "$SCRIPT_DIR/run_local_title_ml.sh"
+echo "==> incremental post-crawl classification since $REFRESH_SINCE"
 
 echo "==> refresh recent crawl target/review counts"
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -P pager=off <<'SQL'
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -v refresh_since="$REFRESH_SINCE" -P pager=off <<'SQL'
 WITH recent_runs AS (
     SELECT run_id, batch_id
     FROM jobpush.crawl_runs
     WHERE status = 'succeeded'
-      AND finished_at >= now() - interval '12 hours'
+      AND finished_at >= :'refresh_since'::timestamptz
 ), refreshed_runs AS (
     UPDATE jobpush.crawl_runs run
     SET target_job_count = counts.target_jobs,
@@ -41,13 +40,8 @@ SET target_job_count = run.target_job_count,
 FROM jobpush.crawl_runs run
 WHERE run.batch_id = batch.batch_id
   AND batch.batch_id IN (SELECT batch_id FROM refreshed_runs);
-
-SELECT classification_status, COALESCE(rule_version, 'unknown') AS rule_version, count(*) AS titles
-FROM jobpush.job_title_labels
-GROUP BY classification_status, COALESCE(rule_version, 'unknown')
-ORDER BY titles DESC
-LIMIT 12;
 SQL
 
 echo "==> refresh dashboard jobs fast table"
-"${PSQL[@]}" -v ON_ERROR_STOP=1 -f "$SCRIPT_DIR/refresh/refresh_dashboard_jobs_fast.sql"
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -v refresh_since="$REFRESH_SINCE" \
+  -f "$SCRIPT_DIR/refresh/refresh_dashboard_jobs_fast.sql"

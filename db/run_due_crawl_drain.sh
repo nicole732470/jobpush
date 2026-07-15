@@ -19,7 +19,8 @@ due_count() {
 }
 
 initial_due="$(due_count)"
-echo "Nightly crawl drain started at $(date -u +%FT%TZ); due_sites=$initial_due batch_size=$BATCH_SIZE"
+RUN_STARTED_AT="$(date -u +%FT%TZ)"
+echo "Nightly crawl drain started at $RUN_STARTED_AT; due_sites=$initial_due batch_size=$BATCH_SIZE"
 (( initial_due > 0 )) || echo "No sites are due; continuing to the post-crawl export check."
 
 completed_batches=0
@@ -51,7 +52,7 @@ fi
 # drain. Sites that become due during the slower classification/export phase
 # belong to the next scheduled run and must not invalidate this one.
 if (( completed_batches > 0 )); then
-  bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
+  JOBPUSH_REFRESH_SINCE="$RUN_STARTED_AT" bash "$SCRIPT_DIR/run_post_crawl_title_classification.sh"
 fi
 
 echo "==> daily crawl health analysis and safe recovery"
@@ -64,7 +65,8 @@ echo "==> export today's newly crawled target jobs and email JSON"
 if [[ "${JOBPUSH_SKIP_DAILY_EXPORT:-0}" == "1" ]]; then
   echo "Daily export skipped for this catch-up run."
 else
-  JOBPUSH_CRAWL_COMPLETE=1 bash "$SCRIPT_DIR/run_daily_job_export.sh"
+  JOBPUSH_REFRESH_SINCE="$RUN_STARTED_AT" JOBPUSH_CRAWL_COMPLETE=1 \
+    bash "$SCRIPT_DIR/run_daily_job_export.sh"
 fi
 
 echo "Nightly crawl drain completed at $(date -u +%FT%TZ); batches=$completed_batches remaining_due=$remaining"
