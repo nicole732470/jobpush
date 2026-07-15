@@ -18,7 +18,10 @@ source "$SCRIPT_DIR/lib/connect_rds.sh"
 JOBS_CSV="$(mktemp /tmp/jobpush-adapter-jobs.XXXXXX)"
 METRICS_JSON="$(mktemp /tmp/jobpush-adapter-metrics.XXXXXX)"
 ADAPTER_STDERR="$(mktemp /tmp/jobpush-adapter-stderr.XXXXXX)"
-trap 'rm -f "$JOBS_CSV" "$METRICS_JSON" "$ADAPTER_STDERR"' EXIT
+MISSING_JOBS_CSV="$(mktemp /tmp/jobpush-missing-jobs.XXXXXX)"
+CONFIRMED_CLOSED_CSV="$(mktemp /tmp/jobpush-confirmed-closed.XXXXXX)"
+CLOSURE_METRICS_JSON="$(mktemp /tmp/jobpush-closure-metrics.XXXXXX)"
+trap 'rm -f "$JOBS_CSV" "$METRICS_JSON" "$ADAPTER_STDERR" "$MISSING_JOBS_CSV" "$CONFIRMED_CLOSED_CSV" "$CLOSURE_METRICS_JSON"' EXIT
 
 SITE_FILTER=""
 if [[ -n "${SITE_ID:-}" ]]; then
@@ -123,15 +126,19 @@ USING crawl_stage b
 WHERE a.ctid < b.ctid
   AND a.external_job_id = b.external_job_id;
 
+\copy (SELECT p.external_job_id,p.job_url FROM jobpush.job_postings p WHERE p.site_id=$SITE_ID AND p.active AND p.market_scope='US' AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id)) TO '$MISSING_JOBS_CSV' WITH (FORMAT csv, HEADER true)
+\! python3 "$REPO_DIR/scripts/verify_closed_job_links.py" "$MISSING_JOBS_CSV" "$CONFIRMED_CLOSED_CSV" > "$CLOSURE_METRICS_JSON"
+
+CREATE TEMP TABLE confirmed_closed (external_job_id TEXT PRIMARY KEY) ON COMMIT DROP;
+\copy confirmed_closed FROM '$CONFIRMED_CLOSED_CSV' WITH (FORMAT csv, HEADER true)
+
 WITH counts AS (
   SELECT count(*) FILTER (WHERE p.external_job_id IS NULL) new_count,
          count(*) FILTER (WHERE p.external_job_id IS NOT NULL) updated_count
   FROM crawl_stage s LEFT JOIN jobpush.job_postings p
     ON p.site_id=$SITE_ID AND p.external_job_id=s.external_job_id
 ), closed AS (
-  SELECT count(*) closed_count FROM jobpush.job_postings p
-  WHERE p.site_id=$SITE_ID AND p.active AND p.market_scope='US'
-    AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id)
+  SELECT count(*) closed_count FROM confirmed_closed
 )
 UPDATE jobpush.crawl_runs r SET new_job_count=counts.new_count,
   updated_job_count=counts.updated_count,closed_job_count=closed.closed_count
@@ -154,8 +161,9 @@ ON CONFLICT(site_id,external_job_id) DO UPDATE SET
   active=TRUE,last_seen_at=now(),closed_at=NULL,last_run_id=$RUN_ID,updated_at=now();
 
 UPDATE jobpush.job_postings p SET active=FALSE,closed_at=now(),last_run_id=$RUN_ID,updated_at=now()
-WHERE p.site_id=$SITE_ID AND p.active AND p.market_scope='US'
-  AND NOT EXISTS (SELECT 1 FROM crawl_stage s WHERE s.external_job_id=p.external_job_id);
+FROM confirmed_closed closed
+WHERE p.site_id=$SITE_ID AND p.external_job_id=closed.external_job_id
+  AND p.active AND p.market_scope='US';
 INSERT INTO jobpush.job_title_labels(normalized_title)
 SELECT DISTINCT normalized_title FROM crawl_stage ON CONFLICT DO NOTHING;
 
@@ -178,6 +186,7 @@ COMMIT;
 SQL
 trap - ERR
 
+cat "$CLOSURE_METRICS_JSON"
 "${PSQL[@]}" -P pager=off -c \
   "SELECT b.batch_id,b.batch_name,b.status,b.requests_count,b.discovered_job_count,
       b.target_job_count,b.review_job_count,r.pages_fetched,r.latency_ms,

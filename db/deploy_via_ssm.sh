@@ -45,6 +45,7 @@ if [[ -d "$REPO_DIR/scripts" ]]; then
     resolve_generic_ats_links.py \
     find_generic_jsonld_sites.py \
     guess_ats_sites.py \
+    verify_closed_job_links.py \
     evaluate_title_classifier_variants.py \
     classify_job_titles_ai.py \
     train_local_title_classifier.py market_scope.py slice_csv.py; do
