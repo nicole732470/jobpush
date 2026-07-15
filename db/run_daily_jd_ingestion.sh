@@ -3,6 +3,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${JOBPUSH_REFRESH_SINCE:=$(date -u +%FT%TZ)}"
+export JOBPUSH_REFRESH_SINCE
 
 JOBPUSH_EXPORT_SCOPE="${JOBPUSH_JD_INGEST_SCOPE:-all_active_target}" \
   JOBPUSH_SKIP_EXPORT=1 JOBPUSH_SKIP_EMAIL=1 \
