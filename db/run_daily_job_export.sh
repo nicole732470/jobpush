@@ -60,10 +60,13 @@ elif [[ -n "$JD_INPUT_FILE" ]]; then
   cp "$JD_INPUT_FILE" "$TARGETS"
 else
   "${PSQL[@]}" -v ON_ERROR_STOP=1 -c "\copy (
-  WITH current_target_keys AS MATERIALIZED (
-    SELECT fast.site_id,fast.external_job_id
-    FROM jobpush.dashboard_jobs_fast fast
-    WHERE fast.role_status='target'
+  WITH title_target_keys AS MATERIALIZED (
+    SELECT posting.site_id,posting.external_job_id
+    FROM jobpush.job_postings posting
+    JOIN jobpush.job_title_labels label USING(normalized_title)
+    WHERE posting.active
+      AND posting.market_scope='US'
+      AND label.classification_status='target'
   ), candidates AS (
     SELECT posting.site_id,posting.external_job_id,site.source_type,site.source_key,target.canonical_name AS company,
            posting.title,COALESCE(posting.location,'') AS location,
@@ -73,7 +76,7 @@ else
            md5(concat_ws(E'\\x1f','$JD_PARSER_VERSION',posting.title,posting.location,posting.category,posting.job_url,
                posting.description_snippet,posting.posted_text,posting.employment_type)) AS source_fingerprint,
            snapshot.source_fingerprint AS saved_fingerprint,snapshot.scrape_status,snapshot.attempt_count
-    FROM current_target_keys
+    FROM title_target_keys
     JOIN jobpush.job_postings posting USING(site_id,external_job_id)
     JOIN jobpush.career_sites site USING(site_id)
     JOIN jobpush.crawl_targets target ON target.consolidation_key=posting.consolidation_key
