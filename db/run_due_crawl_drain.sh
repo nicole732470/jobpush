@@ -62,8 +62,19 @@ echo "==> rediscover stale Greenhouse/Ashby/Lever boards (daily capped)"
 bash "$SCRIPT_DIR/run_rediscover_failed_ats.sh" "${ATS_REDISCOVERY_LIMIT:-25}"
 
 echo "==> persist complete JDs for today's newly crawled target jobs"
-JOBPUSH_REFRESH_SINCE="$RUN_STARTED_AT" JOBPUSH_CRAWL_COMPLETE=1 \
-  bash "$SCRIPT_DIR/run_daily_jd_ingestion.sh"
+# Keep raw JD HTML bounded in memory. A normal day completes in one pass;
+# backlog JDs remain for the dedicated backfill runner instead of OOMing this job.
+JD_BATCH_SIZE="${JOBPUSH_JD_BATCH_SIZE:-250}"
+[[ "$JD_BATCH_SIZE" =~ ^[1-9][0-9]*$ ]] || { echo "JOBPUSH_JD_BATCH_SIZE must be positive" >&2; exit 2; }
+while :; do
+  jd_output="$(JOBPUSH_REFRESH_SINCE="$RUN_STARTED_AT" JOBPUSH_CRAWL_COMPLETE=1 \
+    JOBPUSH_JD_WORKERS="${JOBPUSH_JD_WORKERS:-4}" JOBPUSH_JD_LIMIT="$JD_BATCH_SIZE" \
+    bash "$SCRIPT_DIR/run_daily_jd_ingestion.sh")"
+  printf '%s\n' "$jd_output"
+  jd_processed="$(sed -n 's/.*processed=\([0-9][0-9]*\).*/\1/p' <<<"$jd_output" | tail -1)"
+  [[ "$jd_processed" =~ ^[0-9]+$ ]] || { echo "Could not read JD batch result" >&2; exit 1; }
+  (( jd_processed < JD_BATCH_SIZE )) && break
+done
 
 echo "==> optionally export today's target jobs; email is opt-in"
 if [[ "${JOBPUSH_SKIP_DAILY_EXPORT:-0}" == "1" ]]; then
