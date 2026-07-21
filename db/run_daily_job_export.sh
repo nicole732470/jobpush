@@ -128,6 +128,38 @@ ON CONFLICT(site_id,external_job_id) DO UPDATE SET
   attempt_count=CASE WHEN jobpush.job_description_snapshots.source_fingerprint=EXCLUDED.source_fingerprint
     THEN jobpush.job_description_snapshots.attempt_count+EXCLUDED.attempt_count ELSE EXCLUDED.attempt_count END,
   scraped_at=EXCLUDED.scraped_at,updated_at=now();
+
+-- SmartRecruiters detail APIs are useful to us but confusing to a person.
+-- Keep their raw JSON in the snapshot and publish the provider's human apply URL.
+UPDATE jobpush.job_postings posting
+SET job_url = stage.apply_url,
+    updated_at = now()
+FROM jd_stage stage
+JOIN jobpush.career_sites site ON site.site_id = stage.site_id
+WHERE posting.site_id = stage.site_id
+  AND posting.external_job_id = stage.external_job_id
+  AND site.source_type = 'smartrecruiters'
+  AND posting.job_url ~ '^https?://api\\.smartrecruiters\\.com/'
+  AND stage.scrape_status = 'succeeded'
+  AND stage.apply_url ~ '^https?://jobs\\.smartrecruiters\\.com/';
+
+UPDATE jobpush.job_description_snapshots snapshot
+SET source_fingerprint = md5(concat_ws(E'\\x1f','$JD_PARSER_VERSION',posting.title,posting.location,posting.category,
+    posting.job_url,posting.description_snippet,posting.posted_text,posting.employment_type)),
+    updated_at = now()
+FROM jobpush.job_postings posting
+JOIN jobpush.career_sites site USING (site_id)
+WHERE snapshot.site_id = posting.site_id
+  AND snapshot.external_job_id = posting.external_job_id
+  AND site.source_type = 'smartrecruiters'
+  AND posting.job_url ~ '^https?://jobs\\.smartrecruiters\\.com/';
+
+UPDATE jobpush.dashboard_jobs_fast fast
+SET job_url = posting.job_url
+FROM jobpush.job_postings posting
+WHERE fast.site_id = posting.site_id
+  AND fast.external_job_id = posting.external_job_id
+  AND fast.job_url IS DISTINCT FROM posting.job_url;
 COMMIT;
 SQL
 else
