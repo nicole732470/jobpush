@@ -261,13 +261,14 @@ else
 fi
 
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -v export_date="$EXPORT_DATE" -v export_path="$EXPORT_JSON" \
-  -v exported="$EXPORTED" -v full_jd="$FULL_JD" -v failed_jd="$FAILED_JD" -v scope="$EXPORT_SCOPE" -v email_status="$EMAIL_STATUS" -v email_error="$EMAIL_ERROR" <<'SQL'
+  -v exported="$EXPORTED" -v full_jd="$FULL_JD" -v failed_jd="$FAILED_JD" -v link_rejected="$LINK_REJECTED" \
+  -v scope="$EXPORT_SCOPE" -v email_status="$EMAIL_STATUS" -v email_error="$EMAIL_ERROR" <<'SQL'
 INSERT INTO jobpush.daily_job_exports(
   export_date,status,export_path,jobs_discovered,jobs_processed,successful_jd_retrieval,
   skipped_jobs,failed_jobs,exported_jobs,report,email_status,email_error,started_at,finished_at
 ) VALUES (
   :'export_date',CASE WHEN :failed_jd=0 THEN 'succeeded' ELSE 'partial' END,:'export_path',:exported,:exported,:full_jd,0,:failed_jd,:exported,
-  jsonb_build_object('scope',:'scope','exported_jobs',:exported,'complete_job_descriptions',:full_jd,'incomplete_job_descriptions',:failed_jd,'link_validation_rejected',$LINK_REJECTED),
+  jsonb_build_object('scope',:'scope','exported_jobs',:exported,'complete_job_descriptions',:full_jd,'incomplete_job_descriptions',:failed_jd,'link_validation_rejected',:link_rejected),
   :'email_status',NULLIF(:'email_error',''),now(),now()
 )
 ON CONFLICT(export_date) DO UPDATE SET
