@@ -46,6 +46,8 @@ if [[ "${JOBPUSH_CRAWL_COMPLETE:-0}" != "1" ]]; then
 fi
 
 JSON_LINES="$WORK_DIR/jobs.jsonl"
+VALIDATED_JSON_LINES="$WORK_DIR/jobs.validated.jsonl"
+LINK_REPORT="$WORK_DIR/link_report.json"
 TARGETS="$WORK_DIR/jd_targets.csv"
 RESULTS="$WORK_DIR/jd_results.csv"
 SCRAPE_REPORT="$WORK_DIR/jd_report.json"
@@ -193,7 +195,7 @@ fi
     'description_fallback', CASE WHEN snapshot.scrape_status<>'succeeded' OR snapshot.scrape_status IS NULL THEN NULLIF(posting.description_snippet,'') END,
     'posted_date', NULLIF(posting.posted_text,''),
     'first_seen_at', posting.first_seen_at,
-    'job_url', posting.job_url,
+    'job_url', COALESCE(NULLIF(snapshot.apply_url,''), posting.job_url),
     'role_family', label.canonical_role,
     'company_tier', target.priority_tier,
     'apply_url', snapshot.apply_url,
@@ -217,15 +219,19 @@ fi
   ORDER BY posting.first_seen_at DESC, target.canonical_name, posting.title
 " > "$JSON_LINES"
 
+python3 "$REPO_DIR/scripts/validate_export_links.py" \
+  "$JSON_LINES" "$VALIDATED_JSON_LINES" "$LINK_REPORT"
+
 # A posting may temporarily exist under more than one site record while site
 # consolidation catches up. Never send or process the same job URL twice.
-jq -s 'unique_by(.job_url)' "$JSON_LINES" > "$EXPORT_JSON"
+jq -s 'unique_by(.job_url)' "$VALIDATED_JSON_LINES" > "$EXPORT_JSON"
 EXPORTED="$(jq length "$EXPORT_JSON")"
 FULL_JD="$(jq '[.[]|select(.description_complete==true)]|length' "$EXPORT_JSON")"
 FAILED_JD=$(( EXPORTED - FULL_JD ))
+LINK_REJECTED="$(jq '.rejected' "$LINK_REPORT")"
 jq -n --arg date "$EXPORT_DATE" --arg scope "$EXPORT_SCOPE" --argjson exported "$EXPORTED" \
-  --argjson full_jd "$FULL_JD" --argjson failed_jd "$FAILED_JD" \
-  '{export_date:$date,scope:$scope,exported_jobs:$exported,complete_job_descriptions:$full_jd,incomplete_job_descriptions:$failed_jd}' > "$REPORT_JSON"
+  --argjson full_jd "$FULL_JD" --argjson failed_jd "$FAILED_JD" --slurpfile links "$LINK_REPORT" \
+  '{export_date:$date,scope:$scope,exported_jobs:$exported,complete_job_descriptions:$full_jd,incomplete_job_descriptions:$failed_jd,link_validation:$links[0]}' > "$REPORT_JSON"
 
 EMAIL_STATUS="pending"
 EMAIL_ERROR=""
@@ -261,7 +267,7 @@ INSERT INTO jobpush.daily_job_exports(
   skipped_jobs,failed_jobs,exported_jobs,report,email_status,email_error,started_at,finished_at
 ) VALUES (
   :'export_date',CASE WHEN :failed_jd=0 THEN 'succeeded' ELSE 'partial' END,:'export_path',:exported,:exported,:full_jd,0,:failed_jd,:exported,
-  jsonb_build_object('scope',:'scope','exported_jobs',:exported,'complete_job_descriptions',:full_jd,'incomplete_job_descriptions',:failed_jd),
+  jsonb_build_object('scope',:'scope','exported_jobs',:exported,'complete_job_descriptions',:full_jd,'incomplete_job_descriptions',:failed_jd,'link_validation_rejected',$LINK_REJECTED),
   :'email_status',NULLIF(:'email_error',''),now(),now()
 )
 ON CONFLICT(export_date) DO UPDATE SET
