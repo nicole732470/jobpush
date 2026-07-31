@@ -44,8 +44,7 @@ done
 
 remaining="$(due_count)"
 if (( remaining > 0 )); then
-  echo "Daily export withheld: $remaining due sites are still queued." >&2
-  exit 1
+  echo "Continuing with a partial daily export; $remaining failed sites remain queued for retry." >&2
 fi
 
 # The crawl-complete boundary is the queue snapshot immediately after the
