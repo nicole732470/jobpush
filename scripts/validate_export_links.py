@@ -19,6 +19,12 @@ def rejection_reason(status: int, final_url: str) -> str:
     return ""
 
 
+def page_has_title(body: bytes, title: str) -> bool:
+    expected = re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+    actual = re.sub(r"[^a-z0-9]+", " ", body.decode("utf-8", errors="ignore").lower())
+    return not expected or expected in actual
+
+
 def check(index: int, job: dict, timeout: int) -> tuple[int, dict, str]:
     url = job.get("apply_url") or job.get("job_url") or ""
     if not url.startswith(("https://", "http://")):
@@ -27,6 +33,9 @@ def check(index: int, job: dict, timeout: int) -> tuple[int, dict, str]:
         request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; JobPush/1.0)"})
         with urlopen(request, timeout=timeout) as response:
             reason = rejection_reason(getattr(response, "status", 200), response.geturl())
+            if not reason and "html" in response.headers.get("Content-Type", "").lower():
+                if not page_has_title(response.read(1_000_000), str(job.get("title") or "")):
+                    reason = "job_title_missing"
     except HTTPError as exc:
         # 401/403 are often bot protection: do not treat them as a closed job.
         reason = "" if exc.code in (401, 403) else rejection_reason(exc.code, exc.geturl() or url)
