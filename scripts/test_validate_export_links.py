@@ -1,4 +1,4 @@
-from validate_export_links import page_has_title, rejection_reason
+from validate_export_links import page_has_title_and_id, rejection_reason
 
 
 def test_rejection_reason():
@@ -8,6 +8,6 @@ def test_rejection_reason():
     assert rejection_reason(200, "https://example.com/job") == ""
 
 
-def test_page_has_title():
-    assert page_has_title(b"<h1>Product Manager, Growth</h1>", "Product Manager, Growth")
-    assert not page_has_title(b"<h1>All open roles</h1>", "Product Manager, Growth")
+def test_page_has_title_and_id():
+    assert page_has_title_and_id(b"<h1>Product Manager, Growth</h1> id=123", "Product Manager, Growth", "123", "https://example.com/123")
+    assert not page_has_title_and_id(b"<h1>Product Manager, Growth</h1>", "Product Manager, Growth", "123", "https://example.com/jobs")

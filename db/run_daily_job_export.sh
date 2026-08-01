@@ -188,6 +188,7 @@ fi
   )
   SELECT jsonb_strip_nulls(jsonb_build_object(
     'company', target.canonical_name,
+    'external_job_id', posting.external_job_id,
     'title', posting.title,
     'location', NULLIF(posting.location,''),
     'category', NULLIF(posting.category,''),
