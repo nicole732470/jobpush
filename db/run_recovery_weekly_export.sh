@@ -23,7 +23,7 @@ while [[ "$day" < "$END_DATE" || "$day" == "$END_DATE" ]]; do
     [[ "$processed" =~ ^[0-9]+$ ]] || { echo "Could not read JD batch result" >&2; exit 1; }
     (( processed < 250 )) && break
   done
-  JOBPUSH_CRAWL_COMPLETE=1 SKIP_JD_FETCH=1 SKIP_EMAIL=1 bash "$SCRIPT_DIR/run_daily_job_export.sh" "$day"
+  JOBPUSH_CRAWL_COMPLETE=1 SKIP_JD_FETCH=1 JOBPUSH_SKIP_EMAIL=1 bash "$SCRIPT_DIR/run_daily_job_export.sh" "$day"
   files+=("$EXPORT_DIR/$day.json")
   day="$(date -u -d "$day + 1 day" +%F)"
 done
@@ -32,6 +32,7 @@ combined="$EXPORT_DIR/${START_DATE}_to_${END_DATE}_verified.json"
 report="$WORK_DIR/report.json"
 jq -s 'add | unique_by(.job_url)' "${files[@]}" > "$combined"
 count="$(jq length "$combined")"
+(( count > 0 )) || { echo "Weekly recovery export has no verified jobs; email skipped."; exit 0; }
 jq -n --arg scope "verified recovery $START_DATE to $END_DATE" --argjson count "$count" \
   '{scope:$scope,exported_jobs:$count,complete_job_descriptions:$count,incomplete_job_descriptions:0}' > "$report"
 python3 "$REPO_DIR/scripts/build_ses_attachment_request.py" "$combined" "$report" "$WORK_DIR/request.json" \
