@@ -19,6 +19,7 @@ SKIP_EXPORT="${JOBPUSH_SKIP_EXPORT:-0}"
 JD_INPUT_FILE="${JOBPUSH_JD_INPUT_FILE:-}"
 SKIP_JD_FETCH="${JOBPUSH_SKIP_JD_FETCH:-0}"
 JD_PARSER_VERSION="${JOBPUSH_JD_PARSER_VERSION:-jd-v2-complete-content}"
+FORCE_JD_REFRESH="${JOBPUSH_FORCE_JD_REFRESH:-0}"
 if [[ -n "${JOBPUSH_REFRESH_SINCE:-}" ]]; then
   REFRESH_SINCE="$JOBPUSH_REFRESH_SINCE"
 elif date -u -d '24 hours ago' +%FT%TZ >/dev/null 2>&1; then
@@ -32,6 +33,7 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 [[ "$EXPORT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "export date must be YYYY-MM-DD" >&2; exit 2; }
 [[ "$EXPORT_SCOPE" == "new_target_jobs_only" || "$EXPORT_SCOPE" == "all_active_target" ]] || { echo "invalid JOBPUSH_EXPORT_SCOPE" >&2; exit 2; }
 [[ "$JD_LIMIT" =~ ^[0-9]+$ ]] || { echo "JOBPUSH_JD_LIMIT must be a non-negative integer" >&2; exit 2; }
+[[ "$FORCE_JD_REFRESH" == "0" || "$FORCE_JD_REFRESH" == "1" ]] || { echo "JOBPUSH_FORCE_JD_REFRESH must be 0 or 1" >&2; exit 2; }
 mkdir -p "$EXPORT_DIR"
 
 DATE_FILTER="AND (posting.first_seen_at AT TIME ZONE 'America/Chicago')::date='$EXPORT_DATE'::date"
@@ -89,7 +91,7 @@ else
          site_id,external_job_id,source_fingerprint,source_type,source_key,company,title,location,
          employment_type,posted_text,job_url,first_seen_date
   FROM candidates
-  WHERE saved_fingerprint IS NULL OR saved_fingerprint<>source_fingerprint
+  WHERE '$FORCE_JD_REFRESH' = '1' OR saved_fingerprint IS NULL OR saved_fingerprint<>source_fingerprint
      OR (scrape_status='failed' AND attempt_count<9)
   ORDER BY job_url,
            (saved_fingerprint=source_fingerprint AND scrape_status='succeeded') DESC NULLS LAST,
