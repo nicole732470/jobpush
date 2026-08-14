@@ -9,6 +9,12 @@ SECRET_ID="${SECRET_ID:-joblens/app}"
 RESERVE_CREDITS="${RESERVE_CREDITS:-25}"
 MAX_PER_KEY="${MAX_PER_KEY:-0}"
 TAVILY_WORKERS="${TAVILY_WORKERS:-1}"
+BATCH_SIZE="${BATCH_SIZE:-150}"
+
+[[ "$BATCH_SIZE" =~ ^[1-9][0-9]*$ ]] || {
+  echo "BATCH_SIZE must be a positive integer" >&2
+  exit 2
+}
 
 mask_key() {
   local key="$1"
@@ -69,10 +75,14 @@ for i in "${!KEYS[@]}"; do
     continue
   fi
 
-  echo "Running $remaining searches with $masked (usage=$used/$limit, reserve=$RESERVE_CREDITS, workers=$TAVILY_WORKERS)."
-  TAVILY_API_KEY="$key" TAVILY_WORKERS="$TAVILY_WORKERS" \
-    bash "$SCRIPT_DIR/run_discover_career_sites_expansion.sh" "$remaining"
-  total_planned=$((total_planned + remaining))
+  echo "Running $remaining searches with $masked (usage=$used/$limit, reserve=$RESERVE_CREDITS, workers=$TAVILY_WORKERS, batch_size=$BATCH_SIZE)."
+  while (( remaining > 0 )); do
+    batch=$(( remaining < BATCH_SIZE ? remaining : BATCH_SIZE ))
+    TAVILY_API_KEY="$key" TAVILY_WORKERS="$TAVILY_WORKERS" \
+      bash "$SCRIPT_DIR/run_discover_career_sites_expansion.sh" "$batch"
+    remaining=$((remaining - batch))
+    total_planned=$((total_planned + batch))
+  done
 done
 
 unset key KEYS
